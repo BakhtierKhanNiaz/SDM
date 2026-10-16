@@ -42,7 +42,9 @@ the partial file.
 ### Acceptance criteria
 
 - All tests listed above pass; ruff is clean.
-- A real-world download from a URL the owner chooses succeeds (manual demonstration).
+- A real-world download from a URL the owner chooses succeeds (manual demonstration). Done
+  2026-10-17: python.org's `python-3.14.7-embed-amd64.zip`, SHA-256 matched the published
+  value (details in the [roadmap](../roadmap.md)).
 - Compared with IDM for the planned scenarios before the feature counts as *Verified*.
 
 ### Open questions (to answer by observing IDM)

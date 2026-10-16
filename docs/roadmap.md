@@ -40,7 +40,15 @@ Done on branch `m2/single-connection-downloader`:
 
 Remaining before M2 is **Done**:
 
-- [ ] One real-world download from a URL the owner chooses (manual demonstration).
+- [x] One real-world download (2026-10-17, approved by the owner):
+  `uv run sdm-get https://www.python.org/ftp/python/3.14.7/python-3.14.7-embed-amd64.zip -v`
+  saved 12,673,227 bytes to `Downloads` in about 3 s. The SHA-256 matched the value python.org
+  publishes (`d297e5ff…a6ab1f15`), all 37 zip members passed their CRC checks, and no
+  `.sdmpart` file was left behind. Nothing from the zip was run.
 - [ ] IDM comparison for the scenarios in
   [behavior-observations.md](research/behavior-observations.md). Features become *Verified*
   in the parity matrix only after this.
+
+Known issue (cosmetic, found in the real-world demo): with `-v`, log lines are printed on the
+same line as `sdm-get`'s progress display, because both write to stderr and the progress line
+doesn't end with a newline. The downloaded file is unaffected.

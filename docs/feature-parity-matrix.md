@@ -18,7 +18,7 @@ notes say whether IDM was observed. A feature is never *Verified* without that c
 
 | Feature | Status | Target milestone | Evidence / notes |
 |---|---|---|---|
-| Download a file from a URL | Tested | M2 | FEAT-001; `tests/integration/test_http_download.py`. IDM not yet observed |
+| Download a file from a URL | Tested | M2 | FEAT-001; `tests/integration/test_http_download.py`; real-world download with checksum match (roadmap). IDM not yet observed |
 | Filename detection and sanitization | Tested | M2 | ADR-0008; `tests/unit/test_filenames.py`, hostile-name security tests |
 | Duplicate-filename policy | Tested | M2 | `name (n).ext`, never overwrite (ADR-0008). IDM's behavior unknown |
 | Redirect handling | Tested | M2 | Manual, ≤ 10 hops, each re-checked (ADR-0007) |
