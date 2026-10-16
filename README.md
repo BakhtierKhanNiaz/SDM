@@ -3,8 +3,9 @@
 A personal-use download manager for Windows. It's modelled on the observable behavior of
 Internet Download Manager (IDM) and written from scratch (clean-room).
 
-> **Status: M1, project skeleton.** The app opens an empty window. It can't download anything
-> yet. See [docs/roadmap.md](docs/roadmap.md) for what comes next.
+> **Status: M2, single-connection downloader.** `sdm-get` downloads one file from the command
+> line. The window is still empty (downloads appear in it from M3). See
+> [docs/roadmap.md](docs/roadmap.md).
 
 ## Requirements
 
@@ -26,8 +27,15 @@ You don't need to activate the virtual environment: prefix commands with `uv run
 ## Run
 
 ```powershell
-uv run python app.py
+uv run python app.py                                   # the window (empty for now)
+uv run sdm-get https://example.com/file.zip            # download into your Downloads folder
+uv run sdm-get URL --dest D:\Downloads                 # choose the folder
+uv run sdm-get URL --allow-local-network               # allow e.g. a NAS at 192.168.x.x
 ```
+
+`sdm-get` never overwrites a file: if `file.zip` exists, it saves `file (1).zip`. For safety,
+it refuses addresses on this computer and, unless you pass `--allow-local-network`, on your
+local network.
 
 ## Test and lint
 
@@ -50,7 +58,9 @@ The tests draw windows off-screen, so nothing pops up while they run.
 | `src/sdm/scheduler/` | Queues and scheduling (M6+) |
 | `src/sdm/bridge/` | Browser native messaging host (M7+) |
 | `src/sdm/ui/` | PySide6 desktop interface |
-| `tests/` | Automated tests (`unit/` now; `integration/` and `security/` when first needed) |
+| `src/sdm/cli.py` | The `sdm-get` command |
+| `tests/` | `unit/`, `integration/` (local mock server), `security/` |
+| `scripts/` | Reproducible evaluations, e.g. the HTTP library benchmark |
 | `docs/` | Research, requirements, architecture, testing, decisions |
 
 ## Documentation

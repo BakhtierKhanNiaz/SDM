@@ -1,7 +1,8 @@
 # System architecture
 
-Status: **M1 skeleton.** Only the UI package has code; the others are empty placeholders
-with their responsibilities defined.
+Status: **M2.** `core` (errors, URLs, filenames), `engine` (single-connection downloader,
+network policy) and the `sdm-get` command line have code. `ui` shows an empty window.
+`storage`, `scheduler` and `bridge` are still placeholders.
 
 ## Overview
 
@@ -43,10 +44,36 @@ through a thin adapter layer in `ui`.
 
 - `app.py` (source checkout) → `sdm.app.main()` → creates the `QApplication` and `MainWindow`.
 - The `sdm` GUI script in `.venv\Scripts\` (from `[project.gui-scripts]`) calls the same function.
+- `sdm-get` (from `[project.scripts]`) → `sdm.cli.main()` → runs one download with
+  `asyncio.run`. It sits outside `ui` because it uses no Qt.
+
+## The download engine (M2)
+
+`sdm.engine.http_download.download(url, folder, policy=, settings=, on_progress=)` is an
+`async` function. One call is one download, built on aiohttp (ADR-0006):
+
+```
+download()
+  └─ attempt loop (≤ 3 attempts, backoff, Retry-After)
+       └─ _attempt()
+            ├─ follow redirects by hand ─ each hop: validate_url + policy.check_url_host
+            │                              connect: PolicyResolver checks resolved IPs
+            ├─ check status (200 only)
+            ├─ choose + sanitize filename, check free space
+            ├─ stream into "<name>.sdmpart" (exclusive create), report progress
+            ├─ verify size, rename without overwrite → "<name>" or "<name> (n)"
+            └─ any failure or cancellation → delete the .sdmpart file
+```
+
+Library and OS exceptions are translated in one place (`_translated_errors`) into
+`DownloadError`s with user-readable messages and a `retryable` flag.
+
+**Concurrency:** `asyncio`. Cancelling the task (`task.cancel()`) stops a download promptly.
+File writes run in the event loop thread for now (ADR-0006 consequences).
 
 ## Decided later
 
-- Concurrency model: threads vs asyncio, tied to the HTTP library choice (M2).
-- How engine progress reaches the UI without blocking it (M3).
+- How the window runs the engine: a background thread with its own event loop, with
+  progress delivered to the UI thread through Qt signals (M3).
 - Database schema ([data-model.md](data-model.md), M3).
 - Native messaging host packaging and registration (M7).

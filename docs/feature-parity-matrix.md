@@ -13,13 +13,17 @@ Tested → Verified. A feature can also be *Blocked / unsupported* (with a reaso
   [feature-specifications.md](requirements/feature-specifications.md).
 - *Verified*: SDM has been compared against the spec and the observed reference behavior.
 
+SDM's own implementation can reach *Tested* before IDM has been observed (as in M2), so the
+notes say whether IDM was observed. A feature is never *Verified* without that comparison.
+
 | Feature | Status | Target milestone | Evidence / notes |
 |---|---|---|---|
-| Download a file from a URL | Not investigated | M2 | |
-| Filename detection and sanitization | Not investigated | M2 | Windows path limit is ~260 chars (long paths disabled) |
-| Duplicate-filename policy | Not investigated | M2 | |
-| Redirect handling | Not investigated | M2 | |
-| Timeouts and retry policy | Not investigated | M2 | |
+| Download a file from a URL | Tested | M2 | FEAT-001; `tests/integration/test_http_download.py`. IDM not yet observed |
+| Filename detection and sanitization | Tested | M2 | ADR-0008; `tests/unit/test_filenames.py`, hostile-name security tests |
+| Duplicate-filename policy | Tested | M2 | `name (n).ext`, never overwrite (ADR-0008). IDM's behavior unknown |
+| Redirect handling | Tested | M2 | Manual, ≤ 10 hops, each re-checked (ADR-0007) |
+| Timeouts and retry policy | Tested | M2 | 15 s connect / 30 s idle; 3 attempts; Retry-After honoured |
+| Safe destinations (SSRF protection) | Tested | M2 | SDM-specific safety feature (ADR-0007); IDM comparison not applicable |
 | Progress, speed and time remaining | Not investigated | M3 | |
 | Cancel a download | Not investigated | M3 | |
 | Download history | Not investigated | M3 | |

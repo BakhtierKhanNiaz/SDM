@@ -26,8 +26,9 @@ milestone**; it is the full mission, rules and milestone list.
   (PowerShell script execution is restricted for the user, so `Activate.ps1` fails).
 - Git is at `C:\Program Files\Git\cmd\git.exe` (on PATH for new shells).
 - Windows Defender **Controlled Folder Access is on**: Documents, Desktop, Pictures, Videos and
-  Music block writes from unrecognized apps. That is why the project lives on `D:\`. SDM must
-  report blocked writes to those folders clearly rather than failing silently.
+  Music block writes from unrecognized apps. That is why the project lives on `D:\`. A blocked
+  write reaches Python as `FileNotFoundError` even though the folder exists; SDM translates it.
+- This shell's PATH may predate the Git install: if `git` isn't found, use the full path above.
 - Windows long paths are disabled: full paths are limited to about 260 characters.
 - IDM 6.42 build 22 and Free Download Manager are installed and registered as Chrome native
   messaging hosts. Test SDM's extension in a separate Chrome profile; give SDM's host a unique name.
@@ -37,7 +38,8 @@ milestone**; it is the full mission, rules and milestone list.
 ```powershell
 uv sync                     # create/update .venv from uv.lock
 uv run python app.py        # start the app
-uv run pytest               # all tests (Qt runs off-screen)
+uv run sdm-get URL          # download one file (--dest, --allow-local-network, -v)
+uv run pytest               # all tests (Qt off-screen, local mock HTTP server)
 uv run ruff check .         # lint
 uv run ruff format .        # format
 uv add <pkg>                # runtime dependency; `uv add --dev <pkg>` for dev tools
@@ -47,11 +49,14 @@ uv add <pkg>                # runtime dependency; `uv add --dev <pkg>` for dev t
 
 - `app.py`: launcher. `src/sdm/app.py`: creates the QApplication.
 - `src/sdm/core`: shared types, settings, paths, logging; imports no other SDM package.
-- `src/sdm/engine`: HTTP download engine; **never imports Qt**.
+- `src/sdm/engine`: asyncio + aiohttp download engine (ADR-0006); **never imports Qt**.
+  `policy.py` is the SSRF defense (ADR-0007): keep every new request path going through it.
 - `src/sdm/storage`: SQLite. `src/sdm/scheduler`: queues and scheduling.
 - `src/sdm/bridge`: native messaging host; all messages are untrusted.
 - `src/sdm/ui`: PySide6; the only package that imports Qt widgets.
-- `tests/unit` now; add `tests/integration` and `tests/security` when the first such test exists.
+- `src/sdm/cli.py`: `sdm-get`. `scripts/`: reproducible evaluations.
+- `tests/unit`, `tests/integration`, `tests/security`. `MockServer` and the `fetch` fixture
+  live in `tests/conftest.py` (test modules can't import each other: importlib mode).
 
 ## Non-negotiable rules
 

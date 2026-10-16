@@ -7,8 +7,8 @@ and its tests have actually run and passed.
 |---|---|---|
 | M0 | Inspect the environment, repository and dependencies | Done (2026-10-17) |
 | M1 | Project structure, configuration, documentation, initial desktop window | Done (2026-10-17) |
-| M2 | Reliable single-connection HTTP downloader | Next |
-| M3 | Progress, cancellation, history and persistent state | Not started |
+| M2 | Reliable single-connection HTTP downloader | Implemented and tested; real-world demo and IDM comparison pending |
+| M3 | Progress, cancellation, history and persistent state | Next |
 | M4 | Pause/resume and crash recovery | Not started |
 | M5 | Parallel segmented downloads | Not started |
 | M6 | Queue management and scheduling | Not started |
@@ -30,13 +30,17 @@ Acceptance criteria, all met on 2026-10-17:
 - `uv run ruff check .` and `uv run ruff format --check .` report no problems.
 - The work is committed on branch `m1/project-skeleton`.
 
-## M2: Single-connection downloader (next)
+## M2: Single-connection downloader
 
-To plan at the start of M2:
+Done on branch `m2/single-connection-downloader`:
 
-- Choose the HTTP library (httpx vs aiohttp): a short evaluation recorded as an ADR.
-- Write the first feature specification: download one URL to a file with status validation,
-  redirects, filename detection and sanitization, unknown sizes, timeouts, a limited retry
-  policy, temporary files and safe finalization, and a duplicate-filename policy.
-- Set up a local mock HTTP server for tests (no third-party sites).
-- Begin Stage A observations of IDM's basic download behavior for comparison.
+- HTTP library chosen by measurement: aiohttp (ADR-0006, `scripts/bench_http_clients/`).
+- Spec FEAT-001; network policy (ADR-0007); naming and no-overwrite policy (ADR-0008).
+- `sdm-get` command line; local mock server; unit, integration and security tests.
+
+Remaining before M2 is **Done**:
+
+- [ ] One real-world download from a URL the owner chooses (manual demonstration).
+- [ ] IDM comparison for the scenarios in
+  [behavior-observations.md](research/behavior-observations.md). Features become *Verified*
+  in the parity matrix only after this.

@@ -3,10 +3,11 @@
 ## How to run
 
 ```powershell
-uv run pytest                 # everything
-uv run pytest tests/unit -v   # one folder, verbose
-uv run ruff check .           # lint
-uv run ruff format --check .  # formatting
+uv run pytest                     # everything (139 tests, ~30 s)
+uv run pytest tests/unit -v       # one folder, verbose
+uv run pytest -k redirect         # tests whose name contains "redirect"
+uv run ruff check .               # lint
+uv run ruff format --check .      # formatting
 ```
 
 Qt runs off-screen during tests (`QT_QPA_PLATFORM=offscreen`, set in `tests/conftest.py`), so
@@ -14,31 +15,51 @@ no windows appear and the tests don't need a desktop.
 
 ## Layers
 
-| Folder | What goes there | When |
-|---|---|---|
-| `tests/unit/` | Fast tests of one module, no network or real disk beyond `tmp_path` | now |
-| `tests/integration/` | Engine against a local mock HTTP server, storage against real SQLite files | from M2 |
-| `tests/security/` | Malicious URLs, filenames, redirects, browser messages | from M2 |
+| Folder | What goes there |
+|---|---|
+| `tests/unit/` | One module at a time, no network: URLs, filenames, policy, Retry-After, CLI, window |
+| `tests/integration/` | The engine downloading from the local mock server |
+| `tests/security/` | Unsafe destinations, hostile redirects and filenames, the CLI refusing this computer |
+
+## The mock server
+
+`MockServer` in `tests/conftest.py` is Python's standard-library `http.server`, running on
+`127.0.0.1` with a random port in a background thread. Each test scripts its responses:
+
+```python
+# The first request gets a 503, every later one gets the file.
+mock_server.add("/flaky", mock_server.status(503), mock_server.file(DATA))
+```
+
+Route builders: `file` (with or without `Content-Length`, extra headers), `status`,
+`redirect`, `truncated` (promises N bytes, sends half), and `stall` (sends a little, then goes
+silent). `mock_server.hits[path]` counts requests, and `mock_server.requests` keeps their
+headers.
+
+Fixtures: `fetch(url, ...)` runs one download into `tmp_path`, with loopback allowed (the
+default policy blocks the test server, as it should) and short timeouts.
 
 ## Rules
 
-- No third-party websites in tests. Use a local mock HTTP server bound to `127.0.0.1` and
-  synthetic files.
-- Tests must be deterministic: no sleeps that race, no dependence on real time where avoidable.
+- No third-party websites in tests: local mock server and synthetic data only.
+- Deterministic: no timing races, and small timeouts only where the test is about timeouts.
+- Simulate what can't be produced safely: disk-full, `PermissionError`, and the Controlled
+  Folder Access error are injected with `monkeypatch`.
 - Every bug fix gets a regression test when practical.
 - A test is "passing" only if it actually ran and passed. Skipped or not-run tests are reported
   as such.
 
-## Current tests (M1)
+## Coverage vs the brief's list
 
-`tests/unit/test_main_window.py`: the package is installed; the window opens with an empty
-list and the status "No downloads yet"; the list has the six expected columns; File → Exit
-closes the window.
-
-## Planned coverage (from the project brief)
-
-Valid/invalid URLs, successful downloads, redirects, network interruption, cancellation, retries,
-unknown sizes, resume after restart, unsupported ranges, bad `Content-Range`, remote file
-changes, segment failures, filename collisions, disk-write failures (including Controlled Folder
-Access), database recovery, malicious browser messages, unsafe redirects and local-network
-access, and bridge disconnection.
+| Brief item | Status |
+|---|---|
+| Valid and invalid URLs | Covered (M2) |
+| Successful downloads, unknown sizes | Covered (M2) |
+| Redirects; unsafe redirects and local-network access | Covered (M2) |
+| Network interruption, retry behavior | Covered (M2) |
+| Cancellation | Covered (M2, engine level) |
+| Filename collisions, disk-write failures | Covered (M2) |
+| Resume after restart, unsupported ranges, bad `Content-Range`, remote file changes | M4–M5 |
+| Concurrent segment failures | M5 |
+| Database recovery | M3–M4 |
+| Malicious browser messages, bridge disconnection | M7 |

@@ -1,7 +1,7 @@
 # Security model
 
-Status: **initial principles (M1).** Each rule becomes concrete code and tests in the milestone
-listed.
+Status: **M2.** Rules marked *Implemented* have code and tests; the others are planned for
+the milestone listed.
 
 ## Trust boundaries
 
@@ -10,34 +10,40 @@ listed.
 | URLs, redirects, response headers, file contents | Untrusted | engine (M2) |
 | Filenames from URLs or `Content-Disposition` | Untrusted | engine (M2) |
 | Messages from the browser extension | Untrusted | bridge (M7) |
-| User input in the SDM window | Trusted intent, still validated | ui |
+| User input in the SDM window or `sdm-get` | Trusted intent, still validated | ui, cli |
 | Local database and settings | Trusted, but must survive corruption | storage (M3) |
 
 ## Rules
 
-1. **Protocols:** only `http` and `https`. Reject `file:`, `ftp:`, `data:`, `javascript:` and
-   anything else (M2).
-2. **Destinations:** requests to loopback, link-local and private-network addresses, including
-   ones reached through redirects, need an explicit, documented policy (M2/M8). Re-check every
-   redirect hop.
-3. **Filenames:** sanitize for Windows (reserved names such as `CON`, invalid characters,
-   trailing dots and spaces, path separators, `..`), keep the full path under ~260 characters,
-   and never write outside the chosen download folder (M2).
-4. **No overwrite by default:** existing files are never replaced silently (M2).
-5. **Never execute** downloaded files, and never open them automatically.
-6. **No local HTTP server.** Browser communication goes only through Chrome Native Messaging,
-   restricted to SDM's own extension ID (M7).
-7. **Browser messages:** a strict schema, a size limit, and only "download this URL" style
-   requests. No filesystem operations, no arbitrary paths, and safe error replies that leak
-   nothing (M7).
-8. **Secrets:** never log cookies, tokens, authorization headers or full query strings that
-   may hold credentials (all milestones).
-9. **Privacy:** no browsing-history collection beyond explicit handoffs, and no data sent to
-   third parties.
-10. **Dependencies:** free/open-source only, with license and support checked first and
-    versions pinned in `uv.lock`.
+| # | Rule | Status |
+|---|---|---|
+| 1 | **Protocols:** only `http` and `https`, on the first request and every redirect hop. No embedded `user:pass@` credentials. | Implemented (M2) — `sdm.core.urls` |
+| 2 | **Destinations:** ADR-0007. Loopback, link-local, multicast, unspecified and reserved addresses are blocked. Private networks need `--allow-local-network`. IP literals are checked per hop, and hostnames after DNS inside aiohttp's resolver. | Implemented (M2) — `sdm.engine.policy` |
+| 3 | **Filenames:** one sanitized Windows component (ADR-0008). Never written outside the chosen folder. Length fits the 260-character path limit. Bidi-control spoofing removed. | Implemented (M2) — `sdm.core.filenames` |
+| 4 | **No overwrite:** existing files are never replaced. A taken name becomes `name (n).ext`. | Implemented (M2) |
+| 5 | **Never execute** downloaded files, and never open them automatically. | Holds: no code opens downloads |
+| 6 | **No local HTTP server.** Browser communication goes only through Chrome Native Messaging, restricted to SDM's own extension ID. | Planned (M7) |
+| 7 | **Browser messages:** strict schema, size limit, "download this URL" requests only. No filesystem operations or arbitrary paths. Safe error replies. | Planned (M7) |
+| 8 | **Secrets:** logs show URLs without credentials or query strings (`redact_url`). Cookies and authorization headers are never logged. | Implemented for URLs (M2); headers when auth arrives |
+| 9 | **Privacy:** no browsing-history collection beyond explicit handoffs. No data sent to third parties. | Holds |
+| 10 | **Dependencies:** free/open-source only, license and support checked, versions pinned in `uv.lock`. | Holds (ADR-0001, ADR-0006) |
+| 11 | **Proxies:** proxy environment variables are ignored, because a proxy would hide the real destination from rule 2. | Implemented (M2) |
+
+Disguised spellings of loopback (`127.1`, `2130706433`, `0x7f000001`, `127.000.000.001`)
+never reach the target: aiohttp rejects non-canonical IPv4 forms, and Windows DNS can't
+resolve the hex form (`test_disguised_spellings_of_this_computer_never_reach_it`).
+
+## Known gaps (to revisit)
+
+- NAT64 (`64:ff9b::/96`) and 6to4 (`2002::/16`) IPv6 addresses that embed a private IPv4
+  address are not unwrapped before checking.
+- Redirects from https to http are allowed. Browsers increasingly block such insecure
+  downloads; decide in M8 when downloads come from the browser.
+- A server that sends no `Content-Length` and closes early is indistinguishable from a
+  complete download (inherent to HTTP). Integrity checks (M9) can help when a checksum is known.
 
 ## Environment notes
 
-- Windows Controlled Folder Access is on. Writes to protected folders fail, and SDM must
-  report that clearly rather than retrying forever or losing data.
+- Windows Controlled Folder Access is on. A blocked write surfaces in Python as
+  `FileNotFoundError` (errno 2), even though the folder exists (observed 2026-10-17). SDM
+  translates both that and `PermissionError` into a message that names Controlled Folder Access.
