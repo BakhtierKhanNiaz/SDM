@@ -1,0 +1,46 @@
+[project]
+name = "sdm"
+version = "0.1.0"
+description = "SDM (Smart Download Manager): a personal-use download manager for Windows."
+readme = "README.md"
+requires-python = ">=3.12"
+classifiers = ["Private :: Do Not Upload"]
+dependencies = [
+    "pyside6-essentials>=6.12.0",
+]
+
+[project.gui-scripts]
+sdm = "sdm.app:main"
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13"]
+build-backend = "uv_build"
+
+[tool.uv]
+# uv's cache is on C: and the project on D:; hardlinks can't cross drives, so copy.
+link-mode = "copy"
+
+[tool.ruff]
+line-length = 100
+# Lint against our minimum supported Python, not the newer one we develop on.
+target-version = "py312"
+
+[tool.ruff.lint]
+# E/W: style, F: likely bugs, I: import order, B: common bug patterns,
+# UP: modern syntax available in 3.12, S: security checks (bandit rules).
+select = ["E", "W", "F", "I", "B", "UP", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]  # pytest uses plain assert statements
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --import-mode=importlib"
+qt_api = "pyside6"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-qt>=4.5.0",
+    "ruff>=0.17.1",
+]
