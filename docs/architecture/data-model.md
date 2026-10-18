@@ -1,6 +1,6 @@
 # Data model
 
-Status: **M4, schema version 2.** Code: `sdm/core/downloads.py` (states, record) and
+Status: **M5, schema version 3.** Code: `sdm/core/downloads.py` (states, record) and
 `sdm/storage/database.py` (SQLite). Decisions: ADR-0010.
 
 ## Where it lives
@@ -27,6 +27,7 @@ SQLite runs in WAL mode, so `sdm.db-wal` and `sdm.db-shm` appear next to it whil
 | `created_at`, `updated_at`, `finished_at` | text | ISO 8601 times in UTC (`finished_at`: when it stopped, also for paused) |
 | `part_path` | text, null | The `.sdmpart` file while unfinished (M4). Only trusted if it is a `.sdmpart` file directly in `folder` |
 | `etag`, `last_modified` | text, null | The server's version tags, sent back with `If-Range` when resuming (M4) |
+| `segments` | text, null | For a split download: JSON list of `[start, end, received]` parts covering the whole file (M5). Checked strictly when read; a map that doesn't cover the file exactly means "start over" |
 | `resumable` | 0/1 | The server advertised (`Accept-Ranges: bytes`) or proved (a `206`) that it can resume (M4) |
 
 Index: `downloads_by_url` (for the "you downloaded this before" check).
@@ -57,7 +58,7 @@ queued ──▶ downloading ──▶ completed
 
 ## Versions and upgrades
 
-- `PRAGMA user_version` holds the schema version (2 now; version 2 rebuilt the table to
+- `PRAGMA user_version` holds the schema version (3 now; version 3 added `segments`; version 2 rebuilt the table to
   allow `paused` and add the resume columns, copying every row with its id). Each entry in `_MIGRATIONS` upgrades
   one version, inside its own transaction, so a failed upgrade changes nothing.
 - A database made by a newer SDM (higher version) is refused with a message and left untouched.

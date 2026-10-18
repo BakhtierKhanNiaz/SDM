@@ -17,6 +17,7 @@ from pathlib import Path
 
 from sdm.core.downloads import DownloadRecord, DownloadState, PartialDownload, check_transition
 from sdm.core.errors import SDMError
+from sdm.core.segments import encode_segments
 
 log = logging.getLogger(__name__)
 
@@ -76,9 +77,19 @@ _MIGRATIONS = [
     ALTER TABLE downloads_v2 RENAME TO downloads;
     CREATE INDEX downloads_by_url ON downloads (url);
     """,
+    # Version 3 (M5): which byte ranges of a split download have arrived (JSON).
+    """
+    ALTER TABLE downloads ADD COLUMN segments TEXT;
+    """,
 ]
 SCHEMA_VERSION = len(_MIGRATIONS)
-_NO_PARTIAL = {"part_path": None, "etag": None, "last_modified": None, "resumable": 0}
+_NO_PARTIAL = {
+    "part_path": None,
+    "etag": None,
+    "last_modified": None,
+    "resumable": 0,
+    "segments": None,
+}
 
 INTERRUPTED_MESSAGE = "SDM was closed before this download finished."
 
@@ -196,6 +207,7 @@ class DownloadStore:
             etag=partial.etag,
             last_modified=partial.last_modified,
             resumable=int(partial.resumable),
+            segments=encode_segments(partial.segments) if partial.segments else None,
         )
 
     def mark_downloading(self, download_id: int) -> None:
@@ -300,4 +312,5 @@ def _record(row: sqlite3.Row) -> DownloadRecord:
         etag=row["etag"],
         last_modified=row["last_modified"],
         resumable=bool(row["resumable"]),
+        segments=row["segments"],
     )

@@ -27,6 +27,10 @@ class DownloadSettings:
     max_retry_after: float = 60.0  # cap on a server's Retry-After request
     max_redirects: int = 10
     chunk_size: int = 64 * 1024
+    # Splitting a download across connections (M5, ADR-0012).
+    max_connections: int = 8  # as IDM used in OBS-001
+    min_split_size: int = 2 * 1024 * 1024  # smaller files use one connection
+    min_part_size: int = 1024 * 1024
     user_agent: str = f"SDM/{__version__}"
 
 

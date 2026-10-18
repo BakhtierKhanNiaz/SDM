@@ -204,3 +204,38 @@ deleted. A changed decision gets a new record that supersedes the old one.
   across retries add up to exactly the file size). Paused partial files take disk space until
   resumed or cancelled. A server that lies about ranges just causes a restart, never a corrupt
   file (`tests/integration/test_resume.py`).
+
+## ADR-0012: Segmented downloads
+
+- **Date:** 2026-10-19 · **Status:** Accepted (M5 plan approved by the project owner)
+- **Context:** The brief asks for parallel segmented downloads "when the server supports them",
+  with range validation, ETag/Last-Modified handling, and never assembling inconsistent file
+  versions. OBS-001: IDM used 8 connections for a 1 MiB file (1 plain + 7 `Range` attempts,
+  start points halving, no `If-Range`) and dropped them on `200`. OBS-004: its extra
+  connections went to the final URL after a redirect.
+- **Decision:**
+  - Split only when the file is at least 2 MiB, the server advertises `Accept-Ranges: bytes`
+    and gives a strong ETag or Last-Modified. Parts are at least 1 MiB; up to 8 connections per
+    download (owner's decisions; IDM splits more eagerly and without version tags).
+  - The first connection is the ordinary request and downloads part 1 from byte 0. The extra
+    connections ask for `bytes=a-b` with `If-Range`, at the final URL (as IDM did, OBS-004).
+    Every request goes through the redirect checks and the network policy.
+  - A part is accepted only from a `206` with `Content-Range` exactly `a-b/total` and the same
+    version tags. A temporary error (5xx, 408, 429) retries the part.
+  - Fallback: if an extra part's first reply can't be trusted, or it can't connect, while the
+    first connection is still open, the extras stop and the first connection carries on to the
+    end (its reply is the whole file). The first connection waits at the end of its part until
+    every extra is confirmed, so fallback is always possible until then. After that, an
+    untrusted reply means the file changed: download again on one connection.
+  - A dropped part retries only its own remaining range; the others continue.
+  - One pre-sized partial file, marked sparse on NTFS (otherwise Windows zero-fills up to every
+    far write, which can block for seconds). All parts write through one file handle.
+  - The parts map is saved about once a second: written data is flushed and `fsync`ed first,
+    on a worker thread, and only then is the map reported. On the event loop thread, `fsync`
+    on a busy disk stalled every connection (seen as a flaky speed test during full runs:
+    1.8–2.4 s instead of 1.0 s; 1.04 s after the fix).
+  - Resume continues every unfinished part with its own range. A damaged or mismatched map
+    starts over; it is never read as "complete" or as a prefix.
+- **Consequences:** Against a per-connection limit of 100 KB/s, 4 connections took 1.02 s
+  against 4.02 s for one (`test_split_download_beats_a_per_connection_speed_limit`). Servers
+  without version tags download on one connection. Dynamic splitting follows in M5b.

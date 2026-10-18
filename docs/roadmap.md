@@ -10,7 +10,7 @@ and its tests have actually run and passed.
 | M2 | Reliable single-connection HTTP downloader | Done (2026-10-18) |
 | M3 | Progress, cancellation, history and persistent state | Done (2026-10-19) |
 | M4 | Pause/resume and crash recovery | Done (2026-10-19) |
-| M5 | Parallel segmented downloads | Not started |
+| M5 | Parallel segmented downloads | In progress (M5a done) |
 | M6 | Queue management and scheduling | Not started |
 | M7 | Chrome extension and native messaging bridge | Not started |
 | M8 | Browser handoff integrated with the download engine | Not started |

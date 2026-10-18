@@ -213,7 +213,7 @@ def test_upgrade_from_version_1_keeps_history(db_path):
 
     store = DownloadStore(db_path)
     try:
-        assert schema_version(db_path) == SCHEMA_VERSION == 2
+        assert schema_version(db_path) == SCHEMA_VERSION  # upgraded all the way
         old = store.get(7)
         assert (old.state, old.file_name, old.received_bytes) == ("completed", "a.zip", 10)
         assert (old.part_path, old.etag, old.resumable) == (None, None, False)

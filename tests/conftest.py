@@ -158,62 +158,92 @@ class MockServer:
         stall_at: tuple[int, float] | None = None,
         content_range: str | None = None,
         log: list | None = None,
+        rate: int | None = None,
+        wrong_range_at: int | None = None,
+        cut_once: dict[int, int] | None = None,
+        changed_after: int | None = None,
+        new_data: bytes | None = None,
+        new_etag: str | None = None,
     ) -> Route:
-        """A server that supports `Range: bytes=N-` like most real ones (206 + Content-Range).
+        """A server that supports `Range: bytes=a-b` and `bytes=a-` like most real ones.
 
-        If-Range that doesn't match the current version tag gets the whole file (200), and a
-        range past the end gets 416. To misbehave on purpose:
-        cut_at: close the connection after sending this many body bytes.
-        stall_at: (n, seconds): send n body bytes, then go silent for that long.
-        content_range: send this Content-Range instead of the right one.
+        Replies 206 with Content-Range, or 200 for the whole file. An If-Range that doesn't
+        match the current version tag gets the whole file (200); a range past the end gets 416.
+        rate: bytes per second per connection (each connection is limited on its own).
         log: gets (Range header, status, body bytes the reply sends) for each request,
             written before sending so a test never reads it too early.
+        To misbehave on purpose:
+        cut_at: close every reply after this many body bytes.
+        stall_at: (n, seconds): send n body bytes, then go silent for that long.
+        content_range: send this Content-Range instead of the right one.
+        wrong_range_at: for the request starting at this byte, send a Content-Range off by one.
+        cut_once: {start byte: n}: the first request starting there is cut after n bytes.
+        changed_after: after this many requests, serve `new_data` with `new_etag`.
         """
+        lock = threading.Lock()
+        state = {"requests": 0}
+        pending_cuts = dict(cut_once or {})
 
         def route(h: http.server.BaseHTTPRequestHandler) -> None:
+            with lock:
+                state["requests"] += 1
+                changed = changed_after is not None and state["requests"] > changed_after
+            current, tag = (new_data, new_etag) if changed else (data, etag)
             requested = h.headers.get("Range")
             if_range = h.headers.get("If-Range")
-            match = re.fullmatch(r"bytes=(\d+)-", requested or "")
+            match = re.fullmatch(r"bytes=(\d+)-(\d*)", requested or "")
             start = int(match.group(1)) if match else None
-            if start is not None and if_range is not None and if_range not in (etag, last_modified):
+            last = int(match.group(2)) if match and match.group(2) else len(current) - 1
+            last = min(last, len(current) - 1)
+            if start is not None and if_range is not None and if_range not in (tag, last_modified):
                 start = None  # the file changed since the client's copy: send it whole
-            # The log is written *before* anything is sent: the client may finish and the test
-            # read the log before this thread runs again (a race seen once in a full run).
-            if start is not None and start >= len(data):
+            if start is not None and (start >= len(current) or start > last):
                 if log is not None:
                     log.append((requested, 416, 0))
                 h.send_response(416)
-                h.send_header("Content-Range", f"bytes */{len(data)}")
+                h.send_header("Content-Range", f"bytes */{len(current)}")
                 h.send_header("Content-Length", "0")
                 h.end_headers()
                 return
-            body = data if start is None else data[start:]
+            body = current if start is None else current[start : last + 1]
             status = 200 if start is None else 206
+            limit = cut_at
+            with lock:
+                if (start or 0) in pending_cuts:
+                    limit = pending_cuts.pop(start or 0)
             if log is not None:
-                planned = len(body) if cut_at is None else min(len(body), cut_at)
+                planned = len(body) if limit is None else min(len(body), limit)
                 log.append((requested, status, planned))  # body bytes this reply will send
             h.send_response(status)
             if accept_ranges:
                 h.send_header("Accept-Ranges", "bytes")
-            if etag:
-                h.send_header("ETag", etag)
+            if tag:
+                h.send_header("ETag", tag)
             if last_modified:
                 h.send_header("Last-Modified", last_modified)
             if status == 206:
+                shown_start = start + 1 if start == wrong_range_at else start
                 h.send_header(
-                    "Content-Range", content_range or f"bytes {start}-{len(data) - 1}/{len(data)}"
+                    "Content-Range", content_range or f"bytes {shown_start}-{last}/{len(current)}"
                 )
             h.send_header("Content-Length", str(len(body)))
             h.end_headers()
-            sent = 0
+            if limit is not None:
+                body = body[:limit]
             if stall_at is not None:
                 first, seconds = stall_at
                 h.wfile.write(body[:first])
                 h.wfile.flush()
-                sent = len(body[:first])
                 time.sleep(seconds)
                 body = body[first:]
-            h.wfile.write(body if cut_at is None else body[: max(0, cut_at - sent)])
+            if rate is None:
+                h.wfile.write(body)
+                return
+            step = max(1, rate // 20)  # 20 sends per second
+            for offset in range(0, len(body), step):
+                h.wfile.write(body[offset : offset + step])
+                h.wfile.flush()
+                time.sleep(step / rate)
 
         return route
 

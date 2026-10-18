@@ -1,6 +1,6 @@
 # Security model
 
-Status: **M4.** Rules marked *Implemented* have code and tests; the others are planned for
+Status: **M5.** Rules marked *Implemented* have code and tests; the others are planned for
 the milestone listed.
 
 ## Trust boundaries
@@ -31,6 +31,7 @@ the milestone listed.
 | 12 | **History database:** per-user `%LOCALAPPDATA%\SDM\sdm.db`. Full URLs are stored (they may hold tokens, ADR-0010) but never logged. Every query uses `?` parameters. A corrupted file is set aside, never deleted. | Implemented (M3a) — `sdm.storage.database`, `test_urls_are_stored_as_data_not_sql` |
 | 14 | **Resume integrity:** a resume continues the file only on a `206` whose `Content-Range` starts exactly where the partial file ends, with the same total and version tags (or a matching 64-byte overlap). Otherwise it restarts, so versions are never mixed. `Content-Range` is parsed strictly (ASCII digits, consistent bounds) (ADR-0011). | Implemented (M4) — `tests/integration/test_resume.py`, `test_content_range.py` |
 | 15 | **Partial-file paths from the database** are used or deleted only if they are `.sdmpart` files directly inside the entry's folder, so a tampered database can't make SDM write or delete elsewhere. | Implemented (M4) — `test_partial_path_outside_the_download_folder_is_ignored` |
+| 16 | **Segmented integrity:** parts come only from `206` replies with the exact requested `Content-Range` and the same version tags, at the final URL through the same redirect checks and policy. Doubt means one connection; a saved parts map that doesn't cover the file exactly is ignored (ADR-0012). | Implemented (M5) — `test_segmented.py`, `test_segments.py` |
 | 13 | **Engine thread:** the window never runs network code, and only the main thread writes the database (ADR-0009). Every download submitted to the manager still goes through rule 2's policy. | Implemented (M3a) — `test_default_policy_blocks_this_computer` |
 
 Disguised spellings of loopback (`127.1`, `2130706433`, `0x7f000001`, `127.000.000.001`)

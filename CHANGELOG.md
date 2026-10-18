@@ -8,6 +8,15 @@ while SDM is in 0.x.
 
 ### Added
 
+- M5a, segmented downloads: big files from servers that support ranges and give a version tag
+  are downloaded over up to 8 connections at once (parts of at least 1 MiB, files of at least
+  2 MiB). Parts are accepted only from exact `206` replies; doubt falls back to one connection;
+  a dropped part retries only its own range. One pre-sized, sparse partial file. The parts map
+  is saved (history schema version 3) after an off-thread `fsync`, so split downloads pause,
+  survive a crash, and resume part by part (ADR-0012). New `sdm.core.segments` and
+  `sdm.engine.segmented`.
+- `MockServer.ranged`: bounded ranges, per-connection `rate`, `wrong_range_at`, `cut_once`,
+  `changed_after`. 44 new tests (337 in total).
 - M4b, the window: Pause, Resume (Retry for failed downloads), Resume all, and Cancel for
   paused entries. A question before pausing on a server that can't resume. Status tooltips
   say whether Resume continues or starts over. The status bar counts paused downloads.

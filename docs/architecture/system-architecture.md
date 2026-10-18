@@ -112,3 +112,18 @@ attempt
 file and version tags (the manager's `PartialSaved` event; the controller stores them). The
 manager's `pause()` keeps the partial file (`Paused` event); `cancel()` deletes it. `shutdown()`
 pauses everything.
+
+## Segmented downloads (M5, ADR-0012)
+
+```
+first GET (no Range) ─────────────── part 1: 0 .. a-1 ──▶ waits at a-1 until all extras confirmed
+extra GET Range: bytes=a-b, If-Range ─ part 2 ─▶ 206 + exact Content-Range + same tags? yes: write
+extra GET Range: bytes=b+1-c ...     ─ part 3     no, while part 1 still open: stop the extras,
+                                                   part 1 carries on to the end (fallback)
+all parts ─▶ one pre-sized, sparse .sdmpart (one file handle) ─▶ rename when every part is done
+every ~1 s: flush + fsync (worker thread) ─▶ report the parts map (PartialSaved)
+```
+
+Code: `sdm.core.segments` (planning, map checks), `sdm.engine.segmented` (`SegmentedDownload`),
+`http_download._should_split` and `_run_segmented`. Settings: `DownloadSettings.max_connections`,
+`min_split_size`, `min_part_size`.

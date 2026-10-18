@@ -14,6 +14,9 @@ byte 0 in the same partial file. Two versions of a file are never stitched toget
 
 Failed attempts that might succeed later (timeouts, 5xx, dropped connections) are retried and
 continue where they stopped when the server can resume.
+
+Splitting (M5). A big enough file from a server that supports ranges and gives a version tag
+is downloaded over several connections at once; see sdm.engine.segmented and ADR-0012.
 """
 
 import asyncio
@@ -22,7 +25,6 @@ import email.utils
 import errno
 import logging
 import os
-import re
 import shutil
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -41,7 +43,7 @@ from sdm.core.filenames import (
     numbered_name,
     sanitize_filename,
 )
-from sdm.core.units import format_size
+from sdm.core.segments import Segment, plan_segments, segments_cover, total_received
 from sdm.core.urls import redact_url, validate_url
 from sdm.engine.models import (
     DownloadResult,
@@ -51,6 +53,14 @@ from sdm.engine.models import (
     ProgressCallback,
 )
 from sdm.engine.policy import NetworkPolicy, PolicyResolver
+from sdm.engine.segmented import (
+    SegmentedDownload,
+    parse_content_range,
+    prepare_part_file,
+    tags_match,
+)
+from sdm.engine.segmented import StartOver as _StartOver
+from sdm.engine.segmented import interrupted_message as _interrupted_message
 
 log = logging.getLogger(__name__)
 
@@ -62,7 +72,6 @@ _REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
 _RETRYABLE_STATUSES = frozenset({408, 429})
 _WINERROR_DISK_FULL = frozenset({39, 112})
 _WINERROR_PATH_TOO_LONG = 206
-_CONTENT_RANGE = re.compile(r"bytes (\d+)-(\d+)/(\d+)", re.ASCII)
 
 
 @dataclass
@@ -76,6 +85,8 @@ class _Transfer:
     etag: str | None = None
     last_modified: str | None = None
     resumable: bool = False
+    segments: list[Segment] | None = None  # set while the download is split (M5)
+    no_split: bool = False  # after a failed split, stay on one connection
 
     @classmethod
     def start(cls, directory: Path, resume_from: PartialDownload | None) -> "_Transfer":
@@ -89,8 +100,28 @@ class _Transfer:
         if not part.is_file():
             log.info("The partial file is gone; starting over")
             return cls()
-        received = part.stat().st_size
         total = resume_from.total_bytes
+        if resume_from.segments is not None:
+            segments = list(resume_from.segments)
+            if (
+                total is None
+                or part.stat().st_size != total
+                or not segments_cover(segments, total)
+                or _if_range_value(resume_from.etag, resume_from.last_modified) is None
+            ):
+                log.info("The saved parts map doesn't fit the partial file; starting over")
+                return cls()
+            return cls(
+                part_path=part,
+                file_name=resume_from.file_name,
+                received=total_received(segments),
+                total=total,
+                etag=resume_from.etag,
+                last_modified=resume_from.last_modified,
+                resumable=resume_from.resumable,
+                segments=segments,
+            )
+        received = part.stat().st_size
         if total is not None and received > total:
             received = 0  # more data than the file has: don't trust any of it
         return cls(
@@ -113,7 +144,14 @@ class _Transfer:
             etag=self.etag,
             last_modified=self.last_modified,
             resumable=self.resumable,
+            segments=tuple(self.segments) if self.segments is not None else None,
         )
+
+    def start_over(self) -> None:
+        """Forget what is on disk and any split; the partial file is reused from byte 0."""
+        self.received = 0
+        self.segments = None
+        self.no_split = True
 
 
 @dataclass(frozen=True)
@@ -129,10 +167,6 @@ class _RangePlan:
         if self.if_range:
             headers["If-Range"] = self.if_range
         return headers
-
-
-class _StartOver(Exception):
-    """The server's reply can't continue the partial file: download from byte 0 instead."""
 
 
 async def download(
@@ -187,9 +221,16 @@ async def download(
             while True:
                 try:
                     result = await _attempt(
-                        session, url, directory, policy, settings, transfer,
-                        on_progress, on_file_info, on_partial,
-                    )  # fmt: skip
+                        session,
+                        url,
+                        directory,
+                        policy,
+                        settings,
+                        transfer,
+                        on_progress,
+                        on_file_info,
+                        on_partial,
+                    )
                 except DownloadError as exc:
                     if not exc.retryable or attempt >= settings.max_attempts:
                         raise
@@ -236,6 +277,16 @@ async def _attempt(
     on_partial: PartialCallback | None,
 ) -> DownloadResult:
     async with _translated_errors(url, directory):
+        if transfer.segments is not None:  # continue a split download, part by part
+            try:
+                await _run_segmented(
+                    session, url, policy, settings, transfer, None, on_progress, on_partial
+                )
+            except _StartOver as reason:
+                log.info("Can't resume the parts (%s); downloading from the start", reason)
+                transfer.start_over()
+            else:
+                return await _finish_segmented(transfer, directory, url, None)
         plan = _range_plan(transfer)
         while True:
             extra = plan.headers() if plan else None
@@ -250,10 +301,38 @@ async def _attempt(
                     continue
                 if transfer.part_path is None or transfer.file_name is None:  # pragma: no cover
                     raise DownloadError("Internal error: no partial file.")
+                split = offset == 0 and _should_split(transfer, settings)
+                if split and transfer.total is not None:
+                    transfer.segments = plan_segments(
+                        transfer.total, settings.max_connections, settings.min_part_size
+                    )
+                    prepare_part_file(transfer.part_path, transfer.total)
                 if on_file_info:
                     on_file_info(transfer.file_name, transfer.total)
                 if on_partial:
                     on_partial(transfer.partial())
+                if split:
+                    try:
+                        await _run_segmented(
+                            session,
+                            str(response.url),
+                            policy,
+                            settings,
+                            transfer,
+                            response,
+                            on_progress,
+                            on_partial,
+                        )
+                    except _StartOver as reason:
+                        log.info(
+                            "Can't continue the parts (%s); downloading from the start", reason
+                        )
+                        transfer.start_over()
+                        plan = None
+                        continue
+                    return await _finish_segmented(
+                        transfer, directory, str(response.url), response.headers.get("Content-Type")
+                    )
                 if offset is None:  # 416: everything was already there
                     received = transfer.received
                 else:
@@ -279,12 +358,87 @@ async def _attempt(
                 )
 
 
+def _if_range_value(etag: str | None, last_modified: str | None) -> str | None:
+    """The version tag to send with If-Range: a strong ETag, else Last-Modified, else None."""
+    strong_etag = etag if etag and not etag.startswith("W/") else None
+    return strong_etag or last_modified
+
+
+def _should_split(transfer: _Transfer, settings: DownloadSettings) -> bool:
+    """Split only big files from servers that support ranges and give a version tag."""
+    total = transfer.total
+    return (
+        not transfer.no_split
+        and settings.max_connections > 1
+        and total is not None
+        and total >= settings.min_split_size
+        and transfer.resumable
+        and _if_range_value(transfer.etag, transfer.last_modified) is not None
+        and len(plan_segments(total, settings.max_connections, settings.min_part_size)) > 1
+    )
+
+
+async def _run_segmented(
+    session: aiohttp.ClientSession,
+    url: str,
+    policy: NetworkPolicy,
+    settings: DownloadSettings,
+    transfer: _Transfer,
+    first_response: aiohttp.ClientResponse | None,
+    on_progress: ProgressCallback | None,
+    on_partial: PartialCallback | None,
+) -> None:
+    if_range = _if_range_value(transfer.etag, transfer.last_modified)
+    if transfer.part_path is None or transfer.total is None or transfer.segments is None:
+        raise _StartOver("nothing to continue")  # pragma: no cover
+    if if_range is None:
+        raise _StartOver("no version tag")
+
+    def on_snapshot(segments: tuple[Segment, ...]) -> None:
+        transfer.segments = list(segments)
+        transfer.received = total_received(segments)
+        if on_partial:
+            on_partial(transfer.partial())
+
+    async def request(headers: dict[str, str]) -> aiohttp.ClientResponse:
+        # Every part request goes through the same redirect checks and network policy.
+        return await _get_following_redirects(session, url, policy, settings, headers)
+
+    await SegmentedDownload(
+        request=request,
+        part_path=transfer.part_path,
+        total=transfer.total,
+        if_range=if_range,
+        etag=transfer.etag,
+        last_modified=transfer.last_modified,
+        segments=transfer.segments,
+        settings=settings,
+        on_progress=on_progress,
+        on_snapshot=on_snapshot,
+    ).run(first_response)
+
+
+async def _finish_segmented(
+    transfer: _Transfer, directory: Path, final_url: str, content_type: str | None
+) -> DownloadResult:
+    if transfer.part_path is None or transfer.file_name is None or transfer.total is None:
+        raise DownloadError("Internal error: no partial file.")  # pragma: no cover
+    final_path = await _finalize(transfer.part_path, directory, transfer.file_name)
+    transfer.part_path = None  # renamed: nothing left to clean up
+    return DownloadResult(
+        path=final_path,
+        size=transfer.total,
+        final_url=final_url,
+        content_type=content_type,
+        verified_complete=True,
+    )
+
+
 def _range_plan(transfer: _Transfer) -> _RangePlan | None:
-    """How to ask for the rest of the file, or None to download it whole."""
-    if transfer.part_path is None or transfer.received <= 0:
+    """How to ask for the rest of a plain (unsplit) partial file, or None to download it whole."""
+    if transfer.part_path is None or transfer.received <= 0 or transfer.segments is not None:
         return None
-    strong_etag = transfer.etag if transfer.etag and not transfer.etag.startswith("W/") else None
-    validator = strong_etag or transfer.last_modified  # If-Range needs a strong ETag or a date
+    validator = _if_range_value(transfer.etag, transfer.last_modified)
     if validator:
         return _RangePlan(start=transfer.received, overlap=0, if_range=validator)
     if transfer.received >= OVERLAP:
@@ -343,10 +497,8 @@ async def _check_continuation(
         raise _StartOver(f"the server sent bytes {first}-{last}, not {plan.start}-{total - 1}")
     if transfer.total is not None and total != transfer.total:
         raise _StartOver("the file's size changed")
-    for header, known in (("ETag", transfer.etag), ("Last-Modified", transfer.last_modified)):
-        sent = response.headers.get(header)
-        if sent and known and sent != known:
-            raise _StartOver(f"the file's {header} changed")
+    if not tags_match(response, transfer.etag, transfer.last_modified):
+        raise _StartOver("the file's version tags changed")
     transfer.total = total
     if plan.overlap:
         try:
@@ -362,19 +514,6 @@ async def _check_continuation(
             on_disk = part_file.read(plan.overlap)
         if fresh != on_disk:
             raise _StartOver("the last bytes on disk don't match the server's file")
-
-
-def parse_content_range(value: str | None) -> tuple[int, int, int] | None:
-    """'bytes 100-199/1000' -> (100, 199, 1000); None for anything malformed or unusable."""
-    if not value:
-        return None
-    match = _CONTENT_RANGE.fullmatch(value.strip())
-    if not match:
-        return None
-    first, last, total = (int(group) for group in match.groups())
-    if first > last or last >= total:
-        return None
-    return first, last, total
 
 
 async def _get_following_redirects(
@@ -500,13 +639,6 @@ async def _stream_to_file(
             _interrupted_message(transfer.received, transfer.total), retryable=True
         ) from exc
     return transfer.received
-
-
-def _interrupted_message(received: int, total: int | None) -> str:
-    amount = format_size(received)
-    if total is not None:
-        amount += f" of {format_size(total)}"
-    return f"The download was interrupted after {amount}."
 
 
 async def _finalize(part_path: Path, directory: Path, name: str) -> Path:

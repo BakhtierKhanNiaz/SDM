@@ -18,6 +18,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
+from sdm.core.segments import Segment, decode_segments
+
 
 class DownloadState(StrEnum):
     QUEUED = "queued"  # waiting for a free slot (at most 3 run at once)
@@ -66,6 +68,9 @@ class PartialDownload:
     etag: str | None  # the server's version tags for the file, used with If-Range
     last_modified: str | None
     resumable: bool  # the server advertised (Accept-Ranges: bytes) or proved (206) it can resume
+    # M5: for a download split across connections, which byte ranges have arrived. None means
+    # the partial file is a plain prefix: its size is how much arrived (M4).
+    segments: tuple[Segment, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -90,10 +95,16 @@ class DownloadRecord:
     etag: str | None = None
     last_modified: str | None = None
     resumable: bool = False
+    segments: str | None = None  # the saved parts map (JSON), for split downloads (M5)
 
     def partial(self) -> PartialDownload | None:
         """What the engine needs to continue this download, if a partial file is recorded."""
         if not self.part_path or not self.file_name:
+            return None
+        segments = decode_segments(self.segments, self.total_bytes) if self.segments else None
+        if self.segments and segments is None:
+            # A damaged map can't say which parts arrived: treating the file as complete or as
+            # a prefix could produce a file with holes. Start over instead.
             return None
         return PartialDownload(
             part_path=Path(self.part_path),
@@ -102,4 +113,5 @@ class DownloadRecord:
             etag=self.etag,
             last_modified=self.last_modified,
             resumable=self.resumable,
+            segments=segments,
         )
