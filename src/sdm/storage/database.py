@@ -18,6 +18,7 @@ from pathlib import Path
 from sdm.core.categories import category_for
 from sdm.core.downloads import DownloadRecord, DownloadState, PartialDownload, check_transition
 from sdm.core.errors import SDMError
+from sdm.core.paths import app_data_dir
 from sdm.core.segments import encode_segments
 
 log = logging.getLogger(__name__)
@@ -112,8 +113,7 @@ class StorageError(SDMError):
 
 def default_database_path() -> Path:
     """%LOCALAPPDATA%\\SDM\\sdm.db: per-user, outside Controlled Folder Access's folders."""
-    base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
-    return Path(base) / "SDM" / "sdm.db"
+    return app_data_dir() / "sdm.db"
 
 
 def _now() -> str:

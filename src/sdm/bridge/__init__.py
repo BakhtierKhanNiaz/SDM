@@ -1,4 +1,6 @@
-"""Native messaging host for download requests from the browser extension (from M7).
+"""The browser bridge (ADR-0014): Chrome's native messaging host and its pipe to the app.
 
-Every message is untrusted input and must be validated before it reaches the engine.
+`protocol` frames and checks messages, `pipe` carries them to the running app with a
+per-user key, `host` is the program Chrome starts, and `install` registers it. Every message
+is untrusted input and is validated before it reaches the window.
 """

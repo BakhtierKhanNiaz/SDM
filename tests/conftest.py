@@ -349,3 +349,32 @@ def no_blocking_dialogs(monkeypatch):
 
     for name in ("question", "warning", "information", "critical"):
         monkeypatch.setattr(QMessageBox, name, staticmethod(unexpected))
+
+
+class BridgeHarness:
+    """A BridgeListener on its own pipe (named after a temporary key file) that records requests.
+
+    `accept` decides each answer (True: ok, False: busy). Closed after the test.
+    """
+
+    def __init__(self, key_path) -> None:
+        from sdm.bridge.pipe import BridgeListener, load_or_create_key, pipe_address
+
+        self.key_path = key_path
+        self.key = load_or_create_key(key_path)
+        self.address = pipe_address(key_path)
+        self.received: list[str] = []
+        self.accept = True
+        self.listener = BridgeListener(self.key, self.address, self._on_request)
+        self.listener.start()
+
+    def _on_request(self, request) -> bool:
+        self.received.append(request.url)
+        return self.accept
+
+
+@pytest.fixture
+def bridge(tmp_path):
+    harness = BridgeHarness(tmp_path / "SDM" / "bridge.key")
+    yield harness
+    harness.listener.close()
