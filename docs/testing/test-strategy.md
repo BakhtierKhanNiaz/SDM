@@ -43,6 +43,12 @@ default policy blocks the test server, as it should) and short timeouts.
 
 ## Rules
 
+- No test may open a real message box: `no_blocking_dialogs` (autouse, in `conftest.py`)
+  makes any unplanned one fail at once instead of hanging the run. Tests that expect a
+  dialog patch it themselves.
+- Test servers record what they send *before* sending it, so a fast client never makes a
+  test read the log too early.
+
 - No third-party websites in tests: local mock server and synthetic data only.
 - Deterministic: no timing races, and small timeouts only where the test is about timeouts.
 - Simulate what can't be produced safely: disk-full, `PermissionError`, and the Controlled

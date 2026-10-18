@@ -57,6 +57,9 @@ uv add <pkg>                # runtime dependency; `uv add --dev <pkg>` for dev t
   history, the engine and the table model on the main thread; `engine_adapter.py` turns
   engine events into Qt signals (ADR-0009). Only the main thread touches `DownloadStore`.
 - `src/sdm/cli.py`: `sdm-get`. `scripts/`: reproducible evaluations.
+- Never let a test open a real message box (it hangs the run); `no_blocking_dialogs` in
+  `tests/conftest.py` enforces it. Long inline heredocs in the Bash tool can break on
+  quotes: put multi-line edit scripts in a file under the scratchpad instead.
 - `tests/unit`, `tests/integration`, `tests/security`. `MockServer` and the `fetch` fixture
   live in `tests/conftest.py` (test modules can't import each other: importlib mode).
 

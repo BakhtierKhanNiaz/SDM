@@ -174,8 +174,15 @@ def _tooltip(record: DownloadRecord, column: int) -> str | None:
     if column == NAME:
         return record.path or redact_url(record.url)
     if column == STATUS:
-        if record.error:
-            return record.error
+        lines = [record.error] if record.error else []
         if record.state == DownloadState.COMPLETED and record.verified_complete is False:
-            return UNCONFIRMED
+            lines.append(UNCONFIRMED)
+        if record.state.can_resume:
+            if record.part_path and record.resumable:
+                lines.append("Resume continues from where it stopped.")
+            elif record.part_path:
+                lines.append("This server can't resume, so Resume starts over.")
+            else:
+                lines.append("Resume starts from the beginning.")
+        return "\n".join(lines) or None
     return None

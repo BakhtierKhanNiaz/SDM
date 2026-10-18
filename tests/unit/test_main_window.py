@@ -56,5 +56,6 @@ def test_startup_notices():
     recovered = Path("C:/x/sdm.db.corrupt-20261019-101500")
     notices = startup_notices(recovered, 2)
     assert str(recovered) in notices[0]
-    assert notices[1] == "2 downloads were interrupted when SDM last closed."
-    assert startup_notices(None, 1) == ["1 download was interrupted when SDM last closed."]
+    assert notices[1].startswith("2 downloads were interrupted when SDM last closed.")
+    assert "Resume all" in notices[1]
+    assert startup_notices(None, 1)[0].startswith("1 download was interrupted")

@@ -96,6 +96,36 @@ the partial file.
 - How IDM shows live progress for unknown sizes (re-run R1).
 - Pausing, and resuming interrupted entries: M4.
 
+## FEAT-003: Pause, resume and crash recovery (M4)
+
+- **Purpose:** Stop a download and continue it later, also after quitting or a crash,
+  without downloading again what already arrived, and without ever mixing two versions of a
+  file.
+- **Based on:** Project goals (brief §1, §5). IDM observation OBS-006 (resume with `Range`,
+  64 bytes early; a `200` means no resume support). Rules: ADR-0011.
+
+| ID | Requirement | Tests |
+|---|---|---|
+| FR-1 | Pause keeps the partial file; the entry shows Paused with its percent | `test_pause_then_resume`, `test_pause_and_resume_buttons` |
+| FR-2 | Resume asks for the rest (`Range` + `If-Range`) and finishes with the right content | `test_pause_and_resume_in_a_later_call`, `test_cut_download_continues_where_it_stopped` |
+| FR-3 | Only an exact `206` continues; `200`, a wrong range, a changed size or tag restart from 0 | `test_server_that_ignores_range_restarts_cleanly`, `test_wrong_content_range_restarts`, `test_file_changed_on_the_server_is_downloaded_whole`, `test_changed_size_restarts` |
+| FR-4 | Without version tags, a 64-byte overlap is checked | `test_without_version_tags_the_last_64_bytes_are_checked`, `test_silent_change_is_caught_by_the_64_byte_check` |
+| FR-5 | A `416` when everything is already there finishes the download | `test_everything_already_there_finishes_on_416` |
+| FR-6 | Automatic retries continue instead of restarting | `test_retries_only_ask_for_the_missing_bytes` |
+| FR-7 | Cancel deletes the partial file (running, waiting or paused); Remove deletes an unfinished entry's partial file | `test_cancelling_a_paused_download_deletes_its_partial`, `test_removing_a_paused_download_deletes_its_partial` |
+| FR-8 | A failed download keeps its partial file only if the server can resume; Retry continues | `test_failure_keeps_the_partial_file_when_the_server_can_resume`, `test_retry_after_a_failure_continues_where_it_stopped` |
+| FR-9 | Quitting pauses running downloads; nothing resumes on its own at startup | `test_closing_with_downloads_running_asks_first`, `test_quit_question_says_downloads_will_be_paused` |
+| FR-10 | After a crash, interrupted entries resume from their partial file (Resume / Resume all) | `test_resume_after_a_crash`, `test_resume_all_button` |
+| FR-11 | Pausing on a server that can't resume asks first | `test_pausing_on_a_server_that_cant_resume_asks_first` |
+| FR-12 | Partial-file paths from the database are used or deleted only inside the entry's folder | `test_partial_path_outside_the_download_folder_is_ignored` |
+| FR-13 | The history upgrades from schema 1 to 2 without losing entries | `test_upgrade_from_version_1_keeps_history` |
+
+### Acceptance criteria
+
+- All tests above pass; ruff is clean.
+- One real-world pause, SDM restart and resume finishes with a SHA-256 matching the
+  publisher's (owner approves the URL).
+
 ## Template
 
 ```markdown

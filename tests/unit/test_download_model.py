@@ -109,9 +109,8 @@ def test_failed_row_shows_the_error_as_a_tooltip(qapp):
     model = DownloadTableModel()
     model.set_records([rec(state=DownloadState.FAILED, error="The file was not found.")])
     assert model.data(model.index(0, STATUS)) == "Failed"
-    assert (
-        model.data(model.index(0, STATUS), Qt.ItemDataRole.ToolTipRole) == "The file was not found."
-    )
+    tooltip = model.data(model.index(0, STATUS), Qt.ItemDataRole.ToolTipRole)
+    assert tooltip.splitlines() == ["The file was not found.", "Resume starts from the beginning."]
 
 
 def test_model_insert_update_live_and_remove(qtmodeltester):

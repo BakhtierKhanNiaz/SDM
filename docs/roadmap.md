@@ -9,7 +9,7 @@ and its tests have actually run and passed.
 | M1 | Project structure, configuration, documentation, initial desktop window | Done (2026-10-17) |
 | M2 | Reliable single-connection HTTP downloader | Done (2026-10-18) |
 | M3 | Progress, cancellation, history and persistent state | Done (2026-10-19) |
-| M4 | Pause/resume and crash recovery | In progress (M4a done) |
+| M4 | Pause/resume and crash recovery | Implemented and tested; real-world pause/resume demo pending |
 | M5 | Parallel segmented downloads | Not started |
 | M6 | Queue management and scheduling | Not started |
 | M7 | Chrome extension and native messaging bridge | Not started |
@@ -86,3 +86,34 @@ Acceptance criteria, all met on 2026-10-19:
   No "downloaded before" warning was shown, as expected: M2's copy came from `sdm-get`, which
   doesn't write to the history.
 - [ ] Optional: IDM re-run R1 to compare the live progress display (makes it *Verified*).
+
+## M4: Pause, resume and crash recovery
+
+Done on branch `m4/pause-resume`:
+
+- M4a (`8e41d12`): resume from partial files with `Range` + `If-Range` or a 64-byte overlap
+  check; only an exact `206` continues (ADR-0011). Retries continue, the `paused` state is
+  added, history schema version 2, and the manager and controller can pause and resume.
+- M4b: Pause, Resume (Retry for failed downloads), Resume all, and Cancel for paused entries
+  in the window. A question before pausing on a server that can't resume. Quitting pauses
+  ("Quit and pause them?"). Startup points to Resume / Resume all. Status tooltips say
+  whether Resume continues or starts over. Spec FEAT-003.
+
+Checked on 2026-10-19: 293 tests pass (three full runs), ruff is clean, and
+`uv run python app.py` opens and closes cleanly. It upgraded the real history from schema 1
+to 2 in place, keeping entry #1. A screenshot with real local downloads showed one paused at
+27% beside two running.
+
+Found and fixed while testing:
+
+- The table had no label for `paused` (KeyError while drawing).
+- The window didn't learn that a server can resume until the next state change, so Pause
+  asked "Pause anyway?" for no reason.
+- A race in the test server's request log (written after sending); it is now written before.
+- Tests now fail at once on an unexpected message box instead of hanging.
+
+Remaining before M4 is **Done**:
+
+- [ ] One real-world pause and resume (after restarting SDM) on a server that supports it;
+  the owner approves the URL.
+- [ ] Optional: IDM comparison R2 (automatic retries) and resume against a `206` server.

@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QTableView,
 )
 
+from sdm.core.downloads import DownloadRecord, DownloadState
 from sdm.core.errors import SDMError
 from sdm.ui.add_url_dialog import AddUrlDialog
 from sdm.ui.controller import DownloadController, summarize
@@ -47,35 +48,60 @@ class MainWindow(QMainWindow):
         header.setSectionResizeMode(STATUS, QHeaderView.ResizeMode.ResizeToContents)
         self.setCentralWidget(self.download_table)
 
-        self.add_action = QAction("&Add URL…", self)
+        self.add_action = self._action("&Add URL…", self.open_add_dialog)
         self.add_action.setShortcut(QKeySequence.StandardKey.New)
-        self.add_action.triggered.connect(self.open_add_dialog)
-        self.cancel_action = QAction("&Cancel download", self)
-        self.cancel_action.triggered.connect(self.cancel_selected)
-        self.remove_action = QAction("&Remove from list", self)
-        self.remove_action.setToolTip("Remove the entry from the list. The file is kept.")
-        self.remove_action.triggered.connect(self.remove_selected)
-        self.exit_action = QAction("E&xit", self)
-        self.exit_action.triggered.connect(self.close)
+        self.pause_action = self._action("&Pause", self.pause_selected)
+        self.pause_action.setToolTip("Stop for now and keep what has arrived.")
+        self.resume_action = self._action("R&esume", self.resume_selected)
+        self.resume_action.setToolTip("Continue a paused or interrupted download, or retry.")
+        self.resume_all_action = self._action("Resume a&ll", self.resume_all)
+        self.resume_all_action.setToolTip("Resume every paused and interrupted download.")
+        self.cancel_action = self._action("&Cancel download", self.cancel_selected)
+        self.cancel_action.setToolTip("Stop for good and delete the partial file.")
+        self.remove_action = self._action("&Remove from list", self.remove_selected)
+        self.remove_action.setToolTip(
+            "Remove the entry from the list. A finished file is kept; a partial file is deleted."
+        )
+        self.exit_action = self._action("E&xit", self.close)
 
         file_menu = self.menuBar().addMenu("&File")
         file_menu.addAction(self.add_action)
         file_menu.addSeparator()
         file_menu.addAction(self.exit_action)
         downloads_menu = self.menuBar().addMenu("&Downloads")
-        downloads_menu.addAction(self.cancel_action)
-        downloads_menu.addAction(self.remove_action)
+        for action in (
+            self.pause_action,
+            self.resume_action,
+            self.resume_all_action,
+            self.cancel_action,
+            self.remove_action,
+        ):
+            downloads_menu.addAction(action)
         toolbar = self.addToolBar("Main")
         toolbar.setMovable(False)
-        for action in (self.add_action, self.cancel_action, self.remove_action):
+        for action in (
+            self.add_action,
+            self.pause_action,
+            self.resume_action,
+            self.resume_all_action,
+            self.cancel_action,
+            self.remove_action,
+        ):
             toolbar.addAction(action)
 
         controller.summary_changed.connect(self.statusBar().showMessage)
         self.download_table.selectionModel().selectionChanged.connect(self._update_actions)
         controller.model.dataChanged.connect(self._update_actions)
+        controller.model.rowsInserted.connect(self._update_actions)
         controller.model.rowsRemoved.connect(self._update_actions)
+        controller.model.modelReset.connect(self._update_actions)
         self._update_actions()
         self.statusBar().showMessage(summarize(controller.model.records()))
+
+    def _action(self, text: str, slot) -> QAction:
+        action = QAction(text, self)
+        action.triggered.connect(slot)
+        return action
 
     # ----- actions -----
 
@@ -96,11 +122,32 @@ class MainWindow(QMainWindow):
             return
         self._default_folder = folder  # next time, offer the same folder
 
-    def selected_id(self) -> int | None:
+    def selected_record(self) -> DownloadRecord | None:
         rows = self.download_table.selectionModel().selectedRows()
         if not rows:
             return None
-        return self.controller.model.record_at(rows[0].row()).id
+        return self.controller.model.record_at(rows[0].row())
+
+    def selected_id(self) -> int | None:
+        record = self.selected_record()
+        return None if record is None else record.id
+
+    def pause_selected(self) -> None:
+        record = self.selected_record()
+        if record is None or not record.state.is_active:
+            return
+        known_unresumable = record.file_name is not None and not record.resumable
+        if known_unresumable and not self.confirm_pause_unresumable():
+            return
+        self.controller.pause(record.id)
+
+    def resume_selected(self) -> None:
+        download_id = self.selected_id()
+        if download_id is not None:
+            self.controller.resume(download_id)
+
+    def resume_all(self) -> None:
+        self.controller.resume_all()
 
     def cancel_selected(self) -> None:
         download_id = self.selected_id()
@@ -113,10 +160,33 @@ class MainWindow(QMainWindow):
             self.controller.remove(download_id)
 
     def _update_actions(self, *_args: object) -> None:
-        download_id = self.selected_id()
-        record = None if download_id is None else self.controller.model.record(download_id)
-        self.cancel_action.setEnabled(record is not None and record.state.is_active)
-        self.remove_action.setEnabled(record is not None and not record.state.is_active)
+        record = self.selected_record()
+        active = record is not None and record.state.is_active
+        resumable = record is not None and record.state.can_resume
+        self.pause_action.setEnabled(active)
+        self.resume_action.setEnabled(resumable)
+        self.resume_action.setText(
+            "R&etry" if record is not None and record.state == DownloadState.FAILED else "R&esume"
+        )
+        self.cancel_action.setEnabled(active or resumable)
+        self.remove_action.setEnabled(record is not None and not active)
+        self.resume_all_action.setEnabled(
+            any(
+                r.state in (DownloadState.PAUSED, DownloadState.INTERRUPTED)
+                for r in self.controller.model.records()
+            )
+        )
+
+    def confirm_pause_unresumable(self) -> bool:
+        answer = QMessageBox.question(
+            self,
+            "This server can't resume",
+            "This server doesn't support resuming downloads, so resuming later will start "
+            "over from the beginning.\n\nPause anyway?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        return answer == QMessageBox.StandardButton.Yes
 
     # ----- closing -----
 
@@ -133,8 +203,8 @@ class MainWindow(QMainWindow):
         answer = QMessageBox.question(
             self,
             "Downloads in progress",
-            f"{active} {noun} still running. Quit and cancel them?\n\n"
-            "Their partial files will be deleted. (Resuming later comes in a future version.)",
+            f"{active} {noun} still running. Quit and pause them?\n\n"
+            "What has arrived is kept: click Resume next time to continue.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -151,5 +221,8 @@ def startup_notices(recovered_from: Path | None, interrupted: int) -> list[str]:
         )
     if interrupted:
         noun = "download was" if interrupted == 1 else "downloads were"
-        notices.append(f"{interrupted} {noun} interrupted when SDM last closed.")
+        notices.append(
+            f"{interrupted} {noun} interrupted when SDM last closed. "
+            "Select one and click Resume, or click Resume all, to continue."
+        )
     return notices

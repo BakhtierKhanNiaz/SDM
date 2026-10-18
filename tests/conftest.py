@@ -166,7 +166,8 @@ class MockServer:
         cut_at: close the connection after sending this many body bytes.
         stall_at: (n, seconds): send n body bytes, then go silent for that long.
         content_range: send this Content-Range instead of the right one.
-        log: gets (Range header, status, body bytes sent) appended for each request.
+        log: gets (Range header, status, body bytes the reply sends) for each request,
+            written before sending so a test never reads it too early.
         """
 
         def route(h: http.server.BaseHTTPRequestHandler) -> None:
@@ -176,16 +177,21 @@ class MockServer:
             start = int(match.group(1)) if match else None
             if start is not None and if_range is not None and if_range not in (etag, last_modified):
                 start = None  # the file changed since the client's copy: send it whole
+            # The log is written *before* anything is sent: the client may finish and the test
+            # read the log before this thread runs again (a race seen once in a full run).
             if start is not None and start >= len(data):
+                if log is not None:
+                    log.append((requested, 416, 0))
                 h.send_response(416)
                 h.send_header("Content-Range", f"bytes */{len(data)}")
                 h.send_header("Content-Length", "0")
                 h.end_headers()
-                if log is not None:
-                    log.append((requested, 416, 0))
                 return
             body = data if start is None else data[start:]
             status = 200 if start is None else 206
+            if log is not None:
+                planned = len(body) if cut_at is None else min(len(body), cut_at)
+                log.append((requested, status, planned))  # body bytes this reply will send
             h.send_response(status)
             if accept_ranges:
                 h.send_header("Accept-Ranges", "bytes")
@@ -200,22 +206,14 @@ class MockServer:
             h.send_header("Content-Length", str(len(body)))
             h.end_headers()
             sent = 0
-            if log is not None:
-                log.append((requested, status, 0))
-                entry = len(log) - 1
             if stall_at is not None:
                 first, seconds = stall_at
                 h.wfile.write(body[:first])
                 h.wfile.flush()
                 sent = len(body[:first])
-                if log is not None:
-                    log[entry] = (requested, status, sent)
                 time.sleep(seconds)
                 body = body[first:]
-            chunk = body if cut_at is None else body[: max(0, cut_at - sent)]
-            h.wfile.write(chunk)
-            if log is not None:
-                log[entry] = (requested, status, sent + len(chunk))
+            h.wfile.write(body if cut_at is None else body[: max(0, cut_at - sent)])
 
         return route
 
@@ -305,3 +303,19 @@ def make_controller(qapp, tmp_path, loopback_policy):
     for controller, store in made:
         controller.shutdown()
         store.close()
+
+
+@pytest.fixture(autouse=True)
+def no_blocking_dialogs(monkeypatch):
+    """A real message box waits for a click forever and would hang the test run.
+
+    Any message box a test didn't plan for fails at once instead. Tests that expect one patch
+    it themselves (their monkeypatch.setattr runs after this and wins).
+    """
+    from PySide6.QtWidgets import QMessageBox
+
+    def unexpected(*args, **kwargs):
+        raise AssertionError(f"Unexpected message box: {args[1:3]}")
+
+    for name in ("question", "warning", "information", "critical"):
+        monkeypatch.setattr(QMessageBox, name, staticmethod(unexpected))

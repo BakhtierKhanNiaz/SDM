@@ -7,6 +7,7 @@ so every database write happens on the main thread (ADR-0009).
 import logging
 import time
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 from PySide6.QtCore import QCoreApplication, QObject, Signal
@@ -172,6 +173,7 @@ class DownloadController(QObject):
                 self._refresh(download_id)
             case PartialSaved(partial=partial):
                 self.store.set_partial(download_id, partial)
+                self._refresh(download_id)  # the window needs `resumable` (Pause asks if not)
             case Progress(received_bytes=received, total_bytes=total):
                 self._on_progress(download_id, received, total)
             case Finished(result=result):
@@ -231,24 +233,31 @@ class DownloadController(QObject):
 
     def _refresh(self, download_id: int) -> None:
         record = self.store.get(download_id)
-        if record is not None:
-            self.model.upsert(record)
+        if record is None:
+            return
+        shown = self.model.record(download_id)
+        if record.state == DownloadState.DOWNLOADING and shown is not None:
+            # The database saves progress about once a second; keep the newer live count.
+            record = replace(record, received_bytes=shown.received_bytes)
+        self.model.upsert(record)
 
     def _emit_summary(self) -> None:
         self.summary_changed.emit(summarize(self.model.records()))
 
 
 def summarize(records: list[DownloadRecord]) -> str:
-    """Status-bar line, e.g. "2 downloading, 1 waiting · 5 completed"."""
+    """Status-bar line, e.g. "2 downloading, 1 waiting, 1 paused · 5 completed"."""
     if not records:
         return "No downloads yet"
     count = {state: 0 for state in DownloadState}
     for record in records:
         count[record.state] += 1
-    active = []
+    parts = []
     if count[DownloadState.DOWNLOADING]:
-        active.append(f"{count[DownloadState.DOWNLOADING]} downloading")
+        parts.append(f"{count[DownloadState.DOWNLOADING]} downloading")
     if count[DownloadState.QUEUED]:
-        active.append(f"{count[DownloadState.QUEUED]} waiting")
+        parts.append(f"{count[DownloadState.QUEUED]} waiting")
+    if count[DownloadState.PAUSED]:
+        parts.append(f"{count[DownloadState.PAUSED]} paused")
     done = f"{count[DownloadState.COMPLETED]} completed"
-    return f"{', '.join(active)} · {done}" if active else f"Ready · {done}"
+    return f"{', '.join(parts)} · {done}" if parts else f"Ready · {done}"

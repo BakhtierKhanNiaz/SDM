@@ -8,6 +8,11 @@ while SDM is in 0.x.
 
 ### Added
 
+- M4b, the window: Pause, Resume (Retry for failed downloads), Resume all, and Cancel for
+  paused entries. A question before pausing on a server that can't resume. Status tooltips
+  say whether Resume continues or starts over. The status bar counts paused downloads.
+  Spec FEAT-003; 5 new tests (293 in total).
+- Tests: `no_blocking_dialogs` fixture (an unexpected message box fails instead of hanging).
 - M4a, resume: downloads continue from their partial file with `Range` + `If-Range` (ETag or
   Last-Modified), or a 64-byte overlap check when the server gives no version tags. Only an
   exact `206` continues; anything else restarts cleanly (ADR-0011). Retries continue instead
@@ -78,6 +83,8 @@ while SDM is in 0.x.
 
 ### Changed
 
+- The quit question now says "Quit and pause them?" (it said partial files would be
+  deleted, untrue since M4a). The startup notice for interrupted downloads points to Resume.
 - Quitting with downloads running now pauses them (partial files kept, resumable next time)
   instead of cancelling them (M4, ADR-0011).
 - An interrupted transfer now says how much arrived: "The download was interrupted after
