@@ -9,7 +9,7 @@ and its tests have actually run and passed.
 | M1 | Project structure, configuration, documentation, initial desktop window | Done (2026-10-17) |
 | M2 | Reliable single-connection HTTP downloader | Done (2026-10-18) |
 | M3 | Progress, cancellation, history and persistent state | Done (2026-10-19) |
-| M4 | Pause/resume and crash recovery | Implemented and tested; real-world pause/resume demo pending |
+| M4 | Pause/resume and crash recovery | Done (2026-10-19) |
 | M5 | Parallel segmented downloads | Not started |
 | M6 | Queue management and scheduling | Not started |
 | M7 | Chrome extension and native messaging bridge | Not started |
@@ -87,7 +87,7 @@ Acceptance criteria, all met on 2026-10-19:
   doesn't write to the history.
 - [ ] Optional: IDM re-run R1 to compare the live progress display (makes it *Verified*).
 
-## M4: Pause, resume and crash recovery
+## M4: Pause, resume and crash recovery (done)
 
 Done on branch `m4/pause-resume`:
 
@@ -112,8 +112,17 @@ Found and fixed while testing:
 - A race in the test server's request log (written after sending); it is now written before.
 - Tests now fail at once on an unexpected message box instead of hanging.
 
-Remaining before M4 is **Done**:
+Acceptance criteria, all met on 2026-10-19:
 
-- [ ] One real-world pause and resume (after restarting SDM) on a server that supports it;
-  the owner approves the URL.
+- [x] One real-world pause and resume across a full SDM restart (approved by the owner):
+  python.org's `python-3.14.7-embed-amd64.zip`, through the window code with the real history
+  and the default policy, in two separate processes. Phase 1: the Add URL dialog showed the
+  "already downloaded" warning (naming the `(1)` copy); Pause at 3,932,160 of 12,673,227
+  bytes (31%); partial file exactly that size; the server advertised resume, with a strong
+  ETag and Last-Modified; SDM quit. Phase 2 (new process): the entry was still paused at
+  3,932,160; Resume continued from there (the smallest progress shown afterwards was
+  3,932,160, and the engine logged no restart); done in 3.3 s as
+  `python-3.14.7-embed-amd64 (2).zip`. The SHA-256 matched python.org's published value; the
+  earlier two copies were untouched; no `.sdmpart` left; history entry #2 completed and
+  verified.
 - [ ] Optional: IDM comparison R2 (automatic retries) and resume against a `206` server.

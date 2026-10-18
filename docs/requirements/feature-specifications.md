@@ -124,7 +124,9 @@ the partial file.
 
 - All tests above pass; ruff is clean.
 - One real-world pause, SDM restart and resume finishes with a SHA-256 matching the
-  publisher's (owner approves the URL).
+  publisher's (owner approves the URL). Done 2026-10-19: python.org's zip paused at 31%,
+  resumed from exactly that point after a restart, and matched (details in the
+  [roadmap](../roadmap.md)).
 
 ## Template
 
