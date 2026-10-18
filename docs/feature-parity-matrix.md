@@ -36,7 +36,7 @@ session), not that the feature was studied in full.
 | Crash / restart recovery | Tested | M4 | Interrupted entries keep their partial file and resume with `Range` (`test_resume_after_a_crash`); quitting pauses downloads; a corrupted history is set aside (M3) |
 | Parallel segmented downloads | Tested | M5 | ADR-0012; `test_segmented.py`, `test_window_segmented.py`; real-world 8-connection download from python.org matched its SHA-256 (roadmap). IDM (OBS-001, OBS-004): 8 connections, extras at the final URL, dropped on `200`: SDM does the same, but splits only with version tags and parts of at least 1 MiB. Dynamic splitting halves the biggest part, the pattern OBS-001 suggests |
 | Download queues | Tested | M6 | ADR-0013; order, limit 1-8, Start now, automatic retries after ~1/5/15 min (`test_queue.py`). IDM: OBS-006's message offers a queue that retries until success; its queue screens not observed |
-| Scheduled downloads | Tested | M6 | Start/stop times and days, overnight windows; only starts and pauses (`test_queue_planner.py`, `test_queue.py`). IDM's scheduler not observed |
+| Scheduled downloads | Tested | M6 | Real-world: a python.org download waited for its window and started 1.7 s after it opened (roadmap). Start/stop times and days, overnight windows; only starts and pauses (`test_queue_planner.py`, `test_queue.py`). IDM's scheduler not observed |
 | Categories | Tested | M6 | Same categories IDM showed (OBS-001, 002, 005) plus Music, Video, Programs; labels by default, IDM-style subfolders as a setting (off) |
 | Browser-to-desktop handoff (explicit) | Not investigated | M7–M8 | |
 | Automatic browser download capture (with consent) | Not investigated | M8 | |

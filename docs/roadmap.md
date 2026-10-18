@@ -11,7 +11,7 @@ and its tests have actually run and passed.
 | M3 | Progress, cancellation, history and persistent state | Done (2026-10-19) |
 | M4 | Pause/resume and crash recovery | Done (2026-10-19) |
 | M5 | Parallel segmented downloads | Done (2026-10-19) |
-| M6 | Queue management and scheduling | Implemented and tested; real-world scheduled demo pending |
+| M6 | Queue management and scheduling | Done (2026-10-19) |
 | M7 | Chrome extension and native messaging bridge | Not started |
 | M8 | Browser handoff integrated with the download engine | Not started |
 | M9 | Interface, settings, notifications and usability | Not started |
@@ -161,7 +161,7 @@ Acceptance criteria, all met on 2026-10-19:
   the history entry is completed and verified, with its parts map cleared.
 - [ ] Optional: IDM comparison against a resumable server.
 
-## M6: Queue management and scheduling
+## M6: Queue management and scheduling (done)
 
 Done on branch `m6/queue-scheduling`:
 
@@ -178,8 +178,13 @@ That launch check showed existing entries labelled "General": upgrades now label
 entries from their file names (the owner's history had already been upgraded, so its three
 entries keep "General"). A screenshot showed the limit of 2 holding with three waiting.
 
-Remaining before M6 is **Done**:
+Acceptance criteria, all met on 2026-10-19:
 
-- [ ] One real-world download that waits for its schedule window and then completes, with a
-  matching SHA-256 (owner approves the URL).
+- [x] One real-world scheduled download (approved by the owner): python.org's
+  `python-3.14.7-embed-amd64.zip` through the window code with the real history and policy,
+  and a schedule window of 03:10-03:40. Added at 03:08:31, it waited as Queued; the app's own
+  30-second timer (no manual `pump()`) started it at 03:10:01, 1.7 s after the window opened.
+  Saved as `python-3.14.7-embed-amd64 (4).zip`, category Compressed; the SHA-256 matched
+  python.org's published value; the earlier four copies were untouched. The owner's queue
+  settings were saved before the demo and restored afterwards (checked).
 - [ ] Optional: observe IDM's queue and scheduler screens (checklist).

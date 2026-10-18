@@ -178,7 +178,8 @@ the partial file.
 
 - All tests above pass; ruff is clean.
 - One real-world download waits for its schedule window, then completes with a matching
-  SHA-256 (owner approves the URL).
+  SHA-256 (owner approves the URL). Done 2026-10-19: waited about 90 s, started 1.7 s after
+  the window opened, SHA-256 matched (roadmap).
 
 ## Template
 
