@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "SDM: Download with SDM",
+  "version": "0.1.0",
+  "description": "Adds \"Download with SDM\" to the right-click menu of links and hands the link to SDM on this computer.",
+  "minimum_chrome_version": "116",
+  "permissions": ["contextMenus", "nativeMessaging"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "SDM"
+  }
+}

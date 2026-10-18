@@ -1,6 +1,6 @@
 # Security model
 
-Status: **M5.** Rules marked *Implemented* have code and tests; the others are planned for
+Status: **M7.** Rules marked *Implemented* have code and tests; the others are planned for
 the milestone listed.
 
 ## Trust boundaries
@@ -22,8 +22,8 @@ the milestone listed.
 | 3 | **Filenames:** one sanitized Windows component (ADR-0008). Never written outside the chosen folder. Length fits the 260-character path limit. Bidi-control spoofing removed. | Implemented (M2) — `sdm.core.filenames` |
 | 4 | **No overwrite:** existing files are never replaced. A taken name becomes `name (n).ext`. | Implemented (M2) |
 | 5 | **Never execute** downloaded files, and never open them automatically. | Holds: no code opens downloads |
-| 6 | **No local HTTP server.** Browser communication goes only through Chrome Native Messaging, restricted to SDM's own extension ID. | Planned (M7) |
-| 7 | **Browser messages:** strict schema, size limit, "download this URL" requests only. No filesystem operations or arbitrary paths. Safe error replies. | Planned (M7) |
+| 6 | **No local HTTP server.** Browser communication goes only through Chrome Native Messaging, restricted to SDM's own extension ID. The host reaches the app over a named pipe that both sides authenticate with a per-user key (`%LOCALAPPDATA%\SDM\bridge.key`); no network port is opened (ADR-0014). | Implemented (M7) — `test_bridge_pipe.py`, `test_bridge_install.py` |
+| 7 | **Browser messages:** exactly `{version: 1, type: "download", url}`, at most 64 KiB, checked in the host and again in the app. No filesystem operations or paths. Generic error replies. JSON only, never pickle. A handoff only fills in the Add URL dialog; the user confirms. | Implemented (M7) — `test_bridge_hostile_messages.py`, `test_bridge_host.py`, `test_window_handoff.py` |
 | 8 | **Secrets:** logs show URLs without credentials or query strings (`redact_url`). Cookies and authorization headers are never logged. | Implemented for URLs (M2); headers when auth arrives |
 | 9 | **Privacy:** no browsing-history collection beyond explicit handoffs. No data sent to third parties. | Holds |
 | 10 | **Dependencies:** free/open-source only, license and support checked, versions pinned in `uv.lock`. | Holds (ADR-0001, ADR-0006) |
@@ -42,6 +42,9 @@ resolve the hex form (`test_disguised_spellings_of_this_computer_never_reach_it`
 
 - NAT64 (`64:ff9b::/96`) and 6to4 (`2002::/16`) IPv6 addresses that embed a private IPv4
   address are not unwrapped before checking.
+- The bridge pipe accepts remote (SMB) clients by default; they would need this account's
+  credentials and the bridge key. Any program running as this user can read the key and
+  hand SDM links, but only through the same schema and confirmation dialog (ADR-0014).
 - Redirects from https to http are allowed. Browsers increasingly block such insecure
   downloads; decide in M8 when downloads come from the browser.
 - A server that sends no `Content-Length` and closes early is indistinguishable from a

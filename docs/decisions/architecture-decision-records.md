@@ -280,3 +280,54 @@ deleted. A changed decision gets a new record that supersedes the old one.
     counts survive, and Resume all continues in order.
 - **Consequences:** The queue logic is tested without Qt or a network (`test_queue_planner.py`,
   fake clock in `test_queue.py`). A schedule only acts while SDM is running.
+
+## ADR-0014: Browser handoff through native messaging and a named pipe
+
+- **Date:** 2026-10-19 · **Status:** Accepted (M7 plan approved by the project owner)
+- **Context:** M7 lets the user send a link from Chrome to SDM. Rule 6 forbids a local HTTP
+  server, and rule 7 treats every browser message as hostile. Chrome's Native Messaging starts
+  a registered program per message and talks to it over stdin/stdout, but that program is a
+  new process each time, not the running SDM window. IDM and FDM are already registered as
+  Chrome hosts on this computer (M0), so SDM needs a name of its own and a separate profile
+  for testing. IDM's own browser integration was not observed.
+- **Decision:**
+  - **Extension** (`extension/chrome`, Manifest V3): one context-menu item on http(s) links,
+    "Download with SDM". Permissions: `contextMenus` and `nativeMessaging` only; no host
+    permissions, content scripts or download capture (automatic capture is M8, with consent).
+    Errors show as a "!" badge with a tooltip; the link is never logged.
+  - **Message:** exactly `{"version": 1, "type": "download", "url": "..."}`: no other fields,
+    so no folders, file names, headers or options can be sent. Frames are a 4-byte native
+    length plus UTF-8 JSON, capped at 64 KiB before the body is read. The URL must pass
+    `validate_url`. Replies: `{"ok": true}` or `{"ok": false, "error": <generic code>}`.
+  - **Host** (`sdm.bridge.host`, `com.sdm.bridge`): started by Chrome through a `.bat`
+    launcher (`python -P -m sdm.bridge.host`, so the current folder is never on the import
+    path). It checks the caller's origin looks like `chrome-extension://<id>/`, reads one
+    message, passes it on, writes one reply and exits. Nothing but the reply goes to stdout.
+  - **Pipe:** `\\.\pipe\sdm-bridge-<hash of the key's path>`, through
+    `multiprocessing.connection`, with mutual HMAC authentication using a 32-byte per-user key
+    in `%LOCALAPPDATA%\SDM\bridge.key` (created by whichever side runs first). Only JSON bytes
+    cross it, never pickles. The app re-checks every request. Each connection is handled on
+    its own thread with a 5-second watchdog, at most 4 at once, so a silent client can't
+    block the pipe.
+  - **App:** the listener owns the pipe, which doubles as the single-instance lock: a second
+    SDM exits (quietly when the host started it with `--from-browser`), so two copies never
+    share the history. A handoff opens the Add URL dialog filled in (window-modal, one at a
+    time, at most 5 waiting, the rest answered "busy"). Nothing is added until the user
+    presses Download; the URL is validated again then, and the local-network box is never
+    pre-ticked.
+  - **Not running:** the host starts `.venv\Scripts\sdm.exe --from-browser` (detached, without
+    inherited stdio, leaving Chrome's job object when allowed) and retries for up to 15 s.
+  - **Registration:** `python -m sdm.bridge.install --extension-id <id>` writes the manifest
+    and launcher to `%LOCALAPPDATA%\SDM\bridge` and sets
+    `HKCU\Software\Google\Chrome\NativeMessagingHosts\com.sdm.bridge`; `allowed_origins` lists
+    only that ID. `--uninstall` removes exactly those.
+- **Alternatives rejected:** a localhost HTTP or WebSocket server (rule 6; any web page can
+  reach localhost); the host downloading by itself (it would bypass the window, queue and
+  history); passing the URL as a command-line argument to a new SDM (a second copy, and the
+  command line is visible to other programs).
+- **Consequences:** No new dependencies. Same-user programs that can read the key can also
+  hand SDM links, but only through the same schema and confirmation dialog. The pipe accepts
+  remote (SMB) clients by default; they would need this account's credentials and the key.
+  Tests: `test_bridge_protocol.py`, `test_bridge_hostile_messages.py`, `test_bridge_pipe.py`,
+  `test_bridge_host.py` (in-process and as a real process), `test_window_handoff.py`,
+  `test_bridge_install.py` (throwaway registry key), and `node --test` for the extension.

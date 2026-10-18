@@ -43,6 +43,8 @@ uv run pytest               # all tests (Qt off-screen, local mock HTTP server)
 uv run ruff check .         # lint
 uv run ruff format .        # format
 uv add <pkg>                # runtime dependency; `uv add --dev <pkg>` for dev tools
+cd extension; node --test   # Chrome extension tests (Node 24, no packages)
+uv run python -m sdm.bridge.install --extension-id ID   # registry change: ask first
 ```
 
 ## Layout and boundaries
@@ -52,7 +54,9 @@ uv add <pkg>                # runtime dependency; `uv add --dev <pkg>` for dev t
 - `src/sdm/engine`: asyncio + aiohttp download engine (ADR-0006); **never imports Qt**.
   `policy.py` is the SSRF defense (ADR-0007): keep every new request path going through it.
 - `src/sdm/storage`: SQLite. `src/sdm/scheduler`: queues and scheduling.
-- `src/sdm/bridge`: native messaging host; all messages are untrusted.
+- `src/sdm/bridge`: native messaging host, named pipe and registration (ADR-0014); all
+  messages are untrusted. The pipe is also SDM's single-instance lock. `extension/chrome`
+  is the Manifest V3 extension.
 - `src/sdm/ui`: PySide6; the only package that imports Qt widgets. `controller.py` glues the
   history, the engine and the table model on the main thread; `engine_adapter.py` turns
   engine events into Qt signals (ADR-0009). Only the main thread touches `DownloadStore`.

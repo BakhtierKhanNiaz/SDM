@@ -9,16 +9,20 @@ still placeholders.
 ## Overview
 
 SDM is a single Windows desktop process written in Python, with a PySide6 interface. A Chrome
-extension (M7) will talk to it through Chrome Native Messaging, which runs a small host program
-over stdin/stdout, never a network port.
+extension (M7) talks to it through Chrome Native Messaging, which runs a small host program
+over stdin/stdout; the host passes the link to the window over an authenticated named pipe,
+never a network port (ADR-0014).
 
 ```
         Chrome extension (M7)
                 │  native messaging (stdin/stdout, JSON)
                 ▼
-   ┌──────────── bridge ────────────┐
-   │ validates every message        │
-   └──────────────┬─────────────────┘
+   ┌──────── bridge host (one process per click) ────────┐
+   │ validates the message, starts SDM if needed          │
+   └──────────────┬───────────────────────────────────────┘
+                  │  named pipe, per-user key, JSON
+                  ▼
+   bridge listener in the app ─▶ Add URL dialog (user confirms)
                   ▼
    ui ──────▶ scheduler ──────▶ engine ──▶ HTTP servers
     │              │               │
@@ -94,7 +98,7 @@ File writes run in the event loop thread for now (ADR-0006 consequences).
 
 ## Decided later
 
-- Native messaging host packaging and registration (M7).
+- Packaging the host with an installer instead of the venv's Python (M10).
 
 ## Resume (M4, ADR-0011)
 
@@ -140,3 +144,22 @@ event / action / every 30 s ─▶ controller.pump()
 
 `sdm.scheduler.queue` (pure planning, schedule, retry delays, reordering) and
 `sdm.scheduler.persist` (settings in the history). `sdm.core.categories` labels files by type.
+
+## Browser handoff (M7, ADR-0014)
+
+```
+ Chrome ─ right-click "Download with SDM"
+   └─ sendNativeMessage("com.sdm.bridge", {version, type, url})
+        └─ sdm-bridge-host.bat → python -P -m sdm.bridge.host (new process per click)
+             ├─ check origin, read one frame (≤ 64 KiB), parse_request
+             ├─ send_request over \\.\pipe\sdm-bridge-<hash>  (HMAC with bridge.key)
+             │     not running → start sdm.exe --from-browser, retry for 15 s
+             └─ write one reply, exit
+ SDM app
+   └─ BridgeListener (thread; one thread per connection, 5 s watchdog, ≤ 4 at once)
+        └─ parse_request again → HandoffReceiver.offer (≤ 5 waiting) → Qt signal
+             └─ MainWindow.receive_handoff → Add URL dialog, filled in → user confirms
+```
+
+The listener's pipe is also the single-instance lock: `BridgeListener` raises
+`AlreadyRunning` when another SDM owns it, and `sdm.app.main` exits before opening the history.

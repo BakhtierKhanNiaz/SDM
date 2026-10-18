@@ -8,6 +8,7 @@ uv run pytest tests/unit -v       # one folder, verbose
 uv run pytest -k redirect         # tests whose name contains "redirect"
 uv run ruff check .               # lint
 uv run ruff format --check .      # formatting
+cd extension; node --test         # the Chrome extension (Node's built-in runner)
 ```
 
 Qt runs off-screen during tests (`QT_QPA_PLATFORM=offscreen`, set in `tests/conftest.py`), so
@@ -19,7 +20,8 @@ no windows appear and the tests don't need a desktop.
 |---|---|
 | `tests/unit/` | One module at a time, no network: URLs, filenames, policy, Retry-After, CLI, window, units, download states, transfer meter, history database |
 | `tests/integration/` | The engine and the `DownloadManager` (engine thread, events, cancel, 3-at-once limit, shutdown), and the window and controller end to end (`test_window_downloads.py`: progress, cancel, history after restart, quitting), all against the local mock server |
-| `tests/security/` | Unsafe destinations, hostile redirects and filenames, the CLI refusing this computer |
+| `tests/security/` | Unsafe destinations, hostile redirects and filenames, the CLI refusing this computer, hostile browser messages |
+| `extension/tests/` | The Chrome extension against a fake `chrome` object (`node --test`) |
 
 ## The mock server
 
@@ -75,4 +77,4 @@ default policy blocks the test server, as it should) and short timeouts.
 | Resume after restart, unsupported ranges, bad `Content-Range`, remote file changes | Covered (M4: `test_resume.py`, `test_window_resume.py`) |
 | Concurrent segment failures | Covered (M5: `test_segmented.py`) |
 | Database recovery | Covered (M3a: corrupted file set aside, newer schema refused, crash leaves entries interrupted); resume-after-crash in M4 |
-| Malicious browser messages, bridge disconnection | M7 |
+| Malicious browser messages, bridge disconnection | Covered (M7: `test_bridge_hostile_messages.py`, `test_bridge_pipe.py`, `test_bridge_host.py`) |

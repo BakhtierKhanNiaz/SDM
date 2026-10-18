@@ -1,8 +1,9 @@
 """The main SDM window: a toolbar, the download list and a status bar."""
 
+from collections import deque
 from pathlib import Path
 
-from PySide6.QtCore import QSortFilterProxyModel
+from PySide6.QtCore import QSortFilterProxyModel, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -31,12 +32,17 @@ def default_download_folder() -> Path:
 
 
 class MainWindow(QMainWindow):
+    # A browser handoff's dialog closed (accepted or not); the receiver frees its slot.
+    handoff_closed = Signal()
+
     def __init__(
         self, controller: DownloadController, *, default_folder: Path | None = None
     ) -> None:
         super().__init__()
         self.controller = controller
         self._default_folder = default_folder or default_download_folder()
+        self._handoffs: deque[str] = deque()  # browser links waiting for their dialog
+        self.handoff_dialog: AddUrlDialog | None = None
         self.setWindowTitle("SDM - Smart Download Manager")
         self.resize(900, 500)
 
@@ -150,6 +156,39 @@ class MainWindow(QMainWindow):
             self.add_download(
                 dialog.url, dialog.folder, dialog.allow_local_network, start=dialog.start_now
             )
+
+    def receive_handoff(self, url: str) -> None:
+        """A link from the browser: confirm it in the Add URL dialog, one at a time."""
+        self._handoffs.append(url)
+        if self.isMinimized():
+            self.showNormal()
+        self.raise_()
+        self.activateWindow()
+        self._show_next_handoff()
+
+    def _show_next_handoff(self) -> None:
+        if self.handoff_dialog is not None or not self._handoffs:
+            return
+        dialog = AddUrlDialog(
+            default_folder=self._default_folder,
+            previous_downloads=self.controller.previous_downloads,
+            parent=self,
+        )
+        dialog.setWindowTitle("Add URL from the browser")
+        dialog.url_edit.setText(self._handoffs.popleft())  # checked again when accepted
+        dialog.finished.connect(lambda result, d=dialog: self._handoff_finished(d, result))
+        self.handoff_dialog = dialog
+        dialog.open()  # not exec(): the window keeps running while the dialog waits
+
+    def _handoff_finished(self, dialog: AddUrlDialog, result: int) -> None:
+        self.handoff_dialog = None
+        if result == QDialog.DialogCode.Accepted:
+            self.add_download(
+                dialog.url, dialog.folder, dialog.allow_local_network, start=dialog.start_now
+            )
+        dialog.deleteLater()
+        self.handoff_closed.emit()
+        self._show_next_handoff()
 
     def add_download(
         self, url: str, folder: Path, allow_local_network: bool = False, *, start: bool = True

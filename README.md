@@ -3,8 +3,8 @@
 A personal-use download manager for Windows. It's modelled on the observable behavior of
 Internet Download Manager (IDM) and written from scratch (clean-room).
 
-> **Status: M6, queue and scheduler.** Order the queue, limit how many run at once, run it
-> only at set times, and let temporary failures retry by themselves. See
+> **Status: M7, browser handoff.** Right-click a link in Chrome and choose "Download with
+> SDM" ([set up the extension](extension/README.md)). See
 > [docs/roadmap.md](docs/roadmap.md).
 
 ## Requirements
@@ -44,6 +44,7 @@ you pass `--allow-local-network`, on your local network.
 uv run pytest
 uv run ruff check .
 uv run ruff format --check .
+cd extension; node --test        # the Chrome extension's tests (needs Node.js)
 ```
 
 The tests draw windows off-screen, so nothing pops up while they run.
@@ -57,7 +58,8 @@ The tests draw windows off-screen, so nothing pops up while they run.
 | `src/sdm/engine/` | HTTP download engine (M2+); never imports Qt |
 | `src/sdm/storage/` | SQLite persistence (M3+) |
 | `src/sdm/scheduler/` | Queues and scheduling (M6+) |
-| `src/sdm/bridge/` | Browser native messaging host (M7+) |
+| `src/sdm/bridge/` | Browser native messaging host, pipe and registration (M7) |
+| `extension/chrome/` | The Chrome extension ([set up](extension/README.md)) |
 | `src/sdm/ui/` | PySide6 desktop interface |
 | `src/sdm/cli.py` | The `sdm-get` command |
 | `tests/` | `unit/`, `integration/` (local mock server), `security/` |

@@ -12,7 +12,7 @@ and its tests have actually run and passed.
 | M4 | Pause/resume and crash recovery | Done (2026-10-19) |
 | M5 | Parallel segmented downloads | Done (2026-10-19) |
 | M6 | Queue management and scheduling | Done (2026-10-19) |
-| M7 | Chrome extension and native messaging bridge | Not started |
+| M7 | Chrome extension and native messaging bridge | Implemented and tested; Chrome check by the owner pending |
 | M8 | Browser handoff integrated with the download engine | Not started |
 | M9 | Interface, settings, notifications and usability | Not started |
 | M10 | Security, performance, regression testing and Windows packaging | Not started |
@@ -188,3 +188,27 @@ Acceptance criteria, all met on 2026-10-19:
   python.org's published value; the earlier four copies were untouched. The owner's queue
   settings were saved before the demo and restored afterwards (checked).
 - [ ] Optional: observe IDM's queue and scheduler screens (checklist).
+
+## M7: Chrome extension and native messaging bridge
+
+Done on branch `m7/browser-bridge` (ADR-0014, spec FEAT-006):
+
+- `sdm.bridge.protocol`: framing (4-byte length + JSON, 64 KiB cap) and the strict request
+  schema. `sdm.bridge.pipe`: the per-user key, the authenticated named pipe, the listener
+  and client. `sdm.bridge.host`: the host Chrome starts; it starts SDM if needed.
+  `sdm.bridge.install`: registration for one extension ID, and its removal.
+- The window: a handoff opens Add URL filled in, one at a time; the pipe makes SDM
+  single-instance.
+- `extension/chrome`: Manifest V3, "Download with SDM" on links; `node --test` tests.
+
+Checked on 2026-10-19: 485 Python tests pass (90 new), 12 extension tests pass, ruff is
+clean. A launch check with a throwaway `LOCALAPPDATA` used the real `sdm.exe` and host
+processes: a second SDM exited quietly in 1.2 s; the host handed a link to the running SDM in
+0.2 s; with SDM closed, the host started it and got `{"ok": true}` in 1.5 s.
+
+Remaining before M7 is **Done**:
+
+- [ ] Register the host (owner approves running the install script).
+- [ ] Owner's Chrome check in a separate profile: the menu appears on links, a handoff opens
+  the filled-in dialog with SDM running and with SDM closed, and nothing downloads until
+  Download is pressed (checklist in [extension/README.md](../extension/README.md)).

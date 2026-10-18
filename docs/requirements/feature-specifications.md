@@ -181,6 +181,34 @@ the partial file.
   SHA-256 (owner approves the URL). Done 2026-10-19: waited about 90 s, started 1.7 s after
   the window opened, SHA-256 matched (roadmap).
 
+## FEAT-006: "Download with SDM" from Chrome (M7)
+
+- **Purpose:** Send a link from the browser to SDM without copying and pasting it.
+- **Based on:** Project goals (brief §1: explicit browser handoff). Rules: ADR-0014, security
+  rules 6 and 7. IDM's browser integration was not observed.
+- **User workflow:** right-click a link, choose Download with SDM; SDM comes forward (it
+  starts if needed) with the Add URL dialog filled in; check the folder, press Download.
+
+| ID | Requirement | Tests |
+|---|---|---|
+| FR-1 | The menu item appears on http and https links only; other links are never sent | `handoff.test.js`, `background.test.js` |
+| FR-2 | The extension asks only for `contextMenus` and `nativeMessaging` | `the extension asks for no more than two permissions` |
+| FR-3 | Only the exact request schema is accepted; extra fields, other types, unsafe URLs and oversized or broken frames are refused with a generic error | `test_bridge_protocol.py`, `test_bridge_hostile_messages.py` |
+| FR-4 | The host hands the link to the running SDM over the authenticated pipe; a wrong key is refused | `test_a_request_with_the_right_key_reaches_the_app`, `test_the_wrong_key_is_refused_and_the_listener_carries_on` |
+| FR-5 | If SDM isn't running, the host starts it and waits up to 15 s | `test_starts_sdm_when_it_isnt_running_and_waits_for_it`, `test_gives_up_if_sdm_never_starts` |
+| FR-6 | Misbehaving clients (dropped, silent, oversized, pickled) don't stop the listener | `test_a_silent_client_doesnt_block_others`, `test_a_silent_client_is_cut_off`, `test_an_oversized_message_is_dropped`, `test_pickled_objects_are_never_unpickled` |
+| FR-7 | A handoff opens Add URL filled in; nothing is added until the user confirms; the URL is checked again | `test_window_handoff.py` |
+| FR-8 | Handoffs wait their turn; more than 5 waiting are answered "busy" | `test_several_handoffs_wait_their_turn`, `test_too_many_waiting_handoffs_are_refused` |
+| FR-9 | Only one SDM runs at a time | `test_only_one_listener_per_pipe`; launch check (roadmap) |
+| FR-10 | Install and uninstall write and remove exactly the manifest, launcher and registry value, for one extension ID | `test_bridge_install.py` |
+
+### Acceptance criteria
+
+- All tests above pass; ruff is clean; `node --test` passes.
+- In a separate Chrome profile, the owner loads the extension, registers it (after approving
+  the registry change), and a right-click handoff opens SDM's dialog filled in, both with SDM
+  running and with SDM closed.
+
 ## Template
 
 ```markdown

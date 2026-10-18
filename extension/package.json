@@ -1,0 +1,9 @@
+{
+  "name": "sdm-extension-tests",
+  "private": true,
+  "type": "module",
+  "description": "Runs the Chrome extension's tests with Node's built-in runner (no packages to install).",
+  "scripts": {
+    "test": "node --test"
+  }
+}

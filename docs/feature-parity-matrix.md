@@ -38,7 +38,7 @@ session), not that the feature was studied in full.
 | Download queues | Tested | M6 | ADR-0013; order, limit 1-8, Start now, automatic retries after ~1/5/15 min (`test_queue.py`). IDM: OBS-006's message offers a queue that retries until success; its queue screens not observed |
 | Scheduled downloads | Tested | M6 | Real-world: a python.org download waited for its window and started 1.7 s after it opened (roadmap). Start/stop times and days, overnight windows; only starts and pauses (`test_queue_planner.py`, `test_queue.py`). IDM's scheduler not observed |
 | Categories | Tested | M6 | Same categories IDM showed (OBS-001, 002, 005) plus Music, Video, Programs; labels by default, IDM-style subfolders as a setting (off) |
-| Browser-to-desktop handoff (explicit) | Not investigated | M7–M8 | |
+| Browser-to-desktop handoff (explicit) | Tested | M7 | ADR-0014, FEAT-006: right-click "Download with SDM" on links opens Add URL filled in; starts SDM if needed. Chrome check by the owner pending. IDM's browser integration not observed |
 | Automatic browser download capture (with consent) | Not investigated | M8 | |
 | Speed limiter | Not investigated | M9 | |
 | Connection limits | Not investigated | M9 | |

@@ -8,6 +8,13 @@ while SDM is in 0.x.
 
 ### Added
 
+- M7, browser handoff: a Chrome extension (Manifest V3, `contextMenus` and
+  `nativeMessaging` only) adds "Download with SDM" to links. A native messaging host
+  (`com.sdm.bridge`) checks the message against a strict schema and passes it to SDM over a
+  named pipe authenticated with a per-user key, starting SDM if needed. SDM opens Add URL
+  filled in for the user to confirm, and now runs as a single instance.
+  `python -m sdm.bridge.install` registers the host for one extension ID. ADR-0014, spec
+  FEAT-006; 90 new Python tests (485 in total) and 12 extension tests.
 - M6b, the window: Queue menu (Start now, Move to top/up/down/bottom), Scheduler dialog
   (downloads at once, times and days, category subfolders), "Start the download now" in
   Add URL, a Category column and a category filter. Upgrading to schema 4 labels existing
