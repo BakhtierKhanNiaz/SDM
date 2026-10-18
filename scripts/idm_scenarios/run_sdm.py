@@ -47,7 +47,8 @@ def main() -> None:
                 size, digest = EXPECTED[urlsplit(result.final_url).path]
                 actual = hashlib.sha256(result.path.read_bytes()).hexdigest()
                 check = "SHA-256 matches" if (result.size, actual) == (size, digest) else "MISMATCH"
-                outcome = f"saved '{result.path.name}' ({result.size:,} bytes, {check})"
+                note = "" if result.verified_complete else ", completeness not confirmed"
+                outcome = f"saved '{result.path.name}' ({result.size:,} bytes, {check}{note})"
             except SDMError as exc:
                 outcome = f"error: {exc}"
             seconds = time.perf_counter() - start

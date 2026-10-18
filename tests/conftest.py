@@ -111,6 +111,26 @@ class MockServer:
         return route
 
     @staticmethod
+    def chunked(data: bytes, *, cut: bool = False) -> Route:
+        """Send data with chunked transfer encoding (no Content-Length). With cut=True, stop
+        halfway and close the connection without the final zero-length chunk."""
+
+        def route(h: http.server.BaseHTTPRequestHandler) -> None:
+            h.protocol_version = "HTTP/1.1"  # chunked encoding needs an HTTP/1.1 response
+            h.send_response(200)
+            h.send_header("Transfer-Encoding", "chunked")
+            h.send_header("Connection", "close")
+            h.end_headers()
+            body = data[: len(data) // 2] if cut else data
+            for start in range(0, len(body), 64 * 1024):
+                piece = body[start : start + 64 * 1024]
+                h.wfile.write(f"{len(piece):x}\r\n".encode() + piece + b"\r\n")
+            if not cut:
+                h.wfile.write(b"0\r\n\r\n")
+
+        return route
+
+    @staticmethod
     def stall(first_bytes: bytes, declared_length: int, seconds: float) -> Route:
         """Send the headers and a little data, then go silent for `seconds`."""
 

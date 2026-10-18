@@ -133,4 +133,7 @@ deleted. A changed decision gets a new record that supersedes the old one.
     are retried for about 1.5 s.
   - On failure or cancellation, the partial file is deleted. Resume (M4) will change this.
 - **Consequences:** Downloading the same URL twice gives `file.zip` and `file (1).zip`.
-  IDM's own behavior has not been observed yet; we compare in the M2 IDM comparison.
+  IDM, observed in M2 (OBS-002), asks first. It offers a numbered name (`file_2.zip`),
+  overwriting, or showing/resuming the existing download. SDM keeps this decision. It can't
+  ask until it has a download list (M3), and a "this URL is already in your history" prompt
+  is a candidate for M9.

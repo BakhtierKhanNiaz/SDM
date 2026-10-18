@@ -8,6 +8,14 @@ while SDM is in 0.x.
 
 ### Added
 
+- M2 IDM comparison: OBS-001 to OBS-006 in `docs/research/behavior-observations.md`, with an
+  evidence table, request-log analysis, an IDM vs SDM table, findings and missing-evidence
+  notes. The parity matrix, IDM feature inventory, FEAT-001, ADR-0008 and roadmap are updated
+  from it, and M2 is marked done.
+- `DownloadResult.verified_complete`: `False` when only the connection closing marked the end
+  of the download, so a cut can't be told apart from success. `sdm-get` prints a warning in
+  that case (from OBS-005), and `run_sdm.py` reports it.
+- `MockServer.chunked` route for tests, and 6 new tests (145 in total).
 - M2 single-connection downloader (`sdm.engine.http_download`), built on aiohttp: http/https
   only, manual redirects (at most 10, each re-checked), 200-only success, 3 attempts with
   backoff and `Retry-After`, `Accept-Encoding: identity`, size verification, free-space check,
@@ -34,3 +42,8 @@ while SDM is in 0.x.
 - pytest + pytest-qt smoke tests running off-screen, and ruff lint/format configuration.
 - Project documentation: brief, roadmap, feature-parity matrix, architecture, security model,
   test strategy, decision records, and the M0 environment report.
+
+### Changed
+
+- 404 and 410 responses now say "The file was not found on the server (...)" instead of
+  "The server refused the download (...)" (from OBS-003). Other 4xx errors are unchanged.

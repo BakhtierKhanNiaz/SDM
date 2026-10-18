@@ -32,3 +32,7 @@ class DownloadResult:
     size: int  # bytes written
     final_url: str  # URL after redirects (may contain tokens: redact before logging)
     content_type: str | None
+    # True when the server marked where the file ends (Content-Length or chunked encoding) and
+    # every byte arrived. False when it only closed the connection: a connection that dropped
+    # early looks exactly like a finished download, so completeness can't be confirmed.
+    verified_complete: bool

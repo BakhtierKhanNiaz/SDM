@@ -3,7 +3,7 @@
 ## How to run
 
 ```powershell
-uv run pytest                     # everything (139 tests, ~30 s)
+uv run pytest                     # everything (145 tests, ~35 s)
 uv run pytest tests/unit -v       # one folder, verbose
 uv run pytest -k redirect         # tests whose name contains "redirect"
 uv run ruff check .               # lint
@@ -32,8 +32,8 @@ mock_server.add("/flaky", mock_server.status(503), mock_server.file(DATA))
 ```
 
 Route builders: `file` (with or without `Content-Length`, extra headers), `status`,
-`redirect`, `truncated` (promises N bytes, sends half), and `stall` (sends a little, then goes
-silent). `mock_server.hits[path]` counts requests, and `mock_server.requests` keeps their
+`redirect`, `truncated` (promises N bytes, sends half), `chunked` (chunked encoding, complete
+or cut before the last chunk), and `stall` (sends a little, then goes silent). `mock_server.hits[path]` counts requests, and `mock_server.requests` keeps their
 headers.
 
 Fixtures: `fetch(url, ...)` runs one download into `tmp_path`, with loopback allowed (the
@@ -54,7 +54,7 @@ default policy blocks the test server, as it should) and short timeouts.
 | Brief item | Status |
 |---|---|
 | Valid and invalid URLs | Covered (M2) |
-| Successful downloads, unknown sizes | Covered (M2) |
+| Successful downloads, unknown sizes (with the completeness warning) | Covered (M2) |
 | Redirects; unsafe redirects and local-network access | Covered (M2) |
 | Network interruption, retry behavior | Covered (M2) |
 | Cancellation | Covered (M2, engine level) |

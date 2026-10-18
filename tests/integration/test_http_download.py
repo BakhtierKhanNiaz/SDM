@@ -38,6 +38,7 @@ def test_downloads_the_file_byte_for_byte(mock_server, fetch, tmp_path):
     assert result.path == tmp_path / "data.bin"
     assert sha256(result.path.read_bytes()) == sha256(DATA)
     assert result.size == len(DATA)
+    assert result.verified_complete
     assert progress[0] == (0, len(DATA))
     assert progress[-1] == (len(DATA), len(DATA))
     assert names(tmp_path) == ["data.bin"]  # no .sdmpart left behind
@@ -60,6 +61,26 @@ def test_unknown_size(mock_server, fetch):
     assert result.path.read_bytes() == DATA
     assert result.path.name == "stream"
     assert all(total is None for _, total in progress)
+    # Only the connection closing marked the end, so a cut would have looked the same
+    # (IDM warns about this too: OBS-005).
+    assert not result.verified_complete
+
+
+def test_chunked_download_counts_as_complete(mock_server, fetch):
+    mock_server.add("/chunked", mock_server.chunked(DATA))
+
+    result = fetch(mock_server.url("/chunked"))
+
+    assert result.path.read_bytes() == DATA
+    assert result.verified_complete  # the final zero-length chunk marks the end
+
+
+def test_chunked_download_cut_before_the_last_chunk_fails(mock_server, fetch, tmp_path):
+    mock_server.add("/chunked-cut", mock_server.chunked(DATA, cut=True))
+    with pytest.raises(DownloadError, match="interrupted"):
+        fetch(mock_server.url("/chunked-cut"))
+    assert mock_server.hits["/chunked-cut"] == 3
+    assert names(tmp_path) == []
 
 
 def test_name_from_content_disposition(mock_server, fetch):
@@ -108,12 +129,20 @@ def test_another_downloads_partial_file_is_left_alone(mock_server, fetch, tmp_pa
 # ----- server errors and retries -----
 
 
-def test_404_fails_without_retrying(mock_server, fetch, tmp_path):
-    mock_server.add("/missing", mock_server.status(404))
-    with pytest.raises(DownloadError, match=r"refused the download \(404 Not Found\)"):
+@pytest.mark.parametrize(("code", "label"), [(404, "404 Not Found"), (410, "410 Gone")])
+def test_missing_file_fails_without_retrying(mock_server, fetch, tmp_path, code, label):
+    mock_server.add("/missing", mock_server.status(code))
+    with pytest.raises(DownloadError, match=rf"not found on the server \({label}\)"):
         fetch(mock_server.url("/missing"))
     assert mock_server.hits["/missing"] == 1
     assert names(tmp_path) == []
+
+
+def test_other_client_errors_are_refusals(mock_server, fetch):
+    mock_server.add("/private", mock_server.status(403))
+    with pytest.raises(DownloadError, match=r"refused the download \(403 Forbidden\)"):
+        fetch(mock_server.url("/private"))
+    assert mock_server.hits["/private"] == 1
 
 
 def test_temporary_server_error_is_retried(mock_server, fetch):

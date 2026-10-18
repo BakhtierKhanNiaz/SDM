@@ -33,9 +33,10 @@ uv run sdm-get URL --dest D:\Downloads                 # choose the folder
 uv run sdm-get URL --allow-local-network               # allow e.g. a NAS at 192.168.x.x
 ```
 
-`sdm-get` never overwrites a file: if `file.zip` exists, it saves `file (1).zip`. For safety,
-it refuses addresses on this computer and, unless you pass `--allow-local-network`, on your
-local network.
+`sdm-get` never overwrites a file: if `file.zip` exists, it saves `file (1).zip`. If the
+server doesn't say how big the file is, `sdm-get` still saves it but warns that it can't
+confirm the whole file arrived. For safety, it refuses addresses on this computer and, unless
+you pass `--allow-local-network`, on your local network.
 
 ## Test and lint
 

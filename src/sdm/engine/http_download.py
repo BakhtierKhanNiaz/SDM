@@ -2,7 +2,8 @@
 
 One attempt: check the URL -> GET, following redirects by hand so every hop is re-checked ->
 check the status -> choose a filename -> stream into "<name>.sdmpart" -> verify the size ->
-rename to the final name without ever replacing an existing file. Failed attempts that might
+rename to the final name without ever replacing an existing file. When the server gives no
+size, the result says that completeness couldn't be confirmed. Failed attempts that might
 succeed later (timeouts, 5xx, dropped connections) are retried from the start; resuming from
 the middle of a file comes in M4.
 """
@@ -138,11 +139,14 @@ async def _attempt(
                 with contextlib.suppress(OSError):
                     part_path.unlink(missing_ok=True)
                 raise
+    # With chunked encoding aiohttp itself fails if the final chunk never arrives.
+    chunked = "chunked" in response.headers.get("Transfer-Encoding", "").lower()
     return DownloadResult(
         path=final_path,
         size=received,
         final_url=str(response.url),
         content_type=response.headers.get("Content-Type"),
+        verified_complete=total is not None or chunked,
     )
 
 
@@ -181,6 +185,8 @@ def _check_status(response: aiohttp.ClientResponse) -> None:
             retryable=True,
             retry_after=parse_retry_after(response.headers.get("Retry-After")),
         )
+    if status in (404, 410):
+        raise DownloadError(f"The file was not found on the server ({label}).")
     raise DownloadError(f"The server refused the download ({label}).")
 
 

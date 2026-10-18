@@ -90,4 +90,10 @@ def main(argv: list[str] | None = None) -> int:
         return 130
     progress.finish()
     print(f"Saved {result.path} ({format_size(result.size)})")
+    if not result.verified_complete:
+        print(
+            "Warning: the server didn't say how big the file is, so SDM can't confirm that "
+            "the whole file arrived.",
+            file=sys.stderr,
+        )
     return 0
