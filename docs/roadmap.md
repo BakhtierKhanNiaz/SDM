@@ -10,7 +10,7 @@ and its tests have actually run and passed.
 | M2 | Reliable single-connection HTTP downloader | Done (2026-10-18) |
 | M3 | Progress, cancellation, history and persistent state | Done (2026-10-19) |
 | M4 | Pause/resume and crash recovery | Done (2026-10-19) |
-| M5 | Parallel segmented downloads | Implemented and tested; real-world demo pending |
+| M5 | Parallel segmented downloads | Done (2026-10-19) |
 | M6 | Queue management and scheduling | Not started |
 | M7 | Chrome extension and native messaging bridge | Not started |
 | M8 | Browser handoff integrated with the download engine | Not started |
@@ -127,7 +127,7 @@ Acceptance criteria, all met on 2026-10-19:
   verified.
 - [ ] Optional: IDM comparison R2 (automatic retries) and resume against a `206` server.
 
-## M5: Parallel segmented downloads
+## M5: Parallel segmented downloads (done)
 
 Done on branch `m5/segmented-downloads`:
 
@@ -150,8 +150,13 @@ Found and fixed while testing:
   correct reply looked wrong and the file restarted.
 - The connection count briefly counted a finished part twice.
 
-Remaining before M5 is **Done**:
+Acceptance criteria, all met on 2026-10-19:
 
-- [ ] One real-world segmented download whose SHA-256 matches the publisher's (owner approves
-  the URL), with the connection count recorded.
+- [x] One real-world segmented download (approved by the owner): python.org's
+  `python-3.14.7-embed-amd64.zip` (12,673,227 bytes) through the window code with the real
+  history, default policy and default settings. The window showed up to 8 connections
+  (counts seen: 2, 3, 5, 7, 8); the engine logged no fallback, so every part came back as an
+  exact `206`. Done in 3.8 s as `python-3.14.7-embed-amd64 (3).zip`; the SHA-256 matched
+  python.org's published value; the three earlier copies were untouched; no `.sdmpart` left;
+  the history entry is completed and verified, with its parts map cleared.
 - [ ] Optional: IDM comparison against a resumable server.

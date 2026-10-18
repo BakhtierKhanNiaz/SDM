@@ -152,6 +152,7 @@ the partial file.
 
 - All tests above pass; ruff is clean.
 - One real-world segmented download matches the publisher's SHA-256 (owner approves the URL).
+  Done 2026-10-19: python.org's zip over up to 8 connections, SHA-256 matched (roadmap).
 
 ## Template
 
