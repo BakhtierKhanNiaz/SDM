@@ -8,7 +8,7 @@ and its tests have actually run and passed.
 | M0 | Inspect the environment, repository and dependencies | Done (2026-10-17) |
 | M1 | Project structure, configuration, documentation, initial desktop window | Done (2026-10-17) |
 | M2 | Reliable single-connection HTTP downloader | Done (2026-10-18) |
-| M3 | Progress, cancellation, history and persistent state | Implemented and tested; real-world window demo pending |
+| M3 | Progress, cancellation, history and persistent state | Done (2026-10-19) |
 | M4 | Pause/resume and crash recovery | Not started |
 | M5 | Parallel segmented downloads | Not started |
 | M6 | Queue management and scheduling | Not started |
@@ -58,7 +58,7 @@ Known issue (cosmetic, found in the real-world demo): with `-v`, log lines are p
 same line as `sdm-get`'s progress display, because both write to stderr and the progress line
 doesn't end with a newline. The downloaded file is unaffected.
 
-## M3: Downloads in the window, with history
+## M3: Downloads in the window, with history (done)
 
 Done on branch `m3/window-downloads-history`:
 
@@ -73,7 +73,16 @@ Checked on 2026-10-19: 234 tests pass, ruff is clean, and `uv run python app.py`
 closes cleanly, creating `%LOCALAPPDATA%\SDM\sdm.db` (schema 1, WAL). A screenshot with real
 local downloads showed three running at once, a fourth waiting, and live numbers.
 
-Remaining before M3 is **Done**:
+Acceptance criteria, all met on 2026-10-19:
 
-- [ ] One real-world download through the window (the owner approves the URL).
+- [x] One real-world download through the window (approved by the owner): python.org's
+  `python-3.14.7-embed-amd64.zip`, through the Add URL dialog's checks and the window's
+  `add_download`, with the real history and the default network policy. Saved as
+  `python-3.14.7-embed-amd64 (1).zip`, because M2's copy was already there; that copy was
+  untouched (same SHA-256 and timestamp). 12,673,227 bytes; the SHA-256 matched python.org's
+  published value (`d297e5ff…a6ab1f15`); no `.sdmpart` left; the history entry is completed and
+  verified. It took 23.9 s: the window itself measured 536 KB/s from the server. The same
+  window path moves 261 MB/s over loopback, so the time was the server's and the network's.
+  No "downloaded before" warning was shown, as expected: M2's copy came from `sdm-get`, which
+  doesn't write to the history.
 - [ ] Optional: IDM re-run R1 to compare the live progress display (makes it *Verified*).

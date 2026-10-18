@@ -88,7 +88,8 @@ the partial file.
 - All tests above pass; ruff is clean.
 - `uv run python app.py` opens the window and closes cleanly.
 - One real-world download through the window succeeds (manual demonstration; the owner
-  approves the URL).
+  approves the URL). Done 2026-10-19: python.org's zip, SHA-256 matched, and it was saved as
+  `(1)` beside the earlier copy (details in the [roadmap](../roadmap.md)).
 
 ### Open questions
 
