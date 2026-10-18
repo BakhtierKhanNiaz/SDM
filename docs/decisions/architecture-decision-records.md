@@ -238,4 +238,12 @@ deleted. A changed decision gets a new record that supersedes the old one.
     starts over; it is never read as "complete" or as a prefix.
 - **Consequences:** Against a per-connection limit of 100 KB/s, 4 connections took 1.02 s
   against 4.02 s for one (`test_split_download_beats_a_per_connection_speed_limit`). Servers
-  without version tags download on one connection. Dynamic splitting follows in M5b.
+  without version tags download on one connection.
+- **M5b addition, dynamic splitting:** whenever a connection is free (a part finished, or a
+  resume has fewer unfinished parts than connections allowed), the part with the most bytes
+  left gives its second half to a new connection, if both halves keep at least 1 MiB (ties:
+  the earliest part). It runs only once every part is confirmed, so fallback stays simple.
+  A resume halves repeatedly, the shape OBS-001 suggested for IDM. A part's reply is checked
+  against the range it actually requested: a split can shrink the part while the request is
+  in flight (a bug found by `test_a_connection_that_finishes_early_helps_the_slowest`).
+  `DownloadSettings.dynamic_splitting` can switch it off.

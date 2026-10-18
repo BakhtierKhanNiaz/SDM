@@ -63,6 +63,7 @@ class Progress:
     download_id: int
     received_bytes: int
     total_bytes: int | None
+    connections: int = 1  # how many connections are downloading it (M5)
 
 
 @dataclass(frozen=True)
@@ -243,14 +244,15 @@ class DownloadManager:
         # An update held back is sent when its 0.2 s is up, so the last numbers before the
         # server goes quiet still reach the window.
         last_sent = 0.0
+        connections = 1
         latest: tuple[int, int | None] = (0, None)
         pending: asyncio.TimerHandle | None = None
 
         def send_latest() -> None:
-            nonlocal last_sent, pending
+            nonlocal last_sent, pending, connections
             pending = None
             last_sent = time.monotonic()
-            self._emit(Progress(download_id, *latest))
+            self._emit(Progress(download_id, *latest, connections))
 
         def on_progress(received: int, total: int | None) -> None:
             nonlocal latest, pending
@@ -269,6 +271,10 @@ class DownloadManager:
         def on_file_info(file_name: str, total: int | None) -> None:
             self._emit(FileInfo(download_id, file_name, total))
 
+        def on_connections(count: int) -> None:
+            nonlocal connections
+            connections = count  # goes out with the next progress update
+
         def on_partial(partial: PartialDownload) -> None:
             self._partials[download_id] = partial
             self._emit(PartialSaved(download_id, partial))
@@ -286,6 +292,7 @@ class DownloadManager:
                     on_partial=on_partial,
                     resume_from=resume_from,
                     keep_partial=True,
+                    on_connections=on_connections,
                 )
         except SDMError as exc:
             partial = self._partials.get(download_id)

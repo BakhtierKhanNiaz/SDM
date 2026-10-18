@@ -31,6 +31,7 @@ class DownloadSettings:
     max_connections: int = 8  # as IDM used in OBS-001
     min_split_size: int = 2 * 1024 * 1024  # smaller files use one connection
     min_part_size: int = 1024 * 1024
+    dynamic_splitting: bool = True  # free connections take over half of the biggest part (M5b)
     user_agent: str = f"SDM/{__version__}"
 
 

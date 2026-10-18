@@ -97,3 +97,21 @@ def decode_segments(text: str | None, total: int | None) -> tuple[Segment, ...] 
     if len(segments) != len(rows) or not segments_cover(segments, total):
         return None
     return segments
+
+
+def pick_split(parts: Sequence[tuple[int, int]], min_part: int) -> tuple[int, int] | None:
+    """Dynamic splitting: which part to halve for a free connection, and where.
+
+    `parts` are (next byte still needed, last byte) of the parts still downloading. The part
+    with the most bytes left gives its second half to a new connection, if both halves keep at
+    least `min_part` bytes. Returns (index into `parts`, first byte of the new part) or None.
+    On ties the earliest part wins. (OBS-001 suggested IDM does this: each new start point was
+    half as far from the previous one as the one before.)
+    """
+    best: tuple[int, int] | None = None
+    best_left = 0
+    for index, (next_byte, last) in enumerate(parts):
+        left = last - next_byte + 1
+        if left >= 2 * min_part and left > best_left:
+            best, best_left = (index, next_byte + left // 2), left
+    return best

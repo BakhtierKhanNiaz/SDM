@@ -126,4 +126,6 @@ every ~1 s: flush + fsync (worker thread) ─▶ report the parts map (PartialSa
 
 Code: `sdm.core.segments` (planning, map checks), `sdm.engine.segmented` (`SegmentedDownload`),
 `http_download._should_split` and `_run_segmented`. Settings: `DownloadSettings.max_connections`,
-`min_split_size`, `min_part_size`.
+`min_split_size`, `min_part_size`, `dynamic_splitting`. A free connection takes over the second
+half of the part with the most left (`core.segments.pick_split`). The connection count reaches
+the window through `on_connections` and the manager's `Progress.connections`.

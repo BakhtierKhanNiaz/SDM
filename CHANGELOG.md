@@ -8,6 +8,9 @@ while SDM is in 0.x.
 
 ### Added
 
+- M5b: dynamic splitting (a free connection takes over half of the part with the most left;
+  `DownloadSettings.dynamic_splitting`), and the connection count in the window's status
+  ("Downloading · 8 connections"). Spec FEAT-004; 6 new tests (343 in total).
 - M5a, segmented downloads: big files from servers that support ranges and give a version tag
   are downloaded over up to 8 connections at once (parts of at least 1 MiB, files of at least
   2 MiB). Parts are accepted only from exact `206` replies; doubt falls back to one connection;
@@ -92,6 +95,8 @@ while SDM is in 0.x.
 
 ### Changed
 
+- Fixed: a part's reply is checked against the range it requested, not its end after a
+  dynamic split (a correct reply used to look wrong and restart the file).
 - The quit question now says "Quit and pause them?" (it said partial files would be
   deleted, untrue since M4a). The startup notice for interrupted downloads points to Resume.
 - Quitting with downloads running now pauses them (partial files kept, resumable next time)

@@ -36,6 +36,7 @@ class _Row:
     record: DownloadRecord
     speed: float | None = None  # bytes per second, while downloading
     time_left: float | None = None  # seconds, while downloading with a known size
+    connections: int = 1  # while downloading (M5)
 
 
 class DownloadTableModel(QAbstractTableModel):
@@ -61,7 +62,7 @@ class DownloadTableModel(QAbstractTableModel):
             return None
         row = self._rows[index.row()]
         if role == Qt.ItemDataRole.DisplayRole:
-            return cell_text(row.record, index.column(), row.speed, row.time_left)
+            return cell_text(row.record, index.column(), row.speed, row.time_left, row.connections)
         if role == Qt.ItemDataRole.ToolTipRole:
             return _tooltip(row.record, index.column())
         if role == Qt.ItemDataRole.TextAlignmentRole and index.column() in (
@@ -92,6 +93,7 @@ class DownloadTableModel(QAbstractTableModel):
         row.record = record
         if record.state != DownloadState.DOWNLOADING:
             row.speed = row.time_left = None
+            row.connections = 1
         self._changed(position)
 
     def set_live(
@@ -101,13 +103,14 @@ class DownloadTableModel(QAbstractTableModel):
         total: int | None,
         speed: float | None,
         time_left: float | None,
+        connections: int = 1,
     ) -> None:
         position = self._position(download_id)
         if position is None:
             return
         row = self._rows[position]
         row.record = replace(row.record, received_bytes=received, total_bytes=total)
-        row.speed, row.time_left = speed, time_left
+        row.speed, row.time_left, row.connections = speed, time_left, connections
         self._changed(position)
 
     def remove(self, download_id: int) -> None:
@@ -140,7 +143,11 @@ class DownloadTableModel(QAbstractTableModel):
 
 
 def cell_text(
-    record: DownloadRecord, column: int, speed: float | None = None, time_left: float | None = None
+    record: DownloadRecord,
+    column: int,
+    speed: float | None = None,
+    time_left: float | None = None,
+    connections: int = 1,
 ) -> str:
     """What one cell of the download list says."""
     state, total, received = record.state, record.total_bytes, record.received_bytes
@@ -164,6 +171,8 @@ def cell_text(
         return format_duration(time_left) if downloading and time_left is not None else ""
     if column == STATUS:
         label = STATE_LABELS[state]
+        if downloading and connections > 1:
+            label += f" · {connections} connections"
         if state == DownloadState.COMPLETED and record.verified_complete is False:
             label += " (size unconfirmed)"
         return label

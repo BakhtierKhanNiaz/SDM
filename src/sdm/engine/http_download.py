@@ -26,7 +26,7 @@ import errno
 import logging
 import os
 import shutil
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -180,6 +180,7 @@ async def download(
     on_partial: PartialCallback | None = None,
     resume_from: PartialDownload | None = None,
     keep_partial: bool = False,
+    on_connections: Callable[[int], None] | None = None,
 ) -> DownloadResult:
     """Download `url` into `destination_dir` and return where the file was saved.
 
@@ -230,6 +231,7 @@ async def download(
                         on_progress,
                         on_file_info,
                         on_partial,
+                        on_connections,
                     )
                 except DownloadError as exc:
                     if not exc.retryable or attempt >= settings.max_attempts:
@@ -275,12 +277,21 @@ async def _attempt(
     on_progress: ProgressCallback | None,
     on_file_info: FileInfoCallback | None,
     on_partial: PartialCallback | None,
+    on_connections: Callable[[int], None] | None,
 ) -> DownloadResult:
     async with _translated_errors(url, directory):
         if transfer.segments is not None:  # continue a split download, part by part
             try:
                 await _run_segmented(
-                    session, url, policy, settings, transfer, None, on_progress, on_partial
+                    session,
+                    url,
+                    policy,
+                    settings,
+                    transfer,
+                    None,
+                    on_progress,
+                    on_partial,
+                    on_connections,
                 )
             except _StartOver as reason:
                 log.info("Can't resume the parts (%s); downloading from the start", reason)
@@ -322,6 +333,7 @@ async def _attempt(
                             response,
                             on_progress,
                             on_partial,
+                            on_connections,
                         )
                     except _StartOver as reason:
                         log.info(
@@ -387,6 +399,7 @@ async def _run_segmented(
     first_response: aiohttp.ClientResponse | None,
     on_progress: ProgressCallback | None,
     on_partial: PartialCallback | None,
+    on_connections: Callable[[int], None] | None = None,
 ) -> None:
     if_range = _if_range_value(transfer.etag, transfer.last_modified)
     if transfer.part_path is None or transfer.total is None or transfer.segments is None:
@@ -415,6 +428,7 @@ async def _run_segmented(
         settings=settings,
         on_progress=on_progress,
         on_snapshot=on_snapshot,
+        on_connections=on_connections,
     ).run(first_response)
 
 

@@ -12,8 +12,11 @@ reply is the whole file, simply carries on to the end. To keep that possible, th
 connection waits at the end of its own part until every extra part has been confirmed.
 
 Once all parts are confirmed, a part that drops retries its own remaining range; the others
-keep going. A reply that can't be trusted after that point (the file changed on the server)
-raises StartOver, and the caller downloads the file again on one connection.
+keep going. Dynamic splitting (M5b): whenever a connection is free (a part finished, or a
+resume has fewer parts than connections allowed), the part with the most bytes left gives
+its second half to a new connection, as long as both halves keep at least `min_part_size`.
+A reply that can't be trusted after that point (the file changed on the server) raises
+StartOver, and the caller downloads the file again on one connection.
 """
 
 import asyncio
@@ -29,7 +32,7 @@ from typing import BinaryIO
 import aiohttp
 
 from sdm.core.errors import DownloadError
-from sdm.core.segments import Segment
+from sdm.core.segments import Segment, pick_split
 from sdm.core.units import format_size
 from sdm.engine.models import DownloadSettings, ProgressCallback
 
@@ -41,6 +44,7 @@ _FSCTL_SET_SPARSE = 0x000900C4
 
 Requester = Callable[[dict[str, str]], Awaitable[aiohttp.ClientResponse]]
 SnapshotCallback = Callable[[tuple[Segment, ...]], None]
+ConnectionsCallback = Callable[[int], None]
 
 
 class StartOver(Exception):
@@ -145,6 +149,7 @@ class SegmentedDownload:
         settings: DownloadSettings,
         on_progress: ProgressCallback | None,
         on_snapshot: SnapshotCallback,
+        on_connections: ConnectionsCallback | None = None,
     ) -> None:
         self._request = request
         self._part_path = part_path
@@ -156,8 +161,11 @@ class SegmentedDownload:
         self._settings = settings
         self._on_progress = on_progress
         self._on_snapshot = on_snapshot
+        self._on_connections = on_connections
+        self._reported_connections = 0
         self._file: BinaryIO | None = None
         self._tasks: list[asyncio.Task[None]] = []
+        self._task_parts: dict[asyncio.Task[None], _Part] = {}
         self._first: _Part | None = None
         self._first_task: asyncio.Task[None] | None = None
         self._first_alive = False
@@ -173,7 +181,7 @@ class SegmentedDownload:
     @property
     def connections(self) -> int:
         """How many parts are downloading right now."""
-        return sum(1 for task in self._tasks if not task.done())
+        return sum(1 for t, p in self._task_parts.items() if not t.done() and not p.done)
 
     def snapshot(self) -> tuple[Segment, ...]:
         return tuple(part.frozen() for part in sorted(self._parts, key=lambda p: p.start))
@@ -205,13 +213,15 @@ class SegmentedDownload:
             response = None
             if first_response is not None and self._first is None and part.next_byte == 0:
                 self._first, response = part, first_response
-            task = asyncio.create_task(self._run_part(part, response))
-            self._tasks.append(task)
+            task = self._start_part(part, response)
             if response is not None:
                 self._first_task, self._first_alive = task, True
         self._unconfirmed = sum(1 for task in self._tasks if task is not self._first_task)
-        if self._unconfirmed == 0:
+        if self._unconfirmed == 0 or first_response is None:
+            # With no whole-file first connection (a resume) there is nothing to fall back to,
+            # so there is nothing to wait for either.
             self._confirmed.set()
+        self._help()  # a resume may have fewer unfinished parts than connections allowed
         try:
             while pending := [task for task in self._tasks if not task.done()]:
                 done, _ = await asyncio.wait(pending, return_when=asyncio.FIRST_EXCEPTION)
@@ -244,6 +254,9 @@ class SegmentedDownload:
                 async with response:
                     await self._stream(part, response, may_wait=is_first)
                 response = None
+                if part.done:
+                    self._help(finishing=True)  # this connection is free: lend a hand
+                    return
                 if not part.done:
                     raise DownloadError(
                         interrupted_message(self.received, self._total), retryable=True
@@ -268,6 +281,49 @@ class SegmentedDownload:
                     raise DownloadError(interrupted_message(self.received, self._total)) from exc
                 delay = self._settings.backoff_base * 2 ** (attempt - 1)
                 await asyncio.sleep(min(delay, self._settings.max_retry_after))
+
+    def _start_part(
+        self, part: _Part, response: aiohttp.ClientResponse | None
+    ) -> asyncio.Task[None]:
+        task = asyncio.create_task(self._run_part(part, response))
+        self._task_parts[task] = part
+        task.add_done_callback(lambda _: self._report_connections())
+        self._tasks.append(task)
+        self._report_connections()
+        return task
+
+    def _help(self, *, finishing: bool = False) -> None:
+        """Give free connections the second half of the part with the most bytes left."""
+        if not self._settings.dynamic_splitting:
+            return
+        if self._fallen_back or not self._confirmed.is_set():
+            return  # only once every part is confirmed, so fallback stays simple
+        active = sum(1 for task in self._tasks if not task.done()) - (1 if finishing else 0)
+        while active < self._settings.max_connections:
+            candidates = [part for part in self._parts if not part.done]
+            choice = pick_split(
+                [(part.next_byte, part.end) for part in candidates], self._settings.min_part_size
+            )
+            if choice is None:
+                break
+            index, middle = choice
+            old = candidates[index]
+            new = _Part(middle, old.end)
+            old.end = middle - 1  # the old connection stops there (it hasn't reached it yet)
+            self._parts.append(new)
+            self._start_part(new, None)
+            active += 1
+
+    def _report_connections(self) -> None:
+        # Parts still downloading on a running task. A part that just finished hands its
+        # connection to a new part a moment before its own task ends: it is not counted twice.
+        count = sum(
+            1 for task, part in self._task_parts.items() if not task.done() and not part.done
+        )
+        if count and count != self._reported_connections:
+            self._reported_connections = count
+            if self._on_connections:
+                self._on_connections(count)
 
     def _can_fall_back(self) -> bool:
         # Possible only while the first connection still holds the whole-file reply, which it
@@ -296,7 +352,10 @@ class SegmentedDownload:
     # ----- one connection -----
 
     async def _request_part(self, part: _Part) -> aiohttp.ClientResponse:
-        headers = {"Range": f"bytes={part.next_byte}-{part.end}", "If-Range": self._if_range}
+        # Remember exactly what was asked: while this request is in flight, dynamic splitting
+        # may shrink `part.end`, and the reply must be checked against the request.
+        first, last = part.next_byte, part.end
+        headers = {"Range": f"bytes={first}-{last}", "If-Range": self._if_range}
         response = await self._request(headers)
         status = response.status
         if status in (408, 429) or 500 <= status <= 599:  # temporary: retry this part
@@ -307,7 +366,7 @@ class SegmentedDownload:
         try:
             if status != 206:
                 raise NotTrusted(f"the server answered {response.status} to a range request")
-            expected = (part.next_byte, part.end, self._total)
+            expected = (first, last, self._total)
             if parse_content_range(response.headers.get("Content-Range")) != expected:
                 raise NotTrusted("the server sent a different range than requested")
             if not tags_match(response, self._etag, self._last_modified):

@@ -10,7 +10,7 @@ and its tests have actually run and passed.
 | M2 | Reliable single-connection HTTP downloader | Done (2026-10-18) |
 | M3 | Progress, cancellation, history and persistent state | Done (2026-10-19) |
 | M4 | Pause/resume and crash recovery | Done (2026-10-19) |
-| M5 | Parallel segmented downloads | In progress (M5a done) |
+| M5 | Parallel segmented downloads | Implemented and tested; real-world demo pending |
 | M6 | Queue management and scheduling | Not started |
 | M7 | Chrome extension and native messaging bridge | Not started |
 | M8 | Browser handoff integrated with the download engine | Not started |
@@ -126,3 +126,32 @@ Acceptance criteria, all met on 2026-10-19:
   earlier two copies were untouched; no `.sdmpart` left; history entry #2 completed and
   verified.
 - [ ] Optional: IDM comparison R2 (automatic retries) and resume against a `206` server.
+
+## M5: Parallel segmented downloads
+
+Done on branch `m5/segmented-downloads`:
+
+- M5a (`b5590ea`): split downloads over up to 8 connections, exact-`206` validation, fallback
+  to one connection, per-part retries, a sparse pre-sized partial file, an off-thread `fsync`
+  before saving the parts map, history schema version 3, and resume part by part (ADR-0012).
+- M5b: dynamic splitting (free connections take over half of the biggest part), the
+  connection count in the window ("Downloading · 8 connections"), spec FEAT-004.
+
+Checked on 2026-10-19: 343 tests pass (three full runs), ruff is clean, and
+`uv run python app.py` opens and closes cleanly; it upgraded the real history to schema 3 with
+both entries kept. With the defaults against a local server limited to 0.4 MB/s per
+connection, the window showed "Downloading · 8 connections" at 3.0 MB/s.
+
+Found and fixed while testing:
+
+- `fsync` on the event loop thread stalled every connection on a busy disk (a speed test that
+  only failed in full runs); it now runs on a worker thread.
+- A part's reply was checked against its end *after* a dynamic split had shrunk it, so a
+  correct reply looked wrong and the file restarted.
+- The connection count briefly counted a finished part twice.
+
+Remaining before M5 is **Done**:
+
+- [ ] One real-world segmented download whose SHA-256 matches the publisher's (owner approves
+  the URL), with the connection count recorded.
+- [ ] Optional: IDM comparison against a resumable server.

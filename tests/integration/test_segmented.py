@@ -29,6 +29,7 @@ SPLIT = DownloadSettings(
     max_connections=4,
     min_split_size=200_000,
     min_part_size=100_000,
+    dynamic_splitting=False,  # these tests check the static split; see test_dynamic_split.py
 )
 EXTRA_RANGES = ["bytes=200000-399999", "bytes=400000-599999", "bytes=600000-799999"]
 

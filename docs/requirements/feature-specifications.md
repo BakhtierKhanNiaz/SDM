@@ -128,6 +128,31 @@ the partial file.
   resumed from exactly that point after a restart, and matched (details in the
   [roadmap](../roadmap.md)).
 
+## FEAT-004: Parallel segmented downloads (M5)
+
+- **Purpose:** Download a big file over several connections at once, faster when a server
+  limits each connection, without ever assembling a wrong file.
+- **Based on:** Project goals (brief §1, §5). OBS-001 and OBS-004 (IDM: 8 connections, extra
+  connections at the final URL, dropped on `200`). Rules: ADR-0012.
+
+| ID | Requirement | Tests |
+|---|---|---|
+| FR-1 | Split files of at least 2 MiB into parts of at least 1 MiB, over up to 8 connections | `test_segments.py`, `test_big_file_is_split_and_assembled` |
+| FR-2 | Split only if the server advertises ranges and gives a version tag; otherwise one connection | `test_one_connection_when_splitting_isnt_safe_or_useful` |
+| FR-3 | Accept a part only from a `206` with the exact `Content-Range` and the same tags | `test_wrong_content_range_on_one_part_falls_back`, `test_content_range.py` |
+| FR-4 | Fall back to one connection when a part can't be trusted while the first is open | `test_server_that_ignores_range_falls_back`, `test_file_changing_right_after_the_first_request_gives_one_consistent_version` |
+| FR-5 | A dropped part retries only its own remaining range | `test_a_dropped_part_retries_only_its_remainder`, `test_two_parts_dropped_at_once`, `test_first_connection_dropped_continues_with_a_range` |
+| FR-6 | Pause, quit, crash and resume continue part by part; a damaged map starts over | `test_resume_asks_only_for_the_missing_ranges`, `test_pause_and_resume_a_split_download`, `test_pause_quit_restart_and_resume_a_split_download`, `test_damaged_parts_map_is_ignored` |
+| FR-7 | Free connections take over half of the part with the most left | `test_a_resume_fills_free_connections_by_halving`, `test_a_connection_that_finishes_early_helps_the_slowest` |
+| FR-8 | Faster against a per-connection speed limit | `test_split_download_beats_a_per_connection_speed_limit` (4.0 s vs 1.0 s) |
+| FR-9 | The window shows the connection count while downloading | `test_a_split_download_shows_its_connections` |
+| FR-10 | Partial files are sparse on NTFS; progress is durable before it is recorded | `test_partial_files_are_marked_sparse_on_ntfs` |
+
+### Acceptance criteria
+
+- All tests above pass; ruff is clean.
+- One real-world segmented download matches the publisher's SHA-256 (owner approves the URL).
+
 ## Template
 
 ```markdown

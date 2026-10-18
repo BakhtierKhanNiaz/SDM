@@ -174,8 +174,8 @@ class DownloadController(QObject):
             case PartialSaved(partial=partial):
                 self.store.set_partial(download_id, partial)
                 self._refresh(download_id)  # the window needs `resumable` (Pause asks if not)
-            case Progress(received_bytes=received, total_bytes=total):
-                self._on_progress(download_id, received, total)
+            case Progress(received_bytes=received, total_bytes=total, connections=connections):
+                self._on_progress(download_id, received, total, connections)
             case Finished(result=result):
                 self._move(
                     download_id,
@@ -196,11 +196,15 @@ class DownloadController(QObject):
                 self._save_latest(download_id)
                 self._move(download_id, self.store.mark_cancelled)
 
-    def _on_progress(self, download_id: int, received: int, total: int | None) -> None:
+    def _on_progress(
+        self, download_id: int, received: int, total: int | None, connections: int = 1
+    ) -> None:
         meter = self._meters.setdefault(download_id, TransferMeter())
         meter.update(received)
         self._latest[download_id] = received
-        self.model.set_live(download_id, received, total, meter.speed, meter.time_left(total))
+        self.model.set_live(
+            download_id, received, total, meter.speed, meter.time_left(total), connections
+        )
         now = time.monotonic()
         if now - self._last_saved.get(download_id, 0.0) >= SAVE_PROGRESS_EVERY:
             self._last_saved[download_id] = now

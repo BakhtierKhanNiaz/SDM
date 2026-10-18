@@ -3,8 +3,8 @@
 A personal-use download manager for Windows. It's modelled on the observable behavior of
 Internet Download Manager (IDM) and written from scratch (clean-room).
 
-> **Status: M4, pause and resume.** Add a URL, watch it, pause it, and resume it later, even
-> after quitting or a crash, without downloading again what already arrived. See
+> **Status: M5, segmented downloads.** Big files download over up to 8 connections at once,
+> and pause, survive a crash and resume part by part. See
 > [docs/roadmap.md](docs/roadmap.md).
 
 ## Requirements
