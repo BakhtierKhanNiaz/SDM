@@ -47,7 +47,7 @@ test("installing replaces the menu with the one SDM item", () => {
 
 test("clicking the item sends the link to SDM's host and clears the badge", async () => {
   await listeners.clicked({ menuItemId: "sdm-download-link", linkUrl: link });
-  assert.deepEqual(calls[0], ["native", "com.sdm.bridge", { version: 1, type: "download", url: link }]);
+  assert.deepEqual(calls.find((c) => c[0] === "native"), ["native", "com.sdm.bridge", { version: 1, type: "download", url: link }]);
   assert.deepEqual(calls.find((c) => c[0] === "badge"), ["badge", ""]);
 });
 
@@ -65,14 +65,25 @@ test("a link SDM can't download is never sent", async () => {
 test("an error reply shows a badge and a reason in the tooltip", async () => {
   nativeReply = () => Promise.resolve({ ok: false, error: "busy" });
   await listeners.clicked({ menuItemId: "sdm-download-link", linkUrl: link });
-  assert.deepEqual(calls.find((c) => c[0] === "badge"), ["badge", "!"]);
-  assert.match(calls.find((c) => c[0] === "title")[1], /^SDM: Too many links/);
+  assert.deepEqual(calls.findLast((c) => c[0] === "badge"), ["badge", "!"]);
+  assert.match(calls.findLast((c) => c[0] === "title")[1], /^SDM: Too many links/);
+});
+
+test("each click clears the previous status before sending", async () => {
+  nativeReply = () => Promise.reject(new Error("Specified native messaging host not found."));
+  await listeners.clicked({ menuItemId: "sdm-download-link", linkUrl: link });
+  calls.length = 0;
+  nativeReply = () => new Promise(() => {}); // SDM hasn't answered yet
+  listeners.clicked({ menuItemId: "sdm-download-link", linkUrl: link });
+  assert.deepEqual(calls[0], ["badge", ""]); // the old "!" is gone at once
+  assert.deepEqual(calls[1], ["title", "SDM"]);
+  assert.equal(calls[2][0], "native");
 });
 
 test("a missing host is reported without the link", async () => {
   nativeReply = () => Promise.reject(new Error("Specified native messaging host not found."));
   await listeners.clicked({ menuItemId: "sdm-download-link", linkUrl: link });
-  const title = calls.find((c) => c[0] === "title")[1];
+  const title = calls.findLast((c) => c[0] === "title")[1];
   assert.match(title, /isn't installed/);
   assert.equal(title.includes(link), false);
 });
