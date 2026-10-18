@@ -1,8 +1,9 @@
 # System architecture
 
-Status: **M2.** `core` (errors, URLs, filenames), `engine` (single-connection downloader,
-network policy) and the `sdm-get` command line have code. `ui` shows an empty window.
-`storage`, `scheduler` and `bridge` are still placeholders.
+Status: **M3a.** `core` (errors, URLs, filenames, units, download states, transfer meter),
+`engine` (downloader, network policy, download manager), `storage` (SQLite history) and the
+`sdm-get` command line have code. The window is wired up in M3b. `scheduler` and `bridge` are
+still placeholders.
 
 ## Overview
 
@@ -49,8 +50,8 @@ through a thin adapter layer in `ui`.
 
 ## The download engine (M2)
 
-`sdm.engine.http_download.download(url, folder, policy=, settings=, on_progress=)` is an
-`async` function. One call is one download, built on aiohttp (ADR-0006):
+`sdm.engine.http_download.download(url, folder, policy=, settings=, on_progress=,
+on_file_info=)` is an `async` function. One call is one download, built on aiohttp (ADR-0006):
 
 ```
 download()
@@ -71,9 +72,25 @@ Library and OS exceptions are translated in one place (`_translated_errors`) int
 **Concurrency:** `asyncio`. Cancelling the task (`task.cancel()`) stops a download promptly.
 File writes run in the event loop thread for now (ADR-0006 consequences).
 
+## The download manager and history (M3, ADR-0009 and ADR-0010)
+
+```
+ main thread (Qt)                               engine thread "sdm-engine" (asyncio)
+ ┌──────────────────────────┐  submit/cancel   ┌──────────────────────────────────────┐
+ │ window + DownloadStore   │ ───────────────▶ │ DownloadManager                      │
+ │ (only writer to SQLite)  │                  │  semaphore: at most 3 run at once     │
+ │                          │ ◀── events ───── │  one task per download → download()  │
+ └──────────────────────────┘  via Qt signals  └──────────────────────────────────────┘
+```
+
+- Events: `Started`, `FileInfo`, `Progress` (at most ~5/s, the last one always delivered),
+  `Finished`, `Failed`, `Cancelled`. They are called on the engine thread; M3b's adapter turns
+  them into Qt signals.
+- `DownloadStore` (`sdm.storage.database`) keeps the history in
+  `%LOCALAPPDATA%\SDM\sdm.db`. Schema and states: [data-model.md](data-model.md).
+- `TransferMeter` (`sdm.core.progress`) turns progress into speed and time left, averaged over
+  3 s.
+
 ## Decided later
 
-- How the window runs the engine: a background thread with its own event loop, with
-  progress delivered to the UI thread through Qt signals (M3).
-- Database schema ([data-model.md](data-model.md), M3).
 - Native messaging host packaging and registration (M7).

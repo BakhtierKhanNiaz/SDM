@@ -144,6 +144,22 @@ class MockServer:
 
         return route
 
+    @staticmethod
+    def trickle(data: bytes, *, pieces: int, delay: float) -> Route:
+        """Send the whole file (with Content-Length) in `pieces` parts, `delay` s apart."""
+
+        def route(h: http.server.BaseHTTPRequestHandler) -> None:
+            h.send_response(200)
+            h.send_header("Content-Length", str(len(data)))
+            h.end_headers()
+            step = -(-len(data) // pieces)  # ceiling division
+            for start in range(0, len(data), step):
+                h.wfile.write(data[start : start + step])
+                h.wfile.flush()
+                time.sleep(delay)
+
+        return route
+
     def start(self) -> None:
         self._thread.start()
 
@@ -175,7 +191,7 @@ def fast_settings() -> DownloadSettings:
 def fetch(tmp_path, loopback_policy, fast_settings):
     """Run one download synchronously; defaults: into tmp_path, loopback allowed, fast."""
 
-    def _fetch(url, *, dest=None, policy=None, settings=None, on_progress=None):
+    def _fetch(url, *, dest=None, policy=None, settings=None, on_progress=None, on_file_info=None):
         return asyncio.run(
             download(
                 url,
@@ -183,6 +199,7 @@ def fetch(tmp_path, loopback_policy, fast_settings):
                 policy=policy or loopback_policy,
                 settings=settings or fast_settings,
                 on_progress=on_progress,
+                on_file_info=on_file_info,
             )
         )
 

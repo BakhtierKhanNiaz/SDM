@@ -30,8 +30,14 @@ from sdm.core.filenames import (
     numbered_name,
     sanitize_filename,
 )
+from sdm.core.units import format_size
 from sdm.core.urls import redact_url, validate_url
-from sdm.engine.models import DownloadResult, DownloadSettings, ProgressCallback
+from sdm.engine.models import (
+    DownloadResult,
+    DownloadSettings,
+    FileInfoCallback,
+    ProgressCallback,
+)
 from sdm.engine.policy import NetworkPolicy, PolicyResolver
 
 log = logging.getLogger(__name__)
@@ -52,6 +58,7 @@ async def download(
     policy: NetworkPolicy | None = None,
     settings: DownloadSettings | None = None,
     on_progress: ProgressCallback | None = None,
+    on_file_info: FileInfoCallback | None = None,
 ) -> DownloadResult:
     """Download `url` into `destination_dir` and return where the file was saved.
 
@@ -86,7 +93,9 @@ async def download(
         attempt = 1
         while True:
             try:
-                result = await _attempt(session, url, directory, policy, settings, on_progress)
+                result = await _attempt(
+                    session, url, directory, policy, settings, on_progress, on_file_info
+                )
             except DownloadError as exc:
                 if not exc.retryable or attempt >= settings.max_attempts:
                     raise
@@ -115,6 +124,7 @@ async def _attempt(
     policy: NetworkPolicy,
     settings: DownloadSettings,
     on_progress: ProgressCallback | None,
+    on_file_info: FileInfoCallback | None,
 ) -> DownloadResult:
     async with _translated_errors(url, directory):
         response = await _get_following_redirects(session, url, policy, settings)
@@ -123,6 +133,8 @@ async def _attempt(
             total = response.content_length  # None when the server doesn't say
             name = _choose_filename(response, directory)
             _check_free_space(directory, total)
+            if on_file_info:
+                on_file_info(name, total)
             part_path, part_file = _open_part_file(directory, name)
             try:
                 with part_file:
@@ -130,10 +142,7 @@ async def _attempt(
                         response, part_file, total, settings, on_progress
                     )
                 if total is not None and received != total:
-                    raise DownloadError(
-                        f"The connection closed early ({received:,} of {total:,} bytes).",
-                        retryable=True,
-                    )
+                    raise DownloadError(_interrupted_message(received, total), retryable=True)
                 final_path = await _finalize(part_path, directory, name)
             except BaseException:  # includes cancellation: never leave a partial file behind
                 with contextlib.suppress(OSError):
@@ -249,12 +258,23 @@ async def _stream_to_file(
     received = 0
     if on_progress:
         on_progress(received, total)
-    async for chunk in response.content.iter_chunked(settings.chunk_size):
-        file.write(chunk)
-        received += len(chunk)
-        if on_progress:
-            on_progress(received, total)
+    try:
+        async for chunk in response.content.iter_chunked(settings.chunk_size):
+            file.write(chunk)
+            received += len(chunk)
+            if on_progress:
+                on_progress(received, total)
+    except (aiohttp.ClientPayloadError, aiohttp.ServerDisconnectedError, ConnectionError) as exc:
+        # Say how much arrived, as IDM does (OBS-006: "50.00%").
+        raise DownloadError(_interrupted_message(received, total), retryable=True) from exc
     return received
+
+
+def _interrupted_message(received: int, total: int | None) -> str:
+    amount = format_size(received)
+    if total is not None:
+        amount += f" of {format_size(total)}"
+    return f"The download was interrupted after {amount}."
 
 
 async def _finalize(part_path: Path, directory: Path, name: str) -> Path:

@@ -303,3 +303,27 @@ def test_blocked_writes_are_explained(mock_server, fetch, monkeypatch, blocked_e
     mock_server.add("/f", mock_server.file(DATA))
     with pytest.raises(DownloadError, match="Controlled Folder Access"):
         fetch(mock_server.url("/f"))
+
+
+# ----- M3: early file info and how much arrived -----
+
+
+def test_file_info_is_reported_before_any_data(mock_server, fetch):
+    header = {"Content-Disposition": 'attachment; filename="Report 2026.pdf"'}
+    mock_server.add("/dl", mock_server.file(DATA, headers=header))
+    calls = []
+
+    fetch(
+        mock_server.url("/dl"),
+        on_progress=lambda received, total: calls.append(("progress", received, total)),
+        on_file_info=lambda name, total: calls.append(("info", name, total)),
+    )
+
+    assert calls[0] == ("info", "Report 2026.pdf", len(DATA))
+    assert calls[1] == ("progress", 0, len(DATA))
+
+
+def test_cut_download_says_how_much_arrived(mock_server, fetch):
+    mock_server.add("/cut", mock_server.truncated(DATA))  # sends 150,000 of 300,000 bytes
+    with pytest.raises(DownloadError, match=r"interrupted after 146\.5 KB of 293\.0 KB"):
+        fetch(mock_server.url("/cut"), settings=DownloadSettings(max_attempts=1))

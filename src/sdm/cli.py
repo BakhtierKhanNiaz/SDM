@@ -12,20 +12,9 @@ from pathlib import Path
 from typing import TextIO
 
 from sdm.core.errors import SDMError
+from sdm.core.units import format_size
 from sdm.engine.http_download import download
 from sdm.engine.policy import NetworkPolicy
-
-
-def format_size(num_bytes: float) -> str:
-    """1536 -> '1.5 KB'. Uses 1024-based units, as Windows Explorer does."""
-    if num_bytes < 1024:
-        return f"{num_bytes:.0f} bytes"
-    size = num_bytes / 1024
-    for unit in ("KB", "MB"):
-        if size < 1024:
-            return f"{size:.1f} {unit}"
-        size /= 1024
-    return f"{size:.1f} GB"
 
 
 class ProgressPrinter:

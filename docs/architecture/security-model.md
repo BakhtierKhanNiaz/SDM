@@ -28,6 +28,8 @@ the milestone listed.
 | 9 | **Privacy:** no browsing-history collection beyond explicit handoffs. No data sent to third parties. | Holds |
 | 10 | **Dependencies:** free/open-source only, license and support checked, versions pinned in `uv.lock`. | Holds (ADR-0001, ADR-0006) |
 | 11 | **Proxies:** proxy environment variables are ignored, because a proxy would hide the real destination from rule 2. | Implemented (M2) |
+| 12 | **History database:** per-user `%LOCALAPPDATA%\SDM\sdm.db`. Full URLs are stored (they may hold tokens, ADR-0010) but never logged. Every query uses `?` parameters. A corrupted file is set aside, never deleted. | Implemented (M3a) — `sdm.storage.database`, `test_urls_are_stored_as_data_not_sql` |
+| 13 | **Engine thread:** the window never runs network code, and only the main thread writes the database (ADR-0009). Every download submitted to the manager still goes through rule 2's policy. | Implemented (M3a) — `test_default_policy_blocks_this_computer` |
 
 Disguised spellings of loopback (`127.1`, `2130706433`, `0x7f000001`, `127.000.000.001`)
 never reach the target: aiohttp rejects non-canonical IPv4 forms, and Windows DNS can't

@@ -137,3 +137,42 @@ deleted. A changed decision gets a new record that supersedes the old one.
   overwriting, or showing/resuming the existing download. SDM keeps this decision. It can't
   ask until it has a download list (M3), and a "this URL is already in your history" prompt
   is a candidate for M9.
+
+## ADR-0009: The engine runs on its own thread; the window gets events through Qt signals
+
+- **Date:** 2026-10-18 · **Status:** Accepted (M3 plan approved by the project owner)
+- **Context:** A window that waits on the network freezes. The engine is asyncio-based
+  (ADR-0006) and must never import Qt; the window is Qt and must only be touched from its
+  main thread.
+- **Decision:** `sdm.engine.manager.DownloadManager` owns one background thread
+  (`sdm-engine`) with its own asyncio event loop. Other threads call only `submit`, `cancel`
+  and `shutdown`, which hand work to the loop with `call_soon_threadsafe`. The manager reports
+  through plain event objects (`Started`, `FileInfo`, `Progress`, `Finished`, `Failed`,
+  `Cancelled`), called on the engine thread. The window's adapter (M3b) re-emits them as Qt
+  signals, which Qt delivers to the main thread. Only the main thread writes to the database.
+- **Details that matter:**
+  - At most 3 downloads run at once (an `asyncio.Semaphore`); the rest wait in submission
+    order. Real queue management is M6.
+  - Progress events are limited to about 5 a second per download. An update held back is
+    sent when its slot comes up, and none is sent after the final event.
+  - Cancellation is reported from the task's done-callback: a task cancelled before its first
+    turn never runs its own code, so an `except CancelledError` inside it would miss it (found
+    by `test_cancelling_a_waiting_download`).
+- **Consequences:** All engine logic stays testable without Qt
+  (`tests/integration/test_manager.py`). The price is one hop (a signal) between an event and
+  the screen.
+
+## ADR-0010: Download history in SQLite under %LOCALAPPDATA%
+
+- **Date:** 2026-10-18 · **Status:** Accepted (approved by the project owner)
+- **Context:** M3 needs a history that survives restarts and crashes. M4's resume will need
+  the URL and progress of unfinished downloads.
+- **Decision:** Python's built-in `sqlite3` (no new dependency). File:
+  `%LOCALAPPDATA%\SDM\sdm.db`. Full URLs are stored (owner's decision) because resume needs
+  them. They stay on this PC, in a per-user folder, and are never logged. WAL journal mode;
+  the schema version is in `PRAGMA user_version`; every query uses `?` parameters, never
+  string formatting with input. Corrupted files are renamed aside, never deleted. Schema and
+  states: [data-model.md](../architecture/data-model.md).
+- **Consequences:** Anyone who can read this user's AppData can read the download URLs, the
+  same as browser history. If secrets in URLs become a concern, encrypting the column is
+  possible later without changing the rest.

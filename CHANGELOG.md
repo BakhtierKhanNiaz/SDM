@@ -8,6 +8,16 @@ while SDM is in 0.x.
 
 ### Added
 
+- M3a, downloads in the background with a history: `DownloadManager`
+  (`sdm.engine.manager`) runs downloads on its own thread with an asyncio loop. At most 3 run
+  at once, and it reports `Started`, `FileInfo`, `Progress`, `Finished`, `Failed` and
+  `Cancelled` events (ADR-0009). The SQLite history (`sdm.storage.database`) lives in
+  `%LOCALAPPDATA%\SDM\sdm.db`, with schema versions, a set-aside for corrupted files, and
+  crash leftovers marked interrupted (ADR-0010, data-model.md). There is also a speed and
+  time-left calculator (`sdm.core.progress`) and download states (`sdm.core.downloads`).
+- `download(..., on_file_info=)` reports the file name and size as soon as the server
+  answers.
+- `MockServer.trickle` test route; 53 new tests (209 in total).
 - Scenario server (`scripts/idm_scenarios/server.py`), for re-running the IDM comparison with
   precise evidence: each log line now also has `start` and `end` (date, time and
   milliseconds), `duration_s`, a connection number `conn`, the client's port and
@@ -53,6 +63,9 @@ while SDM is in 0.x.
 
 ### Changed
 
+- An interrupted transfer now says how much arrived: "The download was interrupted after
+  2.0 MB of 4.0 MB." (from OBS-006).
+- `format_size` moved to `sdm.core.units`, next to new `format_speed` and `format_duration`.
 - Scenario server log: when the client hangs up, the line now shows the status that was sent
   and the body bytes really sent, plus `disconnected: true`, instead of `status: 0` and
   `bytes_sent: 0`. Old lines in `logs/idm-requests.jsonl` keep their old meaning.

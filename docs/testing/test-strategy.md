@@ -17,8 +17,8 @@ no windows appear and the tests don't need a desktop.
 
 | Folder | What goes there |
 |---|---|
-| `tests/unit/` | One module at a time, no network: URLs, filenames, policy, Retry-After, CLI, window |
-| `tests/integration/` | The engine downloading from the local mock server |
+| `tests/unit/` | One module at a time, no network: URLs, filenames, policy, Retry-After, CLI, window, units, download states, transfer meter, history database |
+| `tests/integration/` | The engine and the `DownloadManager` (engine thread, events, cancel, 3-at-once limit, shutdown) against the local mock server |
 | `tests/security/` | Unsafe destinations, hostile redirects and filenames, the CLI refusing this computer |
 
 ## The mock server
@@ -57,9 +57,9 @@ default policy blocks the test server, as it should) and short timeouts.
 | Successful downloads, unknown sizes (with the completeness warning) | Covered (M2) |
 | Redirects; unsafe redirects and local-network access | Covered (M2) |
 | Network interruption, retry behavior | Covered (M2) |
-| Cancellation | Covered (M2, engine level) |
+| Cancellation | Covered (M2 engine; M3a manager: running, waiting, at shutdown) |
 | Filename collisions, disk-write failures | Covered (M2) |
 | Resume after restart, unsupported ranges, bad `Content-Range`, remote file changes | M4–M5 |
 | Concurrent segment failures | M5 |
-| Database recovery | M3–M4 |
+| Database recovery | Covered (M3a: corrupted file set aside, newer schema refused, crash leaves entries interrupted); resume-after-crash in M4 |
 | Malicious browser messages, bridge disconnection | M7 |
