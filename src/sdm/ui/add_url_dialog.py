@@ -46,6 +46,8 @@ class AddUrlDialog(QDialog):
         folder_row = QHBoxLayout()
         folder_row.addWidget(self.folder_edit)
         folder_row.addWidget(browse)
+        self.start_check = QCheckBox("Start the download now (otherwise it waits, paused)")
+        self.start_check.setChecked(True)
         self.local_network_check = QCheckBox(
             "Allow servers on my local network (for example a NAS at 192.168.x.x)"
         )
@@ -71,6 +73,7 @@ class AddUrlDialog(QDialog):
         form.addRow("Save to:", folder_row)
         layout = QVBoxLayout(self)
         layout.addLayout(form)
+        layout.addWidget(self.start_check)
         layout.addWidget(self.local_network_check)
         layout.addWidget(self.warning_label)
         layout.addWidget(self.error_label)
@@ -91,6 +94,10 @@ class AddUrlDialog(QDialog):
     @property
     def allow_local_network(self) -> bool:
         return self.local_network_check.isChecked()
+
+    @property
+    def start_now(self) -> bool:
+        return self.start_check.isChecked()
 
     # ----- behavior -----
 

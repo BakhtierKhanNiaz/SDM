@@ -154,6 +154,32 @@ the partial file.
 - One real-world segmented download matches the publisher's SHA-256 (owner approves the URL).
   Done 2026-10-19: python.org's zip over up to 8 connections, SHA-256 matched (roadmap).
 
+## FEAT-005: Queue, scheduler, automatic retries and categories (M6)
+
+- **Purpose:** Decide which downloads run, in what order and when; recover from temporary
+  failures without help; label files by type.
+- **Based on:** Project goals (brief §1). IDM: categories with folders (OBS-001, 002, 005);
+  OBS-006's queue that retries until success. Rules: ADR-0013.
+
+| ID | Requirement | Tests |
+|---|---|---|
+| FR-1 | Waiting downloads start in queue order, up to the limit (1-8, default 3) | `test_starts_in_queue_order_up_to_the_limit`, `test_limit_and_queue_order` |
+| FR-2 | Moving an entry changes the order; the selection follows it | `test_reorder`, `test_start_now_and_move_from_the_window` |
+| FR-3 | Raising the limit starts more at once; lowering it sends the last back to waiting, keeping what arrived | `test_raising_the_limit_starts_more_at_once`, `test_lowering_the_limit_sends_the_last_back_to_waiting` |
+| FR-4 | Schedule: start/stop times and days, overnight windows; outside them running downloads go back to waiting | `test_overnight_window_belongs_to_the_day_it_starts`, `test_schedule_starts_and_stops_the_queue` |
+| FR-5 | Start now ignores the limit and the schedule | `test_start_now_ignores_a_closed_schedule` |
+| FR-6 | Temporary failures retry after about 1, 5 and 15 minutes, resuming; then they stay failed; 404 isn't retried | `test_temporary_failure_retries_automatically`, `test_after_three_retries_it_stays_failed`, `test_missing_file_is_not_retried` |
+| FR-7 | Add without starting | `test_add_without_starting`, `test_add_url_dialog_can_add_without_starting` |
+| FR-8 | Categories from the file type; optional subfolders (off by default) | `test_category_for`, `test_category_and_optional_subfolder`, `test_subfolders_are_off_by_default` |
+| FR-9 | Category column and filter; filtered rows act on the right download | `test_category_column_and_filter` |
+| FR-10 | Settings survive a restart; bad saved values fall back to defaults | `test_queue_settings_survive_a_restart`, `test_bad_saved_settings_fall_back_to_defaults` |
+
+### Acceptance criteria
+
+- All tests above pass; ruff is clean.
+- One real-world download waits for its schedule window, then completes with a matching
+  SHA-256 (owner approves the URL).
+
 ## Template
 
 ```markdown

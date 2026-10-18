@@ -11,7 +11,7 @@ and its tests have actually run and passed.
 | M3 | Progress, cancellation, history and persistent state | Done (2026-10-19) |
 | M4 | Pause/resume and crash recovery | Done (2026-10-19) |
 | M5 | Parallel segmented downloads | Done (2026-10-19) |
-| M6 | Queue management and scheduling | In progress (M6a done) |
+| M6 | Queue management and scheduling | Implemented and tested; real-world scheduled demo pending |
 | M7 | Chrome extension and native messaging bridge | Not started |
 | M8 | Browser handoff integrated with the download engine | Not started |
 | M9 | Interface, settings, notifications and usability | Not started |
@@ -160,3 +160,26 @@ Acceptance criteria, all met on 2026-10-19:
   python.org's published value; the three earlier copies were untouched; no `.sdmpart` left;
   the history entry is completed and verified, with its parts map cleared.
 - [ ] Optional: IDM comparison against a resumable server.
+
+## M6: Queue management and scheduling
+
+Done on branch `m6/queue-scheduling`:
+
+- M6a (`9217188`): the queue planner (order, limit 1-8, schedule, Start now, automatic retries
+  after about 1, 5 and 15 minutes), categories, history schema version 4 with a settings
+  table; the controller's `pump()` is the only place that starts downloads (ADR-0013).
+- M6b: a Queue menu (Start now, Move to top/up/down/bottom), the Scheduler dialog (limit,
+  times and days, category subfolders), "Start the download now" in Add URL, and a Category
+  column with a filter. Spec FEAT-005.
+
+Checked on 2026-10-19: 395 tests pass (three full runs), ruff is clean, and
+`uv run python app.py` opens and closes cleanly; it upgraded the real history to schema 4.
+That launch check showed existing entries labelled "General": upgrades now label existing
+entries from their file names (the owner's history had already been upgraded, so its three
+entries keep "General"). A screenshot showed the limit of 2 holding with three waiting.
+
+Remaining before M6 is **Done**:
+
+- [ ] One real-world download that waits for its schedule window and then completes, with a
+  matching SHA-256 (owner approves the URL).
+- [ ] Optional: observe IDM's queue and scheduler screens (checklist).

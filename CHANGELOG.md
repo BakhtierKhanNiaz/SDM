@@ -8,6 +8,10 @@ while SDM is in 0.x.
 
 ### Added
 
+- M6b, the window: Queue menu (Start now, Move to top/up/down/bottom), Scheduler dialog
+  (downloads at once, times and days, category subfolders), "Start the download now" in
+  Add URL, a Category column and a category filter. Upgrading to schema 4 labels existing
+  entries by file name. Spec FEAT-005; 6 new tests (395 in total).
 - M6a, the queue: a pure planner (`sdm.scheduler.queue`) decides which waiting downloads start
   and which go back to waiting: queue order, a limit of 1-8 (default 3), a schedule (start and
   stop times, days, overnight windows), Start now, and automatic retries for temporary

@@ -3,8 +3,8 @@
 A personal-use download manager for Windows. It's modelled on the observable behavior of
 Internet Download Manager (IDM) and written from scratch (clean-room).
 
-> **Status: M5, segmented downloads.** Big files download over up to 8 connections at once,
-> and pause, survive a crash and resume part by part. See
+> **Status: M6, queue and scheduler.** Order the queue, limit how many run at once, run it
+> only at set times, and let temporary failures retry by themselves. See
 > [docs/roadmap.md](docs/roadmap.md).
 
 ## Requirements

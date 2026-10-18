@@ -57,3 +57,27 @@ def test_bad_saved_settings_fall_back_to_defaults(store):
     store.set_setting("queue.limit", "lots")
     store.set_setting("queue.schedule", "{broken")
     assert load_queue_settings(store) == QueueSettings()
+
+
+def test_upgrade_labels_existing_downloads_by_file_name(tmp_path):
+    import sqlite3
+    from contextlib import closing
+
+    from sdm.storage import database
+
+    path = tmp_path / "old.db"
+    with closing(sqlite3.connect(path)) as conn:
+        for script in database._MIGRATIONS[:3]:  # a version-3 history, as M5 left it
+            conn.executescript(script)
+        conn.execute("PRAGMA user_version = 3")
+        conn.execute(
+            "INSERT INTO downloads (url, folder, state, file_name, created_at, updated_at)"
+            " VALUES ('https://example.com/a.zip', 'D:\\', 'completed', 'a (1).zip', 't', 't')"
+        )
+        conn.commit()
+
+    store = DownloadStore(path)
+    try:
+        assert store.list_all()[0].category == "Compressed"
+    finally:
+        store.close()

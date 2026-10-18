@@ -2,9 +2,11 @@
 
 from pathlib import Path
 
+from PySide6.QtCore import QSortFilterProxyModel
 from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QComboBox,
     QDialog,
     QHeaderView,
     QMainWindow,
@@ -12,11 +14,13 @@ from PySide6.QtWidgets import (
     QTableView,
 )
 
+from sdm.core.categories import CATEGORIES
 from sdm.core.downloads import DownloadRecord, DownloadState
 from sdm.core.errors import SDMError
 from sdm.ui.add_url_dialog import AddUrlDialog
 from sdm.ui.controller import DownloadController, summarize
-from sdm.ui.download_model import COLUMNS, NAME, STATUS
+from sdm.ui.download_model import CATEGORY, COLUMNS, NAME, STATUS
+from sdm.ui.scheduler_dialog import SchedulerDialog
 
 # Kept for existing imports: the columns of the download list, left to right.
 DOWNLOAD_COLUMNS = COLUMNS
@@ -36,8 +40,13 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("SDM - Smart Download Manager")
         self.resize(900, 500)
 
+        # The view shows the model through a filter (the category box); rows on screen are
+        # translated back to the model's rows with mapToSource.
+        self.proxy = QSortFilterProxyModel(self)
+        self.proxy.setSourceModel(controller.model)
+        self.proxy.setFilterKeyColumn(CATEGORY)
         self.download_table = QTableView(self)
-        self.download_table.setModel(controller.model)
+        self.download_table.setModel(self.proxy)
         self.download_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.download_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.download_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -63,11 +72,33 @@ class MainWindow(QMainWindow):
             "Remove the entry from the list. A finished file is kept; a partial file is deleted."
         )
         self.exit_action = self._action("E&xit", self.close)
+        self.start_now_action = self._action("&Start now", self.start_now_selected)
+        self.start_now_action.setToolTip("Start at once, ignoring the limit and the schedule.")
+        self.move_actions = {
+            where: self._action(text, lambda checked=False, w=where: self.move_selected(w))
+            for where, text in (
+                ("top", "Move to &top"),
+                ("up", "Move &up"),
+                ("down", "Move &down"),
+                ("bottom", "Move to &bottom"),
+            )
+        }
+        self.scheduler_action = self._action("S&cheduler…", self.open_scheduler)
+        self.category_box = QComboBox()
+        self.category_box.addItems(["All categories", *CATEGORIES])
+        self.category_box.currentTextChanged.connect(self._filter_category)
 
         file_menu = self.menuBar().addMenu("&File")
         file_menu.addAction(self.add_action)
         file_menu.addSeparator()
         file_menu.addAction(self.exit_action)
+        queue_menu = self.menuBar().addMenu("&Queue")
+        queue_menu.addAction(self.start_now_action)
+        queue_menu.addSeparator()
+        for action in self.move_actions.values():
+            queue_menu.addAction(action)
+        queue_menu.addSeparator()
+        queue_menu.addAction(self.scheduler_action)
         downloads_menu = self.menuBar().addMenu("&Downloads")
         for action in (
             self.pause_action,
@@ -86,8 +117,12 @@ class MainWindow(QMainWindow):
             self.resume_all_action,
             self.cancel_action,
             self.remove_action,
+            self.start_now_action,
+            self.scheduler_action,
         ):
             toolbar.addAction(action)
+        toolbar.addSeparator()
+        toolbar.addWidget(self.category_box)
 
         controller.summary_changed.connect(self.statusBar().showMessage)
         self.download_table.selectionModel().selectionChanged.connect(self._update_actions)
@@ -112,11 +147,15 @@ class MainWindow(QMainWindow):
             parent=self,
         )
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            self.add_download(dialog.url, dialog.folder, dialog.allow_local_network)
+            self.add_download(
+                dialog.url, dialog.folder, dialog.allow_local_network, start=dialog.start_now
+            )
 
-    def add_download(self, url: str, folder: Path, allow_local_network: bool = False) -> None:
+    def add_download(
+        self, url: str, folder: Path, allow_local_network: bool = False, *, start: bool = True
+    ) -> None:
         try:
-            self.controller.add(url, folder, allow_local_network=allow_local_network)
+            self.controller.add(url, folder, allow_local_network=allow_local_network, start=start)
         except SDMError as exc:
             QMessageBox.warning(self, "Can't add this download", str(exc))
             return
@@ -126,7 +165,7 @@ class MainWindow(QMainWindow):
         rows = self.download_table.selectionModel().selectedRows()
         if not rows:
             return None
-        return self.controller.model.record_at(rows[0].row())
+        return self.controller.model.record_at(self.proxy.mapToSource(rows[0]).row())
 
     def selected_id(self) -> int | None:
         record = self.selected_record()
@@ -140,6 +179,37 @@ class MainWindow(QMainWindow):
         if known_unresumable and not self.confirm_pause_unresumable():
             return
         self.controller.pause(record.id)
+
+    def start_now_selected(self) -> None:
+        download_id = self.selected_id()
+        if download_id is not None:
+            self.controller.start_now(download_id)
+
+    def move_selected(self, where: str) -> None:
+        download_id = self.selected_id()
+        if download_id is None:
+            return
+        self.controller.move(download_id, where)
+        self.select_id(download_id)  # moving reloads the list: keep the same entry selected
+
+    def select_id(self, download_id: int) -> None:
+        for row in range(self.proxy.rowCount()):
+            source = self.proxy.mapToSource(self.proxy.index(row, 0))
+            if self.controller.model.record_at(source.row()).id == download_id:
+                self.download_table.selectRow(row)
+                return
+
+    def open_scheduler(self) -> None:
+        dialog = SchedulerDialog(self.controller.queue_settings, parent=self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.controller.set_queue_settings(dialog.settings())
+
+    def _filter_category(self, text: str) -> None:
+        if text == "All categories":
+            self.proxy.setFilterFixedString("")
+        else:
+            self.proxy.setFilterRegularExpression(f"^{text}$")
+        self._update_actions()
 
     def resume_selected(self) -> None:
         download_id = self.selected_id()
@@ -169,6 +239,10 @@ class MainWindow(QMainWindow):
             "R&etry" if record is not None and record.state == DownloadState.FAILED else "R&esume"
         )
         self.cancel_action.setEnabled(active or resumable)
+        waiting = record is not None and record.state == DownloadState.QUEUED
+        self.start_now_action.setEnabled((waiting or resumable) and not record.forced)
+        for action in self.move_actions.values():
+            action.setEnabled(active)
         self.remove_action.setEnabled(record is not None and not active)
         self.resume_all_action.setEnabled(
             any(

@@ -12,8 +12,8 @@ from sdm.core.downloads import DownloadRecord, DownloadState
 from sdm.core.units import format_duration, format_size, format_speed
 from sdm.core.urls import redact_url
 
-COLUMNS = ("File name", "Size", "Progress", "Speed", "Time left", "Status")
-NAME, SIZE, PROGRESS, SPEED, TIME_LEFT, STATUS = range(len(COLUMNS))
+COLUMNS = ("File name", "Category", "Size", "Progress", "Speed", "Time left", "Status")
+NAME, CATEGORY, SIZE, PROGRESS, SPEED, TIME_LEFT, STATUS = range(len(COLUMNS))
 
 STATE_LABELS = {
     DownloadState.QUEUED: "Queued",
@@ -154,6 +154,8 @@ def cell_text(
     downloading = state == DownloadState.DOWNLOADING
     if column == NAME:
         return record.file_name or redact_url(record.url)
+    if column == CATEGORY:
+        return record.category
     if column == SIZE:
         if total is not None:
             return format_size(total)

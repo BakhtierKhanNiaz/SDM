@@ -15,6 +15,7 @@ import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
+from sdm.core.categories import category_for
 from sdm.core.downloads import DownloadRecord, DownloadState, PartialDownload, check_transition
 from sdm.core.errors import SDMError
 from sdm.core.segments import encode_segments
@@ -154,6 +155,13 @@ class DownloadStore:
         for number in range(version, SCHEMA_VERSION):
             with conn:  # one transaction per step: a failed upgrade changes nothing
                 conn.executescript(f"BEGIN; {_MIGRATIONS[number]}")
+                if number + 1 == 4:  # label existing entries from their file names (M6)
+                    rows = conn.execute("SELECT id, file_name FROM downloads").fetchall()
+                    for download_id, file_name in rows:
+                        conn.execute(
+                            "UPDATE downloads SET category = ? WHERE id = ?",
+                            (category_for(file_name), download_id),
+                        )
                 conn.execute(f"PRAGMA user_version = {number + 1}")
 
     def _set_aside_corrupt_file(self) -> Path:
