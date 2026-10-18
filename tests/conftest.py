@@ -18,6 +18,8 @@ import pytest  # noqa: E402
 from sdm.engine.http_download import download  # noqa: E402
 from sdm.engine.models import DownloadSettings  # noqa: E402
 from sdm.engine.policy import NetworkPolicy  # noqa: E402
+from sdm.storage.database import DownloadStore  # noqa: E402
+from sdm.ui.controller import DownloadController  # noqa: E402
 
 Route = Callable[[http.server.BaseHTTPRequestHandler], None]
 
@@ -204,3 +206,29 @@ def fetch(tmp_path, loopback_policy, fast_settings):
         )
 
     return _fetch
+
+
+@pytest.fixture
+def make_controller(qapp, tmp_path, loopback_policy):
+    """Build DownloadControllers on a temporary history (loopback allowed, short timeouts).
+
+    Everything made is shut down and closed after the test.
+    """
+    made = []
+
+    def make(*, start: bool = True, db_name: str = "sdm.db") -> DownloadController:
+        store = DownloadStore(tmp_path / db_name)
+        controller = DownloadController(
+            store,
+            policy_for=lambda record: loopback_policy,
+            settings=DownloadSettings(connect_timeout=5.0, read_timeout=10.0, backoff_base=0.0),
+        )
+        if start:
+            controller.start()
+        made.append((controller, store))
+        return controller
+
+    yield make
+    for controller, store in made:
+        controller.shutdown()
+        store.close()

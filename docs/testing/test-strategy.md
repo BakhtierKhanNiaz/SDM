@@ -18,7 +18,7 @@ no windows appear and the tests don't need a desktop.
 | Folder | What goes there |
 |---|---|
 | `tests/unit/` | One module at a time, no network: URLs, filenames, policy, Retry-After, CLI, window, units, download states, transfer meter, history database |
-| `tests/integration/` | The engine and the `DownloadManager` (engine thread, events, cancel, 3-at-once limit, shutdown) against the local mock server |
+| `tests/integration/` | The engine and the `DownloadManager` (engine thread, events, cancel, 3-at-once limit, shutdown), and the window and controller end to end (`test_window_downloads.py`: progress, cancel, history after restart, quitting), all against the local mock server |
 | `tests/security/` | Unsafe destinations, hostile redirects and filenames, the CLI refusing this computer |
 
 ## The mock server

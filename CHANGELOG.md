@@ -8,6 +8,13 @@ while SDM is in 0.x.
 
 ### Added
 
+- M3b, the window: Add URL dialog (Ctrl+N) with a "you downloaded this before" warning, a
+  live download table (name, size, percent, speed, time left, status), Cancel, Remove from
+  list (keeps the file), a status bar summary, a question before quitting with downloads
+  running, and startup notices for interrupted entries or a recovered history. New
+  modules: `sdm.ui.controller`, `sdm.ui.download_model`, `sdm.ui.add_url_dialog` and
+  `sdm.ui.engine_adapter`. `sdm.app` now opens the history and starts the engine. Spec
+  FEAT-002; 25 new tests (234 in total).
 - M3a, downloads in the background with a history: `DownloadManager`
   (`sdm.engine.manager`) runs downloads on its own thread with an asyncio loop. At most 3 run
   at once, and it reports `Started`, `FileInfo`, `Progress`, `Finished`, `Failed` and

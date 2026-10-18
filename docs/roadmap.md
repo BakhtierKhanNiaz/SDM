@@ -8,7 +8,7 @@ and its tests have actually run and passed.
 | M0 | Inspect the environment, repository and dependencies | Done (2026-10-17) |
 | M1 | Project structure, configuration, documentation, initial desktop window | Done (2026-10-17) |
 | M2 | Reliable single-connection HTTP downloader | Done (2026-10-18) |
-| M3 | Progress, cancellation, history and persistent state | Next |
+| M3 | Progress, cancellation, history and persistent state | Implemented and tested; real-world window demo pending |
 | M4 | Pause/resume and crash recovery | Not started |
 | M5 | Parallel segmented downloads | Not started |
 | M6 | Queue management and scheduling | Not started |
@@ -57,3 +57,23 @@ clean, and:
 Known issue (cosmetic, found in the real-world demo): with `-v`, log lines are printed on the
 same line as `sdm-get`'s progress display, because both write to stderr and the progress line
 doesn't end with a newline. The downloaded file is unaffected.
+
+## M3: Downloads in the window, with history
+
+Done on branch `m3/window-downloads-history`:
+
+- M3a (`6419fe8`): `DownloadManager` on its own thread (ADR-0009), the SQLite history
+  (ADR-0010, data-model.md), and the speed/time-left calculator.
+- M3b: the window. Add URL dialog with a "downloaded before" warning, a live table (name, size,
+  percent, speed, time left, status), Cancel, Remove from list (keeps the file), a status bar
+  summary, a question before quitting with downloads running, and startup notices for an
+  interrupted or recovered history. Spec FEAT-002.
+
+Checked on 2026-10-19: 234 tests pass, ruff is clean, and `uv run python app.py` opens and
+closes cleanly, creating `%LOCALAPPDATA%\SDM\sdm.db` (schema 1, WAL). A screenshot with real
+local downloads showed three running at once, a fourth waiting, and live numbers.
+
+Remaining before M3 is **Done**:
+
+- [ ] One real-world download through the window (the owner approves the URL).
+- [ ] Optional: IDM re-run R1 to compare the live progress display (makes it *Verified*).

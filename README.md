@@ -3,8 +3,8 @@
 A personal-use download manager for Windows. It's modelled on the observable behavior of
 Internet Download Manager (IDM) and written from scratch (clean-room).
 
-> **Status: M2, single-connection downloader.** `sdm-get` downloads one file from the command
-> line. The window is still empty (downloads appear in it from M3). See
+> **Status: M3, downloads in the window.** Add a URL, watch its progress, cancel it, and find
+> it in the history next time. Pause/resume comes in M4. See
 > [docs/roadmap.md](docs/roadmap.md).
 
 ## Requirements
@@ -27,7 +27,7 @@ You don't need to activate the virtual environment: prefix commands with `uv run
 ## Run
 
 ```powershell
-uv run python app.py                                   # the window (empty for now)
+uv run python app.py                                   # the window: File > Add URL (Ctrl+N)
 uv run sdm-get https://example.com/file.zip            # download into your Downloads folder
 uv run sdm-get URL --dest D:\Downloads                 # choose the folder
 uv run sdm-get URL --allow-local-network               # allow e.g. a NAS at 192.168.x.x

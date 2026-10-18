@@ -29,11 +29,11 @@ session), not that the feature was studied in full.
 | Unknown size (no `Content-Length`) | Verified | M2 | OBS-005: both save the whole file and warn that completeness can't be confirmed (`test_unknown_size`, `test_warns_only_when_completeness_cant_be_confirmed`). IDM's live progress for this case not observed (M3) |
 | Timeouts and retry policy | Tested | M2 | 15 s connect / 30 s idle; 3 attempts; Retry-After honoured. IDM partly observed (OBS-003, OBS-006), but its automatic retry count wasn't established, so not Verified |
 | Safe destinations (SSRF protection) | Tested | M2 | SDM-specific safety feature (ADR-0007); IDM comparison not applicable |
-| Progress, speed and time remaining | Investigated (partial) | M3 | OBS-005: no size shown for unknown-size files. OBS-006: a stopped entry showed 50.00%, "1 sec", "0 Bytes/sec". Live progress not observed |
-| Cancel a download | Not investigated | M3 | |
-| Download history | Investigated (partial) | M3 | IDM's list keeps every entry, failed ones too, with status and Last Try Date (OBS-003, OBS-006) |
+| Progress, speed and time remaining | Tested | M3 | FEAT-002; `TransferMeter` (3 s average), `test_live_progress_and_speed_reach_the_table`. IDM: OBS-005 (no size for unknown-size files), OBS-006 (stopped entry kept 50.00%). IDM's live display not observed (re-run R1), so not Verified |
+| Cancel a download | Tested | M3 | FEAT-002; running and waiting downloads, and on quit (`test_cancel_then_remove_from_the_window`, `test_closing_with_downloads_running_asks_first`). IDM not observed |
+| Download history | Tested | M3 | SQLite history survives restarts and keeps failed entries with their message (like IDM, OBS-003, OBS-006); warns about a URL downloaded before (OBS-002). ADR-0010 |
 | Pause and resume | Investigated (partial) | M4 | OBS-006: resume request `Range: bytes=<received − 64>-`; a `200` reply makes IDM report no resume support |
-| Crash / restart recovery | Not investigated | M4 | |
+| Crash / restart recovery | Implemented (partial) | M4 | M3: entries left by a crash show as Interrupted, and a corrupted history is set aside. Resuming them is M4 |
 | Parallel segmented downloads | Investigated (partial) | M5 | OBS-001, 002, 004, 006: extra `Range` connections even without `Accept-Ranges`, dropped when the server answers `200` |
 | Download queues | Not investigated | M6 | IDM's error text in OBS-006 mentions a queue that retries from the start (not tested) |
 | Scheduled downloads | Not investigated | M6 | |

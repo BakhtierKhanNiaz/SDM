@@ -53,7 +53,9 @@ uv add <pkg>                # runtime dependency; `uv add --dev <pkg>` for dev t
   `policy.py` is the SSRF defense (ADR-0007): keep every new request path going through it.
 - `src/sdm/storage`: SQLite. `src/sdm/scheduler`: queues and scheduling.
 - `src/sdm/bridge`: native messaging host; all messages are untrusted.
-- `src/sdm/ui`: PySide6; the only package that imports Qt widgets.
+- `src/sdm/ui`: PySide6; the only package that imports Qt widgets. `controller.py` glues the
+  history, the engine and the table model on the main thread; `engine_adapter.py` turns
+  engine events into Qt signals (ADR-0009). Only the main thread touches `DownloadStore`.
 - `src/sdm/cli.py`: `sdm-get`. `scripts/`: reproducible evaluations.
 - `tests/unit`, `tests/integration`, `tests/security`. `MockServer` and the `fetch` fixture
   live in `tests/conftest.py` (test modules can't import each other: importlib mode).

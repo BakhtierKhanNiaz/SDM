@@ -59,6 +59,42 @@ the partial file.
 - Still open: whether IDM picks a filename from the `Content-Type` when the URL has no
   extension.
 
+## FEAT-002: Downloads in the window, with history (M3)
+
+- **Purpose:** Start, watch and cancel downloads from the window, and keep a history that
+  survives restarts.
+- **Based on:** Project goals (brief §1). IDM observations: OBS-002 (duplicate URL),
+  OBS-003 and OBS-006 (the list keeps failed entries), OBS-005 (no size for unknown sizes).
+- **User workflow:** Add URL (Ctrl+N) → enter the address, the folder, and optionally allow
+  the local network → Download → watch the row → Cancel if needed → Remove from list when done.
+
+| ID | Requirement | Tests |
+|---|---|---|
+| FR-1 | Downloads run off the main thread; the window never waits on the network | `tests/integration/test_manager.py` |
+| FR-2 | At most 3 run at once; the rest show "Queued" and start in order | `test_at_most_n_downloads_run_at_once`, `test_three_at_once_the_rest_wait` |
+| FR-3 | A row shows name, size, percent (or bytes when the size is unknown), speed, time left and status, updated about 5 times a second | `test_download_model.py`, `test_live_progress_and_speed_reach_the_table` |
+| FR-4 | Speed and time left are averaged over the last 3 s | `test_progress.py` |
+| FR-5 | Cancel stops a running or waiting download promptly and deletes its partial file | `test_cancel_then_remove_from_the_window`, `test_cancelling_a_waiting_download` |
+| FR-6 | Remove from list deletes the entry, never the file; active entries can't be removed | `test_remove_deletes_the_entry_but_not_the_file`, `test_active_downloads_cannot_be_removed` |
+| FR-7 | The history survives restarts; failed entries keep their message (tooltip) | `test_history_survives_a_restart`, `test_failure_is_recorded_with_its_message` |
+| FR-8 | Adding a URL that was downloaded before shows a warning; nothing is overwritten | `test_warns_when_the_url_was_downloaded_before` |
+| FR-9 | Unsafe or invalid URLs and missing folders are refused before anything is saved | `test_unsafe_urls_are_refused_before_anything_is_saved`, dialog tests |
+| FR-10 | Quitting with downloads running asks first; "Yes" cancels them | `test_closing_with_downloads_running_asks_first` |
+| FR-11 | After a crash, unfinished entries show "Interrupted"; a corrupted history is set aside with a notice | `test_a_crash_leaves_entries_interrupted`, `test_corrupted_database_is_set_aside_and_replaced`, `test_startup_notices` |
+| FR-12 | "Completed (size unconfirmed)" when only the connection closing marked the end | `test_completed_without_a_size_says_so` |
+
+### Acceptance criteria
+
+- All tests above pass; ruff is clean.
+- `uv run python app.py` opens the window and closes cleanly.
+- One real-world download through the window succeeds (manual demonstration; the owner
+  approves the URL).
+
+### Open questions
+
+- How IDM shows live progress for unknown sizes (re-run R1).
+- Pausing, and resuming interrupted entries: M4.
+
 ## Template
 
 ```markdown

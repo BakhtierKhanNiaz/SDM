@@ -1,8 +1,9 @@
 # System architecture
 
-Status: **M3a.** `core` (errors, URLs, filenames, units, download states, transfer meter),
+Status: **M3.** `core` (errors, URLs, filenames, units, download states, transfer meter),
 `engine` (downloader, network policy, download manager), `storage` (SQLite history) and the
-`sdm-get` command line have code. The window is wired up in M3b. `scheduler` and `bridge` are
+`sdm-get` command line have code. The window (`ui`: controller, table model, Add URL dialog, engine adapter) shows live
+downloads and the history (M3b). `scheduler` and `bridge` are
 still placeholders.
 
 ## Overview
