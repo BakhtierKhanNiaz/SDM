@@ -33,12 +33,31 @@ Every finding carries one of these labels:
 
 ### How to read the request log
 
-- The server writes a line when a request **ends**. `time` is the end time (local clock, no
-  date), so the order of lines is the order in which requests finished, not started.
-- `status: 0` means the client closed the connection before the server finished. For those
-  lines, `bytes_sent` is always `0`, whatever was really sent before the hang-up (a limit of
-  the logger). For other lines, `bytes_sent` counts bytes handed to Windows, not bytes the
-  client read.
+- The server writes a line when a request **ends**, so the order of lines is the order in
+  which requests finished, not started.
+- **Two line formats.** Lines 1–45 (this M2 session) come from the first version of the
+  server. The server was improved afterwards (2026-10-18), and lines it writes have more
+  fields. Old fields keep their names and meanings, except `status` on a hang-up. A line
+  without `start` is in the old format.
+- **Old format (lines 1–45):** `time` is the end time (local clock, no date). `status: 0`
+  means the client closed the connection before the server finished. For those lines,
+  `bytes_sent` is always `0`, whatever was really sent before the hang-up (a limit of the
+  first logger). For other lines, `bytes_sent` counts body bytes handed to Windows, not bytes
+  the client read.
+- **New format:** every field of the old format, plus these.
+
+  | Field | Meaning |
+  |---|---|
+  | `time` | End time in whole seconds, as before |
+  | `start` | When the server had read the request: date, local time and milliseconds, for example `2026-10-18 21:54:13.583` |
+  | `end` | When the server finished, or noticed the hang-up; same format |
+  | `duration_s` | Seconds from start to end, from a clock that Windows' clock corrections don't move (one happened at 14:08 in this session) |
+  | `conn` | Request number since the server started (1, 2, 3, ...), given in arrival order. Each connection carries one request, so this also tells parallel connections apart. Sort by `conn` for start order. It restarts at 1 when the server restarts |
+  | `client_port` | The client's TCP port, different for each parallel connection |
+  | `status` | The status code whose status line and headers were handed to Windows, also when the client hung up later. `0` only if it hung up before that |
+  | `bytes_sent` | Body bytes Windows accepted for sending, counted as they go, so a hang-up still shows the real number. Headers aren't counted. It can be more than the client read, because Windows holds data in transit: in a test, a client that read no body bytes before hanging up had 65,536 counted |
+  | `disconnected` | `true` when sending failed because the client had closed the connection. `false` means the whole response was handed to Windows; it doesn't prove the client read all of it |
+
 - Who sent what (Verified, by User-Agent):
 
 | Log lines | Client | What |
@@ -214,8 +233,9 @@ Every finding carries one of these labels:
 - **Hypotheses (not verified):** The `Range: bytes=0-` request checks whether the server
   supports resuming. As in OBS-001, IDM transfers while the dialog is still open.
 - **Open questions:** How does IDM show progress and time left when the size is unknown?
-  Re-run with a stream long enough (60 s or more) to still be running after Start Download.
-  Does IDM give the same warning for a chunked response, which does mark its end?
+  Re-run with a stream long enough (60 s or more) to still be running after Start Download
+  (planned: [R1](#planned-re-runs)). Does IDM give the same warning for a chunked response,
+  which does mark its end?
 
 ### OBS-006: Connection cut halfway, every time
 
@@ -258,9 +278,9 @@ Every finding carries one of these labels:
   - The 64-byte overlap may be used to check that the data already received still matches.
   - The 3-minute and 53-minute gaps between tries suggest they were started by hand, not by
     a retry timer.
-- **Open questions:** Re-run while writing down every click, to count automatic retries and
-  their delays. Does IDM keep the partial data and resume properly when the server answers
-  `206`? What does the queue option do?
+- **Open questions:** Re-run while writing down every click ([R2](#planned-re-runs)), to count
+  automatic retries and their delays. Does IDM keep the partial data and resume properly when
+  the server answers `206`? What does the queue option do?
 
 ## IDM vs SDM
 
@@ -309,11 +329,13 @@ HEAD.
 
 ### Proposals for the owner (not done)
 
-- **P1:** improve the scenario server's log, recording each request's start time and the
-  bytes really sent before a hang-up (status-0 lines hide this). Also add a slow stream (60 s
-  or more) for the progress test. This changes `scripts/idm_scenarios/server.py` only.
-- **P2:** re-run Scenario 5 with the slow stream to observe IDM's progress, rate and time
-  left. Re-run Scenario 6 while writing down every click, to count automatic retries.
+- **P1 (done, 2026-10-18):** the scenario server's log now records each request's start and
+  end with milliseconds, the status and bytes really sent before a hang-up, and a connection
+  number and client port (see [How to read the request log](#how-to-read-the-request-log)).
+  A slow stream, `/slow-stream.bin`, was added for the progress test. Only
+  `scripts/idm_scenarios/server.py` changed; the six M2 routes send byte-for-byte the same
+  responses as before (checked against the previous version, Date header aside).
+- **P2:** the two re-runs in [Planned re-runs](#planned-re-runs).
 - **P3:** consider an option for SDM's User-Agent. IDM presents itself as Internet Explorer
   11; SDM identifies itself honestly as `SDM/0.1.0`. No server in these tests treated them
   differently, so there's no evidence for a change yet (M9).
@@ -326,6 +348,43 @@ HEAD.
   shows three tries but not who started them.
 - The screen recording `s5-dialog-download-capture..mp4` hasn't been reviewed.
 - Where IDM keeps the partial data of `cut.bin`: not checked, by the black-box rule.
+
+### Planned re-runs
+
+Not done yet. These are plans, not observations. First restart the scenario server so it runs
+the new version (Ctrl+C in its terminal, then the command below). The log is only appended
+to, so lines 1–45 stay as they are. Write down the clock time of every click (to the second),
+so it can be matched with the log's `start` and `end`.
+
+```powershell
+uv run python scripts/idm_scenarios/server.py --port 8765 --log logs/idm-requests.jsonl
+```
+
+- **R1: Scenario 5 again, with the slow stream.** Goal: see IDM's progress, transfer rate and
+  time left while an unknown-size download is still running (missing from OBS-005).
+  `http://127.0.0.1:8765/slow-stream.bin` sends 3 MiB with no `Content-Length`, 16 KiB about
+  every 0.47 s, so it takes about 90 s (about 34 KiB/s).
+  1. Start a screen recording, or be ready to take screenshots.
+  2. Add URL with that address, OK. Screenshot the Download File Info dialog and note the time.
+  3. Click Start Download at once and note the time.
+  4. Screenshot IDM's progress window about 20, 45 and 70 s later: size, percent, rate, time
+     left.
+  5. Screenshot the completion dialog, then Close.
+
+  Check: the saved `slow-stream.bin` is 3,145,728 bytes with SHA-256 `07351adf…131c2afe` (the
+  server prints the whole value when it starts), and whether the log's `start` is before the
+  Start Download click (did IDM transfer while the dialog was open?).
+- **R2: Scenario 6 again, writing down every click.** Goal: count the tries IDM makes on its
+  own and the delays between them (missing from OBS-006).
+  1. Add URL `http://127.0.0.1:8765/cut.bin`, OK, Start Download; note both times.
+  2. When the error message appears, note the time and the exact text, but don't click. Leave
+     IDM alone for 5 minutes.
+  3. Click OK and note the time. Don't touch IDM for another 10 minutes, then screenshot its
+     list.
+
+  Check: group the log's `/cut.bin` lines into tries by `conn` and `start`. A try that starts
+  with no click shortly before it is an automatic retry. Note how long after the previous try
+  it started, and whether it came while the message was open or only after OK.
 
 ## How to record an observation
 

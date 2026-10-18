@@ -8,6 +8,14 @@ while SDM is in 0.x.
 
 ### Added
 
+- Scenario server (`scripts/idm_scenarios/server.py`), for re-running the IDM comparison with
+  precise evidence: each log line now also has `start` and `end` (date, time and
+  milliseconds), `duration_s`, a connection number `conn`, the client's port and
+  `disconnected`. New route `/slow-stream.bin`: 3 MiB with no `Content-Length` over about
+  90 s, to watch a download's progress. The six M2 routes send byte-for-byte the same
+  responses. Planned re-runs R1 (Scenario 5 with the slow stream) and R2 (Scenario 6, every
+  click written down) are in `docs/research/behavior-observations.md`. 11 new tests (156 in
+  total).
 - M2 IDM comparison: OBS-001 to OBS-006 in `docs/research/behavior-observations.md`, with an
   evidence table, request-log analysis, an IDM vs SDM table, findings and missing-evidence
   notes. The parity matrix, IDM feature inventory, FEAT-001, ADR-0008 and roadmap are updated
@@ -45,5 +53,8 @@ while SDM is in 0.x.
 
 ### Changed
 
+- Scenario server log: when the client hangs up, the line now shows the status that was sent
+  and the body bytes really sent, plus `disconnected: true`, instead of `status: 0` and
+  `bytes_sent: 0`. Old lines in `logs/idm-requests.jsonl` keep their old meaning.
 - 404 and 410 responses now say "The file was not found on the server (...)" instead of
   "The server refused the download (...)" (from OBS-003). Other 4xx errors are unchanged.

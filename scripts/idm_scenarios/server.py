@@ -8,11 +8,15 @@ Scenarios, all on http://127.0.0.1:<port>:
   3  /missing.zip        404 Not Found
   4  /start              302 redirect to /files/archive.zip
   5  /stream.bin         no Content-Length; 3 MiB sent over about 6 s
+  5b /slow-stream.bin    no Content-Length; 3 MiB sent over about 90 s, to watch progress
   6  /cut.bin            promises 4 MiB, sends 2 MiB, then closes (every time)
 
-Every request is printed (method, path, Range, User-Agent, ...). Cookie and Authorization
-headers are never logged. Range requests are ignored on purpose: the server always sends the
-whole file and never advertises Accept-Ranges, so clients must use a single connection.
+Every request is printed as one JSON line when it ends: when it started and ended (with
+milliseconds), a connection number and the client's port, the status line sent, the body bytes
+Windows accepted for sending, whether the client hung up first, and some request headers
+(Range, User-Agent, ...). Cookie and Authorization headers are never logged. Range requests are
+ignored on purpose: the server always sends the whole file and never advertises Accept-Ranges,
+so clients must use a single connection.
 """
 
 import argparse
@@ -21,6 +25,7 @@ import http.server
 import json
 import threading
 import time
+from datetime import datetime
 
 MIB = 1024 * 1024
 CHUNK = 64 * 1024
@@ -50,12 +55,21 @@ FILES = {
 }
 STREAM = payload("stream", 3 * MIB)
 CUT = payload("cut", 4 * MIB)
+# Small pieces, so a progress display has something to show about twice a second.
+SLOW_STREAM = payload("slow-stream", 3 * MIB)
+SLOW_CHUNK = 16 * 1024
+SLOW_DELAY = 90 / (len(SLOW_STREAM) / SLOW_CHUNK)  # 192 pieces, 0.47 s apart: about 90 s
 
 # Expected size and SHA-256 of every complete file, by the path that finally serves it.
 EXPECTED = {
     path: (len(data), hashlib.sha256(data).hexdigest())
-    for path, data in [(p, d) for p, (d, _) in FILES.items()] + [("/stream.bin", STREAM)]
+    for path, data in [(p, d) for p, (d, _) in FILES.items()]
+    + [("/stream.bin", STREAM), ("/slow-stream.bin", SLOW_STREAM)]
 }
+
+
+def stamp(moment: datetime) -> str:
+    return moment.isoformat(sep=" ", timespec="milliseconds")
 
 
 class ScenarioHandler(http.server.BaseHTTPRequestHandler):
@@ -73,14 +87,15 @@ class ScenarioHandler(http.server.BaseHTTPRequestHandler):
 
     def _serve(self, send_body: bool) -> None:
         self.close_connection = True  # one request per connection keeps the log easy to read
+        self.conn, self.started, self.clock = self.server.arrived()
+        self.status, self.sent, self.disconnected = 0, 0, False
         path = self.path.split("?", 1)[0]
-        status, sent = 0, 0
         try:
-            status, sent = self._route(path, send_body)
+            self._route(path, send_body)
         except OSError:
-            pass  # the client hung up
+            self.disconnected = True  # the client hung up; status and sent show how far we got
         finally:
-            self.server.record(self, status, sent)
+            self.server.record(self)
 
     def _start(self, status: int, headers: dict[str, str]) -> None:
         self.send_response(status)
@@ -88,40 +103,47 @@ class ScenarioHandler(http.server.BaseHTTPRequestHandler):
             self.send_header(name, value)
         self.send_header("Connection", "close")
         self.end_headers()
+        self.status = status  # only once the status line and headers were handed to Windows
 
-    def _route(self, path: str, send_body: bool) -> tuple[int, int]:
+    def _route(self, path: str, send_body: bool) -> None:
         if path in FILES:
             data, headers = FILES[path]
             self._start(200, {**headers, "Content-Length": str(len(data))})
             if send_body:
-                self.wfile.write(data)
-                return 200, len(data)
-            return 200, 0
-        if path == "/start":
+                self._send(data)
+        elif path == "/start":
             self._start(302, {"Location": "/files/archive.zip", "Content-Length": "0"})
-            return 302, 0
-        if path == "/stream.bin":
+        elif path == "/stream.bin":
             self._start(200, {"Content-Type": "application/octet-stream"})  # no length
-            return 200, self._trickle(STREAM, delay=0.125) if send_body else 0
-        if path == "/cut.bin":
+            if send_body:
+                self._send(STREAM, delay=0.125)
+        elif path == "/slow-stream.bin":
+            self._start(200, {"Content-Type": "application/octet-stream"})  # no length
+            if send_body:
+                self._send(SLOW_STREAM, chunk=SLOW_CHUNK, delay=SLOW_DELAY)
+        elif path == "/cut.bin":
             self._start(
                 200, {"Content-Type": "application/octet-stream", "Content-Length": str(len(CUT))}
             )
-            return 200, self._trickle(CUT[: len(CUT) // 2], delay=0.05) if send_body else 0
-        body = b"Not Found"
-        self._start(404, {"Content-Type": "text/plain", "Content-Length": str(len(body))})
-        if send_body:
-            self.wfile.write(body)
-        return 404, len(body) if send_body else 0
+            if send_body:
+                self._send(CUT[: len(CUT) // 2], delay=0.05)
+        else:
+            body = b"Not Found"
+            self._start(404, {"Content-Type": "text/plain", "Content-Length": str(len(body))})
+            if send_body:
+                self._send(body)
 
-    def _trickle(self, data: bytes, delay: float) -> int:
-        sent = 0
-        for start in range(0, len(data), CHUNK):
-            self.wfile.write(data[start : start + CHUNK])
-            self.wfile.flush()
-            sent += len(data[start : start + CHUNK])
-            time.sleep(delay)
-        return sent
+    def _send(self, data: bytes, chunk: int = CHUNK, delay: float = 0.0) -> None:
+        """Send data in pieces, pausing `delay` seconds after each one. Every byte Windows
+        accepts is counted at once in self.sent, so a hang-up halfway leaves the real count."""
+        for start in range(0, len(data), chunk):
+            piece = memoryview(data[start : start + chunk])
+            while piece:
+                accepted = self.connection.send(piece)
+                self.sent += accepted
+                piece = piece[accepted:]
+            if delay:
+                time.sleep(delay)
 
 
 class ScenarioServer(http.server.ThreadingHTTPServer):
@@ -133,21 +155,36 @@ class ScenarioServer(http.server.ThreadingHTTPServer):
         self._lock = threading.Lock()
         self._log_path = log_path
         self._echo = echo
+        self._requests = 0
 
-    def record(self, handler: ScenarioHandler, status: int, sent: int) -> None:
+    def arrived(self) -> tuple[int, datetime, float]:
+        """Number a new request and note when it arrived: wall clock for the log, and a
+        monotonic clock for its duration (immune to Windows correcting the clock)."""
+        with self._lock:  # numbers follow arrival order, even across threads
+            self._requests += 1
+            return self._requests, datetime.now(), time.perf_counter()
+
+    def record(self, handler: ScenarioHandler) -> None:
+        end = datetime.now()
         entry = {
-            "time": time.strftime("%H:%M:%S"),
+            "time": end.strftime("%H:%M:%S"),  # the end time, as in the first M2 log lines
+            "start": stamp(handler.started),
+            "end": stamp(end),
+            "duration_s": round(time.perf_counter() - handler.clock, 3),
+            "conn": handler.conn,
+            "client_port": handler.client_address[1],
             "method": handler.command,
             "path": handler.path,
-            "status": status,
-            "bytes_sent": sent,
+            "status": handler.status,
+            "bytes_sent": handler.sent,
+            "disconnected": handler.disconnected,
             "headers": {h: handler.headers[h] for h in LOGGED_HEADERS if handler.headers.get(h)},
         }
         with self._lock:
-            self.log.append(entry)
             if self._log_path:
                 with open(self._log_path, "a", encoding="utf-8") as f:
                     f.write(json.dumps(entry) + "\n")
+            self.log.append(entry)  # after the file, so anything in self.log is on disk too
         if self._echo:
             print(json.dumps(entry), flush=True)
 
@@ -168,6 +205,7 @@ def main() -> None:
         "/start",
         "/stream.bin",
         "/cut.bin",
+        "/slow-stream.bin",
     ):
         print(f"  {base}{url}")
     print("\nExpected complete files:")
