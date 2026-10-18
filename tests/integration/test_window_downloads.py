@@ -173,8 +173,10 @@ def test_closing_with_downloads_running_asks_first(
     window.confirm_quit = lambda active: True  # "Yes"
     window.close()
     assert not window.isVisible()
-    assert controller.store.get(record.id).state == DownloadState.CANCELLED
-    assert list(downloads.iterdir()) == []
+    saved = controller.store.get(record.id)
+    assert saved.state == DownloadState.PAUSED  # M4: quitting pauses; resume next time
+    assert [p.name for p in downloads.iterdir()] == ["slow.sdmpart"]
+    assert Path(saved.part_path) == downloads / "slow.sdmpart"
 
 
 def test_unsafe_urls_are_refused_before_anything_is_saved(

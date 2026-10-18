@@ -15,7 +15,7 @@ import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sdm.core.downloads import DownloadRecord, DownloadState, check_transition
+from sdm.core.downloads import DownloadRecord, DownloadState, PartialDownload, check_transition
 from sdm.core.errors import SDMError
 
 log = logging.getLogger(__name__)
@@ -42,8 +42,43 @@ _MIGRATIONS = [
     );
     CREATE INDEX downloads_by_url ON downloads (url);
     """,
+    # Version 2 (M4): the 'paused' state and what resuming needs. SQLite can't change a CHECK
+    # constraint in place, so the table is rebuilt and every row copied, ids included.
+    """
+    CREATE TABLE downloads_v2 (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        url                 TEXT    NOT NULL,
+        folder              TEXT    NOT NULL,
+        allow_local_network INTEGER NOT NULL DEFAULT 0,
+        state               TEXT    NOT NULL CHECK (state IN ('queued', 'downloading',
+            'paused', 'completed', 'failed', 'cancelled', 'interrupted')),
+        file_name           TEXT,
+        path                TEXT,
+        total_bytes         INTEGER,
+        received_bytes      INTEGER NOT NULL DEFAULT 0,
+        verified_complete   INTEGER,
+        error               TEXT,
+        created_at          TEXT    NOT NULL,
+        updated_at          TEXT    NOT NULL,
+        finished_at         TEXT,
+        part_path           TEXT,
+        etag                TEXT,
+        last_modified       TEXT,
+        resumable           INTEGER NOT NULL DEFAULT 0
+    );
+    INSERT INTO downloads_v2 (id, url, folder, allow_local_network, state, file_name, path,
+        total_bytes, received_bytes, verified_complete, error, created_at, updated_at,
+        finished_at)
+    SELECT id, url, folder, allow_local_network, state, file_name, path, total_bytes,
+        received_bytes, verified_complete, error, created_at, updated_at, finished_at
+    FROM downloads;
+    DROP TABLE downloads;
+    ALTER TABLE downloads_v2 RENAME TO downloads;
+    CREATE INDEX downloads_by_url ON downloads (url);
+    """,
 ]
 SCHEMA_VERSION = len(_MIGRATIONS)
+_NO_PARTIAL = {"part_path": None, "etag": None, "last_modified": None, "resumable": 0}
 
 INTERRUPTED_MESSAGE = "SDM was closed before this download finished."
 
@@ -151,8 +186,27 @@ class DownloadStore:
     def set_progress(self, download_id: int, received_bytes: int) -> None:
         self._update(download_id, received_bytes=received_bytes)
 
+    def set_partial(self, download_id: int, partial: PartialDownload) -> None:
+        """Remember the partial file and the server's version tags, for resuming."""
+        self._update(
+            download_id,
+            part_path=str(partial.part_path),
+            file_name=partial.file_name,
+            total_bytes=partial.total_bytes,
+            etag=partial.etag,
+            last_modified=partial.last_modified,
+            resumable=int(partial.resumable),
+        )
+
     def mark_downloading(self, download_id: int) -> None:
         self._move(download_id, DownloadState.DOWNLOADING)
+
+    def mark_queued(self, download_id: int) -> None:
+        """Resume a paused or interrupted entry, or retry a failed one."""
+        self._move(download_id, DownloadState.QUEUED, error=None, finished_at=None)
+
+    def mark_paused(self, download_id: int) -> None:
+        self._move(download_id, DownloadState.PAUSED, error=None)
 
     def mark_completed(
         self, download_id: int, *, path: str, size: int, verified_complete: bool
@@ -165,18 +219,21 @@ class DownloadStore:
             received_bytes=size,
             verified_complete=int(verified_complete),
             error=None,
+            **_NO_PARTIAL,
         )
 
-    def mark_failed(self, download_id: int, error: str) -> None:
-        self._move(download_id, DownloadState.FAILED, error=error)
+    def mark_failed(self, download_id: int, error: str, *, partial_kept: bool = False) -> None:
+        """Failed. The partial file stays recorded only if it was kept for a later retry."""
+        extra = {} if partial_kept else _NO_PARTIAL
+        self._move(download_id, DownloadState.FAILED, error=error, **extra)
 
     def mark_cancelled(self, download_id: int) -> None:
-        self._move(download_id, DownloadState.CANCELLED)
+        self._move(download_id, DownloadState.CANCELLED, **_NO_PARTIAL)
 
     def mark_interrupted_on_startup(self) -> int:
         """Entries a crash or forced exit left queued or downloading become "interrupted".
 
-        Returns how many changed. (Picking them back up is M4's resume feature.)
+        Returns how many changed. Their partial files stay recorded, so they can be resumed.
         """
         now = _now()
         with self._conn:
@@ -207,10 +264,9 @@ class DownloadStore:
         if record is None:
             raise KeyError(download_id)
         check_transition(record.state, new_state)
-        if new_state.is_active:
-            self._update(download_id, state=new_state, **fields)
-        else:
-            self._update(download_id, state=new_state, finished_at=_now(), **fields)
+        if not new_state.is_active:
+            fields.setdefault("finished_at", _now())  # for paused: when it stopped
+        self._update(download_id, state=new_state, **fields)
 
     def _update(self, download_id: int, **fields: object) -> None:
         fields["updated_at"] = _now()
@@ -240,4 +296,8 @@ def _record(row: sqlite3.Row) -> DownloadRecord:
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         finished_at=row["finished_at"],
+        part_path=row["part_path"],
+        etag=row["etag"],
+        last_modified=row["last_modified"],
+        resumable=bool(row["resumable"]),
     )

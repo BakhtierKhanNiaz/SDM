@@ -31,7 +31,9 @@ no windows appear and the tests don't need a desktop.
 mock_server.add("/flaky", mock_server.status(503), mock_server.file(DATA))
 ```
 
-Route builders: `file` (with or without `Content-Length`, extra headers), `status`,
+Route builders: `ranged` (a resumable server: `206`, `Content-Range`, ETag/Last-Modified,
+`If-Range`, `416`, and on demand `cut_at`, `stall_at`, a wrong `content_range`, with a `log`
+of every request), `file` (with or without `Content-Length`, extra headers), `status`,
 `redirect`, `truncated` (promises N bytes, sends half), `chunked` (chunked encoding, complete
 or cut before the last chunk), and `stall` (sends a little, then goes silent). `mock_server.hits[path]` counts requests, and `mock_server.requests` keeps their
 headers.
@@ -59,7 +61,7 @@ default policy blocks the test server, as it should) and short timeouts.
 | Network interruption, retry behavior | Covered (M2) |
 | Cancellation | Covered (M2 engine; M3a manager: running, waiting, at shutdown) |
 | Filename collisions, disk-write failures | Covered (M2) |
-| Resume after restart, unsupported ranges, bad `Content-Range`, remote file changes | M4–M5 |
+| Resume after restart, unsupported ranges, bad `Content-Range`, remote file changes | Covered (M4: `test_resume.py`, `test_window_resume.py`) |
 | Concurrent segment failures | M5 |
 | Database recovery | Covered (M3a: corrupted file set aside, newer schema refused, crash leaves entries interrupted); resume-after-crash in M4 |
 | Malicious browser messages, bridge disconnection | M7 |

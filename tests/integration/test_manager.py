@@ -12,6 +12,8 @@ from sdm.engine.manager import (
     Failed,
     FileInfo,
     Finished,
+    PartialSaved,
+    Paused,
     Progress,
     Started,
 )
@@ -180,7 +182,7 @@ def test_at_most_n_downloads_run_at_once(
     assert all(isinstance(recorder.of(n)[-1], Finished) for n in range(4))
 
 
-def test_shutdown_cancels_everything_and_stops_the_thread(
+def test_shutdown_pauses_everything_and_stops_the_thread(
     mock_server, recorder, tmp_path, loopback_policy
 ):
     mock_server.add("/slow", mock_server.stall(b"x" * 4096, declared_length=1_000_000, seconds=5))
@@ -193,8 +195,10 @@ def test_shutdown_cancels_everything_and_stops_the_thread(
     )
     manager.shutdown()
 
-    assert isinstance(recorder.of(1)[-1], Cancelled)
-    assert list(tmp_path.iterdir()) == []
+    paused = recorder.of(1)[-1]
+    assert isinstance(paused, Paused)  # M4: quitting pauses, so it can be resumed later
+    assert paused.partial.part_path.read_bytes() == b"x" * 4096
+    assert [p.name for p in tmp_path.iterdir()] == ["slow.sdmpart"]
     assert not any(t.name == "sdm-engine" for t in threading.enumerate())
 
 
@@ -212,3 +216,91 @@ def test_progress_catches_up_when_the_server_goes_quiet(
     recorder.wait_done(1)
     events = recorder.of(1)
     assert isinstance(events[-1], Cancelled)  # and nothing after it
+
+
+# ----- M4: pause, resume, keep or delete partial files -----
+
+
+def test_pause_keeps_the_partial_file_and_resume_finishes(
+    mock_server, make_manager, recorder, tmp_path, loopback_policy
+):
+    log = []
+    mock_server.add(
+        "/data.bin",
+        mock_server.ranged(DATA, etag='"v1"', stall_at=(100_000, 5), log=log),
+        mock_server.ranged(DATA, etag='"v1"', log=log),
+    )
+    manager = make_manager()
+    url = mock_server.url("/data.bin")
+
+    manager.submit(1, url, tmp_path, loopback_policy)
+    recorder.wait_for(
+        lambda events: any(isinstance(e, Progress) and e.received_bytes >= 100_000 for e in events)
+    )
+    manager.pause(1)
+    recorder.wait_for(lambda events: any(isinstance(e, Paused) for e in events))
+    paused = recorder.of(1)[-1]
+    assert isinstance(paused, Paused)
+    assert paused.partial.part_path.read_bytes() == DATA[:100_000]
+    assert any(isinstance(e, PartialSaved) for e in recorder.of(1))
+
+    manager.submit(1, url, tmp_path, loopback_policy, resume_from=paused.partial)
+    recorder.wait_for(lambda events: isinstance(events[-1], Finished))
+
+    result = recorder.of(1)[-1].result
+    assert hashlib.sha256(result.path.read_bytes()).digest() == hashlib.sha256(DATA).digest()
+    assert log[1] == ("bytes=100000-", 206, 200_000)
+
+
+def test_failed_download_keeps_its_partial_when_the_server_can_resume(
+    mock_server, make_manager, recorder, tmp_path, loopback_policy
+):
+    cut = mock_server.ranged(DATA, etag='"v1"', cut_at=50_000)
+    mock_server.add("/data.bin", cut, cut, cut)
+    manager = make_manager()
+
+    manager.submit(1, mock_server.url("/data.bin"), tmp_path, loopback_policy)
+    recorder.wait_done(1)
+
+    failed = recorder.of(1)[-1]
+    assert isinstance(failed, Failed)
+    assert failed.partial is not None
+    assert failed.partial.part_path.read_bytes() == DATA[:150_000]
+
+
+def test_cancelling_a_resumed_download_deletes_its_partial_file(
+    mock_server, make_manager, recorder, tmp_path, loopback_policy
+):
+    from sdm.core.downloads import PartialDownload
+
+    part = tmp_path / "data.bin.sdmpart"
+    part.write_bytes(DATA[:100_000])
+    partial = PartialDownload(part, "data.bin", len(DATA), '"v1"', None, True)
+    mock_server.add("/data.bin", mock_server.ranged(DATA, etag='"v1"', stall_at=(1000, 5)))
+    manager = make_manager()
+
+    manager.submit(1, mock_server.url("/data.bin"), tmp_path, loopback_policy, resume_from=partial)
+    recorder.wait_for(
+        lambda events: any(isinstance(e, Progress) and e.received_bytes > 100_000 for e in events)
+    )
+    manager.cancel(1)
+    recorder.wait_done(1)
+
+    assert isinstance(recorder.of(1)[-1], Cancelled)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_pausing_a_waiting_download(mock_server, make_manager, recorder, tmp_path, loopback_policy):
+    mock_server.add("/slow", mock_server.stall(b"x" * 4096, declared_length=1_000_000, seconds=5))
+    mock_server.add("/f", mock_server.file(DATA))
+    manager = make_manager(max_concurrent=1)
+
+    manager.submit(1, mock_server.url("/slow"), tmp_path, loopback_policy)
+    recorder.wait_for(lambda events: any(isinstance(e, Started) for e in events))
+    manager.submit(2, mock_server.url("/f"), tmp_path, loopback_policy)
+    manager.pause(2)
+    recorder.wait_for(lambda events: Paused(2, None) in events)
+
+    assert recorder.of(2) == [Paused(2, None)]  # never started, nothing to keep
+    manager.cancel(1)
+    recorder.wait_done(1)

@@ -8,6 +8,14 @@ while SDM is in 0.x.
 
 ### Added
 
+- M4a, resume: downloads continue from their partial file with `Range` + `If-Range` (ETag or
+  Last-Modified), or a 64-byte overlap check when the server gives no version tags. Only an
+  exact `206` continues; anything else restarts cleanly (ADR-0011). Retries continue instead
+  of restarting. New `paused` state; pause keeps the partial file, cancel deletes it, quitting
+  pauses. Interrupted, paused and failed entries can be resumed. History schema version 2
+  (partial-file path, version tags, resumable), upgraded in place. Controller `pause`,
+  `resume`, `resume_all`; manager `pause` and `PartialSaved`/`Paused` events.
+- `MockServer.ranged` test route; 45 new tests (288 in total).
 - M3b, the window: Add URL dialog (Ctrl+N) with a "you downloaded this before" warning, a
   live download table (name, size, percent, speed, time left, status), Cancel, Remove from
   list (keeps the file), a status bar summary, a question before quitting with downloads
@@ -70,6 +78,8 @@ while SDM is in 0.x.
 
 ### Changed
 
+- Quitting with downloads running now pauses them (partial files kept, resumable next time)
+  instead of cancelling them (M4, ADR-0011).
 - An interrupted transfer now says how much arrived: "The download was interrupted after
   2.0 MB of 4.0 MB." (from OBS-006).
 - `format_size` moved to `sdm.core.units`, next to new `format_speed` and `format_duration`.

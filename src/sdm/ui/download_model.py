@@ -18,6 +18,7 @@ NAME, SIZE, PROGRESS, SPEED, TIME_LEFT, STATUS = range(len(COLUMNS))
 STATE_LABELS = {
     DownloadState.QUEUED: "Queued",
     DownloadState.DOWNLOADING: "Downloading",
+    DownloadState.PAUSED: "Paused",
     DownloadState.COMPLETED: "Completed",
     DownloadState.FAILED: "Failed",
     DownloadState.CANCELLED: "Cancelled",

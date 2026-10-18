@@ -274,6 +274,9 @@ def test_disk_filling_up_while_writing(mock_server, fetch, tmp_path, monkeypatch
         def write(self, data):
             raise OSError(errno.ENOSPC, "No space left on device")
 
+        def __getattr__(self, name):  # seek, truncate, read... behave normally
+            return getattr(self._file, name)
+
         def __enter__(self):
             return self
 

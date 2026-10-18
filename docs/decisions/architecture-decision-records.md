@@ -176,3 +176,31 @@ deleted. A changed decision gets a new record that supersedes the old one.
 - **Consequences:** Anyone who can read this user's AppData can read the download URLs, the
   same as browser history. If secrets in URLs become a concern, encrypting the column is
   possible later without changing the rest.
+
+## ADR-0011: Resume rules, and what happens to partial files
+
+- **Date:** 2026-10-19 · **Status:** Accepted (M4 plan approved by the project owner)
+- **Context:** M3 threw partial files away on any interruption. The brief requires resume
+  validation, ETag/Last-Modified handling, verifying response ranges, and never assembling
+  inconsistent file versions. OBS-006 showed IDM resuming with `Range` from 64 bytes before the
+  end of its data, and giving up when a server answered `200`.
+- **Decision:**
+  - Resume request: `Range: bytes=N-`, plus `If-Range` with a strong ETag, else Last-Modified.
+    Without version tags: request from N−64 and compare those 64 bytes with the end of the
+    partial file (our own design, prompted by the OBS-006 observation).
+  - A reply continues the file **only** if it is `206` with a `Content-Range` of exactly
+    `N-(total−1)/total`, the total matches the known size, and any ETag/Last-Modified it sends
+    matches. A `416` with everything already on disk finishes the download. Anything else,
+    including a `200`, a wrong range, a changed size or tag, or a failed overlap check, restarts
+    from byte 0 in the same partial file.
+  - Automatic retries also continue instead of restarting.
+  - Pause keeps the partial file; cancel deletes it. Shutting down pauses everything, so it can
+    be resumed next time. Nothing resumes automatically at startup. A failed download keeps
+    its partial file only if the server can resume (advertised or proved).
+  - A partial-file path from the database is used, or deleted, only if it is a `.sdmpart` file
+    directly inside that entry's download folder.
+  - `sdm-get` keeps M2's behavior: any failure deletes the partial file.
+- **Consequences:** Interruptions no longer waste what already arrived (verified: bytes sent
+  across retries add up to exactly the file size). Paused partial files take disk space until
+  resumed or cancelled. A server that lies about ranges just causes a restart, never a corrupt
+  file (`tests/integration/test_resume.py`).

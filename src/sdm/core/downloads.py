@@ -1,23 +1,28 @@
 """What a download is, as stored in the history and shown in the window.
 
-States and the moves allowed between them (M3; M4 adds pausing and resuming):
+States and the moves allowed between them (M4):
 
     queued ──▶ downloading ──▶ completed
-       │            │
-       ├────────────┼──▶ failed
-       ├────────────┼──▶ cancelled
-       └────────────┴──▶ interrupted   (SDM was closed or crashed mid-download)
+      ▲ │           │
+      │ ├───────────┼──▶ paused ──────┐     (partial file kept)
+      │ ├───────────┼──▶ failed ──────┤     (partial kept only if the server can resume)
+      │ ├───────────┼──▶ interrupted ─┤     (SDM was closed or crashed mid-download)
+      │ └───────────┴──▶ cancelled    │     (partial file deleted)
+      └───────────────────────────────┘     resume / retry: back to queued
 
-Finished states are final: downloading the same URL again creates a new entry.
+Paused, failed and interrupted entries can also be cancelled, which discards their partial
+file. Completed and cancelled are final: downloading the same URL again creates a new entry.
 """
 
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 
 
 class DownloadState(StrEnum):
     QUEUED = "queued"  # waiting for a free slot (at most 3 run at once)
     DOWNLOADING = "downloading"
+    PAUSED = "paused"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
@@ -25,30 +30,23 @@ class DownloadState(StrEnum):
 
     @property
     def is_active(self) -> bool:
+        """Running or waiting to run: the engine owns it."""
         return self in (DownloadState.QUEUED, DownloadState.DOWNLOADING)
 
+    @property
+    def can_resume(self) -> bool:
+        return self in (DownloadState.PAUSED, DownloadState.FAILED, DownloadState.INTERRUPTED)
 
+
+S = DownloadState
 ALLOWED_TRANSITIONS: dict[DownloadState, frozenset[DownloadState]] = {
-    DownloadState.QUEUED: frozenset(
-        {
-            DownloadState.DOWNLOADING,
-            DownloadState.FAILED,
-            DownloadState.CANCELLED,
-            DownloadState.INTERRUPTED,
-        }
-    ),
-    DownloadState.DOWNLOADING: frozenset(
-        {
-            DownloadState.COMPLETED,
-            DownloadState.FAILED,
-            DownloadState.CANCELLED,
-            DownloadState.INTERRUPTED,
-        }
-    ),
-    DownloadState.COMPLETED: frozenset(),
-    DownloadState.FAILED: frozenset(),
-    DownloadState.CANCELLED: frozenset(),
-    DownloadState.INTERRUPTED: frozenset(),
+    S.QUEUED: frozenset({S.DOWNLOADING, S.PAUSED, S.FAILED, S.CANCELLED, S.INTERRUPTED}),
+    S.DOWNLOADING: frozenset({S.COMPLETED, S.PAUSED, S.FAILED, S.CANCELLED, S.INTERRUPTED}),
+    S.PAUSED: frozenset({S.QUEUED, S.CANCELLED}),
+    S.FAILED: frozenset({S.QUEUED, S.CANCELLED}),
+    S.INTERRUPTED: frozenset({S.QUEUED, S.CANCELLED}),
+    S.COMPLETED: frozenset(),
+    S.CANCELLED: frozenset(),
 }
 
 
@@ -56,6 +54,18 @@ def check_transition(old: DownloadState, new: DownloadState) -> None:
     """Raise ValueError if a download may not move from `old` to `new`."""
     if new not in ALLOWED_TRANSITIONS[old]:
         raise ValueError(f"A download can't go from {old} to {new}.")
+
+
+@dataclass(frozen=True)
+class PartialDownload:
+    """What SDM remembers about an unfinished download, so it can continue it later."""
+
+    part_path: Path  # the "<name>.sdmpart" file in the download folder
+    file_name: str  # the name chosen when the download started
+    total_bytes: int | None
+    etag: str | None  # the server's version tags for the file, used with If-Range
+    last_modified: str | None
+    resumable: bool  # the server advertised (Accept-Ranges: bytes) or proved (206) it can resume
 
 
 @dataclass(frozen=True)
@@ -76,3 +86,20 @@ class DownloadRecord:
     created_at: str  # ISO 8601, UTC
     updated_at: str
     finished_at: str | None
+    part_path: str | None = None  # the partial file while unfinished (M4)
+    etag: str | None = None
+    last_modified: str | None = None
+    resumable: bool = False
+
+    def partial(self) -> PartialDownload | None:
+        """What the engine needs to continue this download, if a partial file is recorded."""
+        if not self.part_path or not self.file_name:
+            return None
+        return PartialDownload(
+            part_path=Path(self.part_path),
+            file_name=self.file_name,
+            total_bytes=self.total_bytes,
+            etag=self.etag,
+            last_modified=self.last_modified,
+            resumable=self.resumable,
+        )

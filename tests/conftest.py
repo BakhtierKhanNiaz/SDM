@@ -8,6 +8,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import asyncio  # noqa: E402
 import http.server  # noqa: E402
+import re  # noqa: E402
 import threading  # noqa: E402
 import time  # noqa: E402
 from collections import Counter  # noqa: E402
@@ -143,6 +144,78 @@ class MockServer:
             h.wfile.write(first_bytes)
             h.wfile.flush()
             time.sleep(seconds)
+
+        return route
+
+    @staticmethod
+    def ranged(
+        data: bytes,
+        *,
+        etag: str | None = None,
+        last_modified: str | None = None,
+        accept_ranges: bool = True,
+        cut_at: int | None = None,
+        stall_at: tuple[int, float] | None = None,
+        content_range: str | None = None,
+        log: list | None = None,
+    ) -> Route:
+        """A server that supports `Range: bytes=N-` like most real ones (206 + Content-Range).
+
+        If-Range that doesn't match the current version tag gets the whole file (200), and a
+        range past the end gets 416. To misbehave on purpose:
+        cut_at: close the connection after sending this many body bytes.
+        stall_at: (n, seconds): send n body bytes, then go silent for that long.
+        content_range: send this Content-Range instead of the right one.
+        log: gets (Range header, status, body bytes sent) appended for each request.
+        """
+
+        def route(h: http.server.BaseHTTPRequestHandler) -> None:
+            requested = h.headers.get("Range")
+            if_range = h.headers.get("If-Range")
+            match = re.fullmatch(r"bytes=(\d+)-", requested or "")
+            start = int(match.group(1)) if match else None
+            if start is not None and if_range is not None and if_range not in (etag, last_modified):
+                start = None  # the file changed since the client's copy: send it whole
+            if start is not None and start >= len(data):
+                h.send_response(416)
+                h.send_header("Content-Range", f"bytes */{len(data)}")
+                h.send_header("Content-Length", "0")
+                h.end_headers()
+                if log is not None:
+                    log.append((requested, 416, 0))
+                return
+            body = data if start is None else data[start:]
+            status = 200 if start is None else 206
+            h.send_response(status)
+            if accept_ranges:
+                h.send_header("Accept-Ranges", "bytes")
+            if etag:
+                h.send_header("ETag", etag)
+            if last_modified:
+                h.send_header("Last-Modified", last_modified)
+            if status == 206:
+                h.send_header(
+                    "Content-Range", content_range or f"bytes {start}-{len(data) - 1}/{len(data)}"
+                )
+            h.send_header("Content-Length", str(len(body)))
+            h.end_headers()
+            sent = 0
+            if log is not None:
+                log.append((requested, status, 0))
+                entry = len(log) - 1
+            if stall_at is not None:
+                first, seconds = stall_at
+                h.wfile.write(body[:first])
+                h.wfile.flush()
+                sent = len(body[:first])
+                if log is not None:
+                    log[entry] = (requested, status, sent)
+                time.sleep(seconds)
+                body = body[first:]
+            chunk = body if cut_at is None else body[: max(0, cut_at - sent)]
+            h.wfile.write(chunk)
+            if log is not None:
+                log[entry] = (requested, status, sent + len(chunk))
 
         return route
 

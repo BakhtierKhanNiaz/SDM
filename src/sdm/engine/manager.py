@@ -1,14 +1,17 @@
 """Runs downloads on a background thread with its own asyncio event loop (ADR-0009).
 
 A window freezes if it waits on the network, so all downloading happens on one engine thread.
-Other threads talk to it only through submit(), cancel() and shutdown(), which are safe to call
-from any thread. The manager reports back by calling `on_event` with the small event objects
+Other threads talk to it only through submit(), pause(), cancel() and shutdown(), which are safe
+to call from any thread. The manager reports back by calling `on_event` with the small event objects
 below. That call happens **on the engine thread**: the window's adapter
 (sdm.ui.engine_adapter) passes events on to the UI thread through Qt signals. This module never
 imports Qt.
 
 At most `max_concurrent` downloads run at once (3 by default); the others wait their turn in the
 order they were submitted. Full queue management comes in M6.
+
+Pause keeps the partial file so the download can be resumed later (submit it again with
+`resume_from`); cancel deletes it. Shutting down pauses everything (M4).
 """
 
 import asyncio
@@ -19,8 +22,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from sdm.core.downloads import PartialDownload
 from sdm.core.errors import SDMError
-from sdm.engine.http_download import download
+from sdm.engine.http_download import download, is_own_part_file
 from sdm.engine.models import DownloadResult, DownloadSettings
 from sdm.engine.policy import NetworkPolicy
 
@@ -47,6 +51,14 @@ class FileInfo:
 
 
 @dataclass(frozen=True)
+class PartialSaved:
+    """The partial file and the server's version tags are known: enough to resume later."""
+
+    download_id: int
+    partial: PartialDownload
+
+
+@dataclass(frozen=True)
 class Progress:
     download_id: int
     received_bytes: int
@@ -63,14 +75,25 @@ class Finished:
 class Failed:
     download_id: int
     message: str  # fit to show the user
+    partial: PartialDownload | None = None  # kept for a retry when the server can resume
+
+
+@dataclass(frozen=True)
+class Paused:
+    download_id: int
+    partial: PartialDownload | None  # None if nothing had arrived yet
 
 
 @dataclass(frozen=True)
 class Cancelled:
+    """Stopped for good; its partial file has been deleted."""
+
     download_id: int
 
 
-DownloadEvent = Started | FileInfo | Progress | Finished | Failed | Cancelled
+DownloadEvent = (
+    Started | FileInfo | PartialSaved | Progress | Finished | Failed | Paused | Cancelled
+)
 EventCallback = Callable[[DownloadEvent], None]
 
 
@@ -87,7 +110,11 @@ class DownloadManager:
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._run_loop, name="sdm-engine", daemon=True)
         self._semaphore = asyncio.Semaphore(max_concurrent)  # binds to the loop on first use
-        self._tasks: dict[int, asyncio.Task[None]] = {}  # touched only on the engine thread
+        # The following are touched only on the engine thread.
+        self._tasks: dict[int, asyncio.Task[None]] = {}
+        self._folders: dict[int, Path] = {}
+        self._partials: dict[int, PartialDownload] = {}  # latest known partial file
+        self._pausing: set[int] = set()
         self._ready = threading.Event()
 
     # ----- called from any thread -----
@@ -98,22 +125,36 @@ class DownloadManager:
         self._ready.wait()
 
     def submit(
-        self, download_id: int, url: str, folder: str | Path, policy: NetworkPolicy | None = None
+        self,
+        download_id: int,
+        url: str,
+        folder: str | Path,
+        policy: NetworkPolicy | None = None,
+        resume_from: PartialDownload | None = None,
     ) -> None:
-        """Queue a download. Events for it will carry `download_id`."""
+        """Queue a download (or a resume). Events for it will carry `download_id`."""
         self._loop.call_soon_threadsafe(
-            self._create_task, download_id, url, Path(folder), policy or NetworkPolicy()
+            self._create_task,
+            download_id,
+            url,
+            Path(folder),
+            policy or NetworkPolicy(),
+            resume_from,
         )
 
+    def pause(self, download_id: int) -> None:
+        """Stop a waiting or running download but keep its partial file; Paused follows."""
+        self._loop.call_soon_threadsafe(self._stop_task, download_id, True)
+
     def cancel(self, download_id: int) -> None:
-        """Cancel a waiting or running download; a Cancelled event follows."""
-        self._loop.call_soon_threadsafe(self._cancel_task, download_id)
+        """Stop a waiting or running download and delete its partial file; Cancelled follows."""
+        self._loop.call_soon_threadsafe(self._stop_task, download_id, False)
 
     def shutdown(self, timeout: float = 10.0) -> None:
-        """Cancel every download, wait for them to clean up, then stop the engine thread."""
+        """Pause every download, wait for them to stop, then stop the engine thread."""
         if not self._thread.is_alive():
             return
-        future = asyncio.run_coroutine_threadsafe(self._cancel_all(), self._loop)
+        future = asyncio.run_coroutine_threadsafe(self._pause_all(), self._loop)
         try:
             future.result(timeout)
         except TimeoutError:
@@ -131,12 +172,23 @@ class DownloadManager:
         finally:
             self._loop.close()
 
-    def _create_task(self, download_id: int, url: str, folder: Path, policy: NetworkPolicy) -> None:
+    def _create_task(
+        self,
+        download_id: int,
+        url: str,
+        folder: Path,
+        policy: NetworkPolicy,
+        resume_from: PartialDownload | None,
+    ) -> None:
         if download_id in self._tasks:
             log.warning("Download %d was submitted twice; ignoring the second time", download_id)
             return
+        self._folders[download_id] = folder
+        if resume_from is not None:
+            self._partials[download_id] = resume_from
         task = self._loop.create_task(
-            self._run_one(download_id, url, folder, policy), name=f"download-{download_id}"
+            self._run_one(download_id, url, folder, policy, resume_from),
+            name=f"download-{download_id}",
         )
         task.add_done_callback(lambda done: self._task_done(download_id, done))
         self._tasks[download_id] = task
@@ -145,22 +197,47 @@ class DownloadManager:
         # Reported here rather than inside _run_one: a task cancelled before its first turn
         # never runs any of its code, so an `except CancelledError` there would never fire.
         self._tasks.pop(download_id, None)
-        if task.cancelled():
-            self._emit(Cancelled(download_id))
+        folder = self._folders.pop(download_id, None)
+        partial = self._partials.pop(download_id, None)
+        pausing = download_id in self._pausing
+        self._pausing.discard(download_id)
+        if not task.cancelled():
+            return
+        on_disk = partial is not None and partial.part_path.is_file()
+        if pausing:
+            self._emit(Paused(download_id, partial if on_disk else None))
+            return
+        if on_disk and folder is not None and is_own_part_file(partial.part_path, folder):
+            try:
+                partial.part_path.unlink()
+            except OSError:
+                log.warning("Couldn't delete the partial file of download %d", download_id)
+        self._emit(Cancelled(download_id))
 
-    def _cancel_task(self, download_id: int) -> None:
+    def _stop_task(self, download_id: int, pause: bool) -> None:
         task = self._tasks.get(download_id)
-        if task is not None:
-            task.cancel()
+        if task is None:
+            return
+        if pause:
+            self._pausing.add(download_id)
+        else:
+            self._pausing.discard(download_id)
+        task.cancel()
 
-    async def _cancel_all(self) -> None:
-        tasks = list(self._tasks.values())
-        for task in tasks:
+    async def _pause_all(self) -> None:
+        tasks = list(self._tasks.items())
+        for download_id, task in tasks:
+            self._pausing.add(download_id)
             task.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
+        await asyncio.gather(*(task for _, task in tasks), return_exceptions=True)
 
     async def _run_one(
-        self, download_id: int, url: str, folder: Path, policy: NetworkPolicy
+        self,
+        download_id: int,
+        url: str,
+        folder: Path,
+        policy: NetworkPolicy,
+        resume_from: PartialDownload | None,
     ) -> None:
         # Chunks arrive many times a second; the window only needs about 5 updates a second.
         # An update held back is sent when its 0.2 s is up, so the last numbers before the
@@ -192,6 +269,10 @@ class DownloadManager:
         def on_file_info(file_name: str, total: int | None) -> None:
             self._emit(FileInfo(download_id, file_name, total))
 
+        def on_partial(partial: PartialDownload) -> None:
+            self._partials[download_id] = partial
+            self._emit(PartialSaved(download_id, partial))
+
         try:
             async with self._semaphore:  # wait here while 3 others are running
                 self._emit(Started(download_id))
@@ -202,9 +283,14 @@ class DownloadManager:
                     settings=self._settings,
                     on_progress=on_progress,
                     on_file_info=on_file_info,
+                    on_partial=on_partial,
+                    resume_from=resume_from,
+                    keep_partial=True,
                 )
         except SDMError as exc:
-            self._emit(Failed(download_id, str(exc)))
+            partial = self._partials.get(download_id)
+            kept = partial if partial is not None and partial.part_path.is_file() else None
+            self._emit(Failed(download_id, str(exc), kept))
         except Exception as exc:  # a bug: report it rather than lose the download silently
             log.exception("Download %d failed unexpectedly", download_id)
             self._emit(Failed(download_id, f"Unexpected error: {type(exc).__name__}."))

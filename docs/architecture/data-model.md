@@ -1,6 +1,6 @@
 # Data model
 
-Status: **M3, schema version 1.** Code: `sdm/core/downloads.py` (states, record) and
+Status: **M4, schema version 2.** Code: `sdm/core/downloads.py` (states, record) and
 `sdm/storage/database.py` (SQLite). Decisions: ADR-0010.
 
 ## Where it lives
@@ -24,7 +24,10 @@ SQLite runs in WAL mode, so `sdm.db-wal` and `sdm.db-shm` appear next to it whil
 | `received_bytes` | integer | Bytes received, saved at most about once a second while downloading |
 | `verified_complete` | 0/1, null | 0 when only the connection closing marked the end (OBS-005) |
 | `error` | text, null | The user-readable message for failed and interrupted entries |
-| `created_at`, `updated_at`, `finished_at` | text | ISO 8601 times in UTC |
+| `created_at`, `updated_at`, `finished_at` | text | ISO 8601 times in UTC (`finished_at`: when it stopped, also for paused) |
+| `part_path` | text, null | The `.sdmpart` file while unfinished (M4). Only trusted if it is a `.sdmpart` file directly in `folder` |
+| `etag`, `last_modified` | text, null | The server's version tags, sent back with `If-Range` when resuming (M4) |
+| `resumable` | 0/1 | The server advertised (`Accept-Ranges: bytes`) or proved (a `206`) that it can resume (M4) |
 
 Index: `downloads_by_url` (for the "you downloaded this before" check).
 
@@ -34,23 +37,28 @@ Never stored: cookies, authorization headers, or any request headers.
 
 ```
 queued ──▶ downloading ──▶ completed
-   │            │
-   ├────────────┼──▶ failed
-   ├────────────┼──▶ cancelled
-   └────────────┴──▶ interrupted   (SDM closed or crashed mid-download)
+  ▲ │           │
+  │ ├───────────┼──▶ paused ──────┐     (partial file kept)
+  │ ├───────────┼──▶ failed ──────┤     (partial kept only if the server can resume)
+  │ ├───────────┼──▶ interrupted ─┤     (SDM closed or crashed mid-download)
+  │ └───────────┴──▶ cancelled    │     (partial file deleted)
+  └───────────────────────────────┘     resume / retry
 ```
 
 - Every state change goes through `check_transition`; an illegal one raises `ValueError`.
-- Finished states (completed, failed, cancelled, interrupted) are final in M3. Downloading the
-  same URL again creates a new row. M4 adds paused and resuming from interrupted.
+- Paused, failed and interrupted entries can be resumed (back to queued) or cancelled (their
+  partial file is deleted). Completed and cancelled are final: downloading the same URL again
+  creates a new row.
 - On startup, rows still `queued` or `downloading` (left by a crash or a forced exit) become
-  `interrupted` with the message "SDM was closed before this download finished."
-- "Remove from list" deletes the row only, never the downloaded file. Active rows can't be
-  removed: cancel first.
+  `interrupted` with the message "SDM was closed before this download finished." Their partial
+  file stays recorded, so they can be resumed. Nothing resumes on its own (owner's decision).
+- "Remove from list" deletes the row and, for an unfinished entry, its partial file. A
+  finished download's file is never touched. Active rows can't be removed.
 
 ## Versions and upgrades
 
-- `PRAGMA user_version` holds the schema version (1 now). Each entry in `_MIGRATIONS` upgrades
+- `PRAGMA user_version` holds the schema version (2 now; version 2 rebuilt the table to
+  allow `paused` and add the resume columns, copying every row with its id). Each entry in `_MIGRATIONS` upgrades
   one version, inside its own transaction, so a failed upgrade changes nothing.
 - A database made by a newer SDM (higher version) is refused with a message and left untouched.
 - A corrupted file ("file is not a database", a failed `quick_check`) is renamed to

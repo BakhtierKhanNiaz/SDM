@@ -5,12 +5,15 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sdm import __version__
+from sdm.core.downloads import PartialDownload
 
 # Called as on_progress(bytes_received, total_bytes); total is None when the size is unknown.
 ProgressCallback = Callable[[int, int | None], None]
 # Called as on_file_info(file_name, total_bytes) once the server has answered, before any data
 # arrives. The final name can still gain a " (1)" suffix if the file already exists by then.
 FileInfoCallback = Callable[[str, int | None], None]
+# Called with what is needed to resume, each time an attempt has its partial file ready.
+PartialCallback = Callable[[PartialDownload], None]
 
 
 @dataclass(frozen=True)

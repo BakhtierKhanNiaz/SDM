@@ -14,6 +14,7 @@ from PySide6.QtCore import QCoreApplication, QObject, Signal
 from sdm.core.downloads import DownloadRecord, DownloadState
 from sdm.core.progress import TransferMeter
 from sdm.core.urls import validate_url
+from sdm.engine.http_download import is_own_part_file
 from sdm.engine.manager import (
     Cancelled,
     DownloadEvent,
@@ -21,6 +22,8 @@ from sdm.engine.manager import (
     Failed,
     FileInfo,
     Finished,
+    PartialSaved,
+    Paused,
     Progress,
     Started,
 )
@@ -73,7 +76,7 @@ class DownloadController(QObject):
         self._emit_summary()
 
     def shutdown(self) -> None:
-        """Cancel running downloads, record what happened, and stop the engine thread."""
+        """Pause running downloads (partial files are kept), record it, stop the engine."""
         if not self._running:
             return
         self._running = False
@@ -83,7 +86,7 @@ class DownloadController(QObject):
         for record in self.model.records():  # anything whose final event never arrived
             if record.state.is_active:
                 self._save_latest(record.id)
-                self._move(record.id, self.store.mark_cancelled)
+                self._move(record.id, self.store.mark_paused)
 
     # ----- actions from the window -----
 
@@ -99,13 +102,53 @@ class DownloadController(QObject):
         self._emit_summary()
         return record
 
-    def cancel(self, download_id: int) -> None:
+    def pause(self, download_id: int) -> None:
+        """Stop a running or waiting download, keeping what has arrived."""
         record = self.model.record(download_id)
         if record is not None and record.state.is_active:
-            self._manager.cancel(download_id)
+            self._manager.pause(download_id)
+
+    def resume(self, download_id: int) -> None:
+        """Continue a paused or interrupted download, or retry a failed one."""
+        record = self.store.get(download_id)
+        if record is None or not record.state.can_resume:
+            return
+        self._move(download_id, self.store.mark_queued)
+        self._manager.submit(
+            record.id,
+            record.url,
+            record.folder,
+            self._policy_for(record),
+            resume_from=record.partial(),
+        )
+
+    def resume_all(self) -> int:
+        """Resume every paused and interrupted download; returns how many."""
+        waiting = [
+            r.id
+            for r in self.model.records()
+            if r.state in (DownloadState.PAUSED, DownloadState.INTERRUPTED)
+        ]
+        for download_id in waiting:
+            self.resume(download_id)
+        return len(waiting)
+
+    def cancel(self, download_id: int) -> None:
+        """Stop for good and delete the partial file (running, waiting or paused)."""
+        record = self.store.get(download_id)
+        if record is None:
+            return
+        if record.state.is_active:
+            self._manager.cancel(download_id)  # a Cancelled event follows
+        elif record.state.can_resume:
+            self._delete_partial(record)
+            self._move(download_id, self.store.mark_cancelled)
 
     def remove(self, download_id: int) -> None:
-        """Remove a finished entry from the list. The downloaded file is kept."""
+        """Remove an entry from the list. A finished file is kept; a partial file is deleted."""
+        record = self.store.get(download_id)
+        if record is not None and not record.state.is_active:
+            self._delete_partial(record)
         self.store.remove(download_id)
         self.model.remove(download_id)
         self._emit_summary()
@@ -127,6 +170,8 @@ class DownloadController(QObject):
                 self._meters[download_id] = TransferMeter()  # a new attempt starts at 0
                 self.store.set_file_info(download_id, name, total)
                 self._refresh(download_id)
+            case PartialSaved(partial=partial):
+                self.store.set_partial(download_id, partial)
             case Progress(received_bytes=received, total_bytes=total):
                 self._on_progress(download_id, received, total)
             case Finished(result=result):
@@ -137,9 +182,14 @@ class DownloadController(QObject):
                     size=result.size,
                     verified_complete=result.verified_complete,
                 )
-            case Failed(message=message):
+            case Failed(message=message, partial=partial):
                 self._save_latest(download_id)
-                self._move(download_id, self.store.mark_failed, message)
+                self._move(
+                    download_id, self.store.mark_failed, message, partial_kept=partial is not None
+                )
+            case Paused():
+                self._save_latest(download_id)
+                self._move(download_id, self.store.mark_paused)
             case Cancelled():
                 self._save_latest(download_id)
                 self._move(download_id, self.store.mark_cancelled)
@@ -153,6 +203,15 @@ class DownloadController(QObject):
         if now - self._last_saved.get(download_id, 0.0) >= SAVE_PROGRESS_EVERY:
             self._last_saved[download_id] = now
             self.store.set_progress(download_id, received)
+
+    def _delete_partial(self, record: DownloadRecord) -> None:
+        partial = record.partial()
+        # The path comes from the database: only ever delete SDM's own file in that folder.
+        if partial and is_own_part_file(partial.part_path, Path(record.folder)):
+            try:
+                partial.part_path.unlink(missing_ok=True)
+            except OSError:
+                log.warning("Couldn't delete the partial file of download %d", record.id)
 
     def _save_latest(self, download_id: int) -> None:
         if download_id in self._latest:

@@ -1,11 +1,19 @@
-"""Single-connection HTTP/HTTPS download (M2).
+"""HTTP/HTTPS download over one connection, with resume (M2, resume added in M4).
 
 One attempt: check the URL -> GET, following redirects by hand so every hop is re-checked ->
 check the status -> choose a filename -> stream into "<name>.sdmpart" -> verify the size ->
-rename to the final name without ever replacing an existing file. When the server gives no
-size, the result says that completeness couldn't be confirmed. Failed attempts that might
-succeed later (timeouts, 5xx, dropped connections) are retried from the start; resuming from
-the middle of a file comes in M4.
+rename to the final name without ever replacing an existing file.
+
+Resuming (M4). When part of the file is already on disk, the request asks only for the rest:
+`Range: bytes=N-`, plus `If-Range` with the server's version tag (ETag or Last-Modified), so a
+file that changed on the server comes back whole instead. The reply counts as a continuation
+only if it is `206` with a Content-Range starting exactly at N and the expected total size.
+Without version tags, SDM asks for 64 bytes more than it needs and checks they match the end
+of its partial file (an idea from IDM's behavior in OBS-006). Anything else starts over from
+byte 0 in the same partial file. Two versions of a file are never stitched together.
+
+Failed attempts that might succeed later (timeouts, 5xx, dropped connections) are retried and
+continue where they stopped when the server can resume.
 """
 
 import asyncio
@@ -14,8 +22,10 @@ import email.utils
 import errno
 import logging
 import os
+import re
 import shutil
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import BinaryIO
@@ -23,6 +33,7 @@ from urllib.parse import urljoin, urlsplit
 
 import aiohttp
 
+from sdm.core.downloads import PartialDownload
 from sdm.core.errors import DownloadError, InvalidURLError, SDMError
 from sdm.core.filenames import (
     filename_from_content_disposition,
@@ -36,6 +47,7 @@ from sdm.engine.models import (
     DownloadResult,
     DownloadSettings,
     FileInfoCallback,
+    PartialCallback,
     ProgressCallback,
 )
 from sdm.engine.policy import NetworkPolicy, PolicyResolver
@@ -45,10 +57,82 @@ log = logging.getLogger(__name__)
 PART_SUFFIX = ".sdmpart"
 MAX_NAME_VARIANTS = 1000  # "name.ext" through "name (999).ext"
 WINDOWS_MAX_PATH = 259  # characters in a full path, excluding the terminating NUL
+OVERLAP = 64  # bytes re-downloaded to check a resume when the server gives no version tags
 _REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
 _RETRYABLE_STATUSES = frozenset({408, 429})
 _WINERROR_DISK_FULL = frozenset({39, 112})
 _WINERROR_PATH_TOO_LONG = 206
+_CONTENT_RANGE = re.compile(r"bytes (\d+)-(\d+)/(\d+)", re.ASCII)
+
+
+@dataclass
+class _Transfer:
+    """What one download() call knows about its partial file, across attempts."""
+
+    part_path: Path | None = None
+    file_name: str | None = None
+    received: int = 0  # bytes at the start of the partial file that belong to this version
+    total: int | None = None
+    etag: str | None = None
+    last_modified: str | None = None
+    resumable: bool = False
+
+    @classmethod
+    def start(cls, directory: Path, resume_from: PartialDownload | None) -> "_Transfer":
+        if resume_from is None:
+            return cls()
+        part = Path(resume_from.part_path)
+        if not is_own_part_file(part, directory):
+            # The path came from the database; never let it point SDM somewhere else.
+            log.warning("Ignoring a partial file that isn't in the download folder")
+            return cls()
+        if not part.is_file():
+            log.info("The partial file is gone; starting over")
+            return cls()
+        received = part.stat().st_size
+        total = resume_from.total_bytes
+        if total is not None and received > total:
+            received = 0  # more data than the file has: don't trust any of it
+        return cls(
+            part_path=part,
+            file_name=resume_from.file_name,
+            received=received,
+            total=total,
+            etag=resume_from.etag,
+            last_modified=resume_from.last_modified,
+            resumable=resume_from.resumable,
+        )
+
+    def partial(self) -> PartialDownload:
+        if self.part_path is None or self.file_name is None:
+            raise RuntimeError("No partial file yet.")
+        return PartialDownload(
+            part_path=self.part_path,
+            file_name=self.file_name,
+            total_bytes=self.total,
+            etag=self.etag,
+            last_modified=self.last_modified,
+            resumable=self.resumable,
+        )
+
+
+@dataclass(frozen=True)
+class _RangePlan:
+    """How to ask for the rest of the file."""
+
+    start: int  # first byte requested
+    overlap: int  # bytes before `received` re-requested to check the file hasn't changed
+    if_range: str | None  # version tag sent with If-Range, if any
+
+    def headers(self) -> dict[str, str]:
+        headers = {"Range": f"bytes={self.start}-"}
+        if self.if_range:
+            headers["If-Range"] = self.if_range
+        return headers
+
+
+class _StartOver(Exception):
+    """The server's reply can't continue the partial file: download from byte 0 instead."""
 
 
 async def download(
@@ -59,12 +143,19 @@ async def download(
     settings: DownloadSettings | None = None,
     on_progress: ProgressCallback | None = None,
     on_file_info: FileInfoCallback | None = None,
+    on_partial: PartialCallback | None = None,
+    resume_from: PartialDownload | None = None,
+    keep_partial: bool = False,
 ) -> DownloadResult:
     """Download `url` into `destination_dir` and return where the file was saved.
 
+    `resume_from` continues an earlier partial file. With `keep_partial` (the window's download
+    manager), the partial file is kept when the download is cancelled (the caller decides
+    whether that was a pause) or fails on a server that can resume; otherwise (`sdm-get`) any
+    failure deletes it.
+
     Raises an SDMError subclass (InvalidURLError, BlockedDestinationError, DownloadError)
-    whose message is fit to show the user. Cancelling the task stops the download promptly
-    and deletes the partial file.
+    whose message is fit to show the user.
     """
     url = url.strip()
     validate_url(url)
@@ -73,6 +164,7 @@ async def download(
     directory = Path(destination_dir)
     if not directory.is_dir():
         raise DownloadError(f"The download folder does not exist: {directory}")
+    transfer = _Transfer.start(directory, resume_from)
 
     log.info("Downloading %s into %s", redact_url(url), directory)
     timeout = aiohttp.ClientTimeout(
@@ -89,32 +181,47 @@ async def download(
         auto_decompress=False,
         trust_env=False,  # ignore proxy environment variables: a proxy would bypass the policy
     )
-    async with session:
-        attempt = 1
-        while True:
-            try:
-                result = await _attempt(
-                    session, url, directory, policy, settings, on_progress, on_file_info
-                )
-            except DownloadError as exc:
-                if not exc.retryable or attempt >= settings.max_attempts:
-                    raise
-                delay = exc.retry_after
-                if delay is None:
-                    delay = settings.backoff_base * 2 ** (attempt - 1)
-                delay = min(delay, settings.max_retry_after)
-                log.warning(
-                    "Attempt %d of %d failed (%s); retrying in %.0f s",
-                    attempt,
-                    settings.max_attempts,
-                    exc,
-                    delay,
-                )
-                await asyncio.sleep(delay)
-                attempt += 1
-            else:
-                log.info("Saved %s (%d bytes)", result.path, result.size)
-                return result
+    try:
+        async with session:
+            attempt = 1
+            while True:
+                try:
+                    result = await _attempt(
+                        session, url, directory, policy, settings, transfer,
+                        on_progress, on_file_info, on_partial,
+                    )  # fmt: skip
+                except DownloadError as exc:
+                    if not exc.retryable or attempt >= settings.max_attempts:
+                        raise
+                    delay = exc.retry_after
+                    if delay is None:
+                        delay = settings.backoff_base * 2 ** (attempt - 1)
+                    delay = min(delay, settings.max_retry_after)
+                    log.warning(
+                        "Attempt %d of %d failed (%s); retrying in %.0f s",
+                        attempt,
+                        settings.max_attempts,
+                        exc,
+                        delay,
+                    )
+                    await asyncio.sleep(delay)
+                    attempt += 1
+                else:
+                    log.info("Saved %s (%d bytes)", result.path, result.size)
+                    return result
+    except BaseException as exc:  # includes cancellation
+        if transfer.part_path is not None and not _keep_partial(exc, transfer, keep_partial):
+            with contextlib.suppress(OSError):
+                transfer.part_path.unlink(missing_ok=True)
+        raise
+
+
+def _keep_partial(exc: BaseException, transfer: _Transfer, keep_partial: bool) -> bool:
+    if not keep_partial:
+        return False
+    if isinstance(exc, asyncio.CancelledError):
+        return True  # the manager deletes it afterwards unless this was a pause
+    return transfer.resumable and transfer.received > 0
 
 
 async def _attempt(
@@ -123,44 +230,159 @@ async def _attempt(
     directory: Path,
     policy: NetworkPolicy,
     settings: DownloadSettings,
+    transfer: _Transfer,
     on_progress: ProgressCallback | None,
     on_file_info: FileInfoCallback | None,
+    on_partial: PartialCallback | None,
 ) -> DownloadResult:
     async with _translated_errors(url, directory):
-        response = await _get_following_redirects(session, url, policy, settings)
-        async with response:
-            _check_status(response)
-            total = response.content_length  # None when the server doesn't say
-            name = _choose_filename(response, directory)
-            _check_free_space(directory, total)
-            if on_file_info:
-                on_file_info(name, total)
-            part_path, part_file = _open_part_file(directory, name)
-            try:
-                with part_file:
-                    received = await _stream_to_file(
-                        response, part_file, total, settings, on_progress
-                    )
+        plan = _range_plan(transfer)
+        while True:
+            extra = plan.headers() if plan else None
+            response = await _get_following_redirects(session, url, policy, settings, extra)
+            async with response:
+                try:
+                    offset = await _accept_response(response, plan, transfer, directory)
+                except _StartOver as reason:
+                    log.info("Can't resume (%s); downloading from the start", reason)
+                    plan = None
+                    transfer.received = 0
+                    continue
+                if transfer.part_path is None or transfer.file_name is None:  # pragma: no cover
+                    raise DownloadError("Internal error: no partial file.")
+                if on_file_info:
+                    on_file_info(transfer.file_name, transfer.total)
+                if on_partial:
+                    on_partial(transfer.partial())
+                if offset is None:  # 416: everything was already there
+                    received = transfer.received
+                else:
+                    with open(transfer.part_path, "r+b") as part_file:
+                        part_file.seek(offset)
+                        part_file.truncate()  # drop anything after the trusted bytes
+                        received = await _stream_to_file(
+                            response, part_file, transfer, settings, on_progress
+                        )
+                total = transfer.total
                 if total is not None and received != total:
                     raise DownloadError(_interrupted_message(received, total), retryable=True)
-                final_path = await _finalize(part_path, directory, name)
-            except BaseException:  # includes cancellation: never leave a partial file behind
-                with contextlib.suppress(OSError):
-                    part_path.unlink(missing_ok=True)
-                raise
-    # With chunked encoding aiohttp itself fails if the final chunk never arrives.
-    chunked = "chunked" in response.headers.get("Transfer-Encoding", "").lower()
-    return DownloadResult(
-        path=final_path,
-        size=received,
-        final_url=str(response.url),
-        content_type=response.headers.get("Content-Type"),
-        verified_complete=total is not None or chunked,
-    )
+                final_path = await _finalize(transfer.part_path, directory, transfer.file_name)
+                # With chunked encoding aiohttp itself fails if the final chunk never arrives.
+                chunked = "chunked" in response.headers.get("Transfer-Encoding", "").lower()
+                transfer.part_path = None  # renamed: nothing left to clean up
+                return DownloadResult(
+                    path=final_path,
+                    size=received,
+                    final_url=str(response.url),
+                    content_type=response.headers.get("Content-Type"),
+                    verified_complete=total is not None or chunked or response.status == 206,
+                )
+
+
+def _range_plan(transfer: _Transfer) -> _RangePlan | None:
+    """How to ask for the rest of the file, or None to download it whole."""
+    if transfer.part_path is None or transfer.received <= 0:
+        return None
+    strong_etag = transfer.etag if transfer.etag and not transfer.etag.startswith("W/") else None
+    validator = strong_etag or transfer.last_modified  # If-Range needs a strong ETag or a date
+    if validator:
+        return _RangePlan(start=transfer.received, overlap=0, if_range=validator)
+    if transfer.received >= OVERLAP:
+        return _RangePlan(start=transfer.received - OVERLAP, overlap=OVERLAP, if_range=None)
+    return None  # too little to check: cheaper to start over
+
+
+async def _accept_response(
+    response: aiohttp.ClientResponse,
+    plan: _RangePlan | None,
+    transfer: _Transfer,
+    directory: Path,
+) -> int | None:
+    """Check the reply and prepare the partial file.
+
+    Returns the offset to write from, or None if the file is already complete (416).
+    Raises _StartOver when a resume reply can't be trusted.
+    """
+    status = response.status
+    if plan is not None and status == 416:
+        if plan.overlap == 0 and transfer.total == transfer.received:
+            return None
+        raise _StartOver("the server refused the range")
+    if plan is not None and status == 206:
+        await _check_continuation(response, plan, transfer)
+        transfer.resumable = True  # proven
+        _check_free_space(directory, (transfer.total or 0) - transfer.received)
+        return transfer.received
+    _check_status(response)  # anything but 200 raises here (including 206 we didn't ask for)
+
+    # 200: the whole file, from byte 0.
+    if transfer.received:
+        log.info("The server sent the whole file instead of the rest; starting over")
+    transfer.received = 0
+    transfer.total = response.content_length  # None when the server doesn't say
+    transfer.etag = response.headers.get("ETag")
+    transfer.last_modified = response.headers.get("Last-Modified")
+    transfer.resumable = response.headers.get("Accept-Ranges", "").strip().lower() == "bytes"
+    if transfer.part_path is None:
+        transfer.file_name = _choose_filename(response, directory)
+    _check_free_space(directory, transfer.total)
+    if transfer.part_path is None:
+        transfer.part_path = _create_part_file(directory, transfer.file_name or "download")
+    return 0
+
+
+async def _check_continuation(
+    response: aiohttp.ClientResponse, plan: _RangePlan, transfer: _Transfer
+) -> None:
+    """A 206 reply continues the partial file only if everything about it matches."""
+    content_range = parse_content_range(response.headers.get("Content-Range"))
+    if content_range is None:
+        raise _StartOver("missing or invalid Content-Range")
+    first, last, total = content_range
+    if first != plan.start or last != total - 1:
+        raise _StartOver(f"the server sent bytes {first}-{last}, not {plan.start}-{total - 1}")
+    if transfer.total is not None and total != transfer.total:
+        raise _StartOver("the file's size changed")
+    for header, known in (("ETag", transfer.etag), ("Last-Modified", transfer.last_modified)):
+        sent = response.headers.get(header)
+        if sent and known and sent != known:
+            raise _StartOver(f"the file's {header} changed")
+    transfer.total = total
+    if plan.overlap:
+        try:
+            fresh = await response.content.readexactly(plan.overlap)
+        except asyncio.IncompleteReadError as exc:
+            raise DownloadError(
+                _interrupted_message(transfer.received, transfer.total), retryable=True
+            ) from exc
+        if transfer.part_path is None:  # a plan always has a partial file; be safe anyway
+            raise _StartOver("no partial file")
+        with open(transfer.part_path, "rb") as part_file:
+            part_file.seek(transfer.received - plan.overlap)
+            on_disk = part_file.read(plan.overlap)
+        if fresh != on_disk:
+            raise _StartOver("the last bytes on disk don't match the server's file")
+
+
+def parse_content_range(value: str | None) -> tuple[int, int, int] | None:
+    """'bytes 100-199/1000' -> (100, 199, 1000); None for anything malformed or unusable."""
+    if not value:
+        return None
+    match = _CONTENT_RANGE.fullmatch(value.strip())
+    if not match:
+        return None
+    first, last, total = (int(group) for group in match.groups())
+    if first > last or last >= total:
+        return None
+    return first, last, total
 
 
 async def _get_following_redirects(
-    session: aiohttp.ClientSession, url: str, policy: NetworkPolicy, settings: DownloadSettings
+    session: aiohttp.ClientSession,
+    url: str,
+    policy: NetworkPolicy,
+    settings: DownloadSettings,
+    extra_headers: dict[str, str] | None = None,
 ) -> aiohttp.ClientResponse:
     current = url
     for _ in range(settings.max_redirects + 1):
@@ -171,7 +393,7 @@ async def _get_following_redirects(
                 f"The server redirected to an address SDM refuses: {exc}"
             ) from None
         policy.check_url_host(parts.hostname or "")
-        response = await session.get(current, allow_redirects=False)
+        response = await session.get(current, allow_redirects=False, headers=extra_headers)
         if response.status not in _REDIRECT_STATUSES:
             return response
         location = response.headers.get("Location")
@@ -228,46 +450,56 @@ def _choose_filename(response: aiohttp.ClientResponse, directory: Path) -> str:
     return sanitize_filename(raw, max_length=min(200, budget))
 
 
-def _check_free_space(directory: Path, total: int | None) -> None:
-    if total is None:
+def _check_free_space(directory: Path, needed: int | None) -> None:
+    if not needed or needed <= 0:
         return
     free = shutil.disk_usage(directory).free
-    if free < total:
+    if free < needed:
         raise DownloadError(
-            f"Not enough disk space: the file needs {total:,} bytes but only {free:,} are free."
+            f"Not enough disk space: the file needs {needed:,} bytes but only {free:,} are free."
         )
 
 
-def _open_part_file(directory: Path, name: str) -> tuple[Path, BinaryIO]:
+def _create_part_file(directory: Path, name: str) -> Path:
     for number in range(MAX_NAME_VARIANTS):
         path = directory / (numbered_name(name, number) + PART_SUFFIX)
         try:
-            return path, open(path, "xb")  # "x": fail rather than reuse an existing file
+            with open(path, "xb"):  # "x": fail rather than reuse another download's file
+                return path
         except FileExistsError:
             continue
     raise DownloadError(f"Too many files named like {name} in {directory}.")
 
 
+def is_own_part_file(part: Path, directory: Path) -> bool:
+    """True if `part` is a .sdmpart file directly inside `directory`."""
+    try:
+        return part.name.endswith(PART_SUFFIX) and part.parent.resolve() == directory.resolve()
+    except OSError:
+        return False
+
+
 async def _stream_to_file(
     response: aiohttp.ClientResponse,
     file: BinaryIO,
-    total: int | None,
+    transfer: _Transfer,
     settings: DownloadSettings,
     on_progress: ProgressCallback | None,
 ) -> int:
-    received = 0
     if on_progress:
-        on_progress(received, total)
+        on_progress(transfer.received, transfer.total)
     try:
         async for chunk in response.content.iter_chunked(settings.chunk_size):
             file.write(chunk)
-            received += len(chunk)
+            transfer.received += len(chunk)  # a retry continues from here
             if on_progress:
-                on_progress(received, total)
+                on_progress(transfer.received, transfer.total)
     except (aiohttp.ClientPayloadError, aiohttp.ServerDisconnectedError, ConnectionError) as exc:
         # Say how much arrived, as IDM does (OBS-006: "50.00%").
-        raise DownloadError(_interrupted_message(received, total), retryable=True) from exc
-    return received
+        raise DownloadError(
+            _interrupted_message(transfer.received, transfer.total), retryable=True
+        ) from exc
+    return transfer.received
 
 
 def _interrupted_message(received: int, total: int | None) -> str:

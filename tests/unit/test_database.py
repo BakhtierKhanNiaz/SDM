@@ -192,3 +192,103 @@ def test_database_from_a_newer_sdm_is_refused_and_left_alone(db_path):
 def test_default_path_is_under_localappdata(monkeypatch, tmp_path):
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
     assert default_database_path() == tmp_path / "SDM" / "sdm.db"
+
+
+# ----- M4: schema version 2, partial files, pause and resume -----
+
+
+def test_upgrade_from_version_1_keeps_history(db_path):
+    from sdm.storage import database
+
+    db_path.parent.mkdir(parents=True)
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.executescript(database._MIGRATIONS[0])
+        conn.execute("PRAGMA user_version = 1")
+        conn.execute(
+            "INSERT INTO downloads (id, url, folder, state, file_name, received_bytes,"
+            " created_at, updated_at) VALUES (7, ?, ?, 'completed', 'a.zip', 10, 't', 't')",
+            (URL, FOLDER),
+        )
+        conn.commit()
+
+    store = DownloadStore(db_path)
+    try:
+        assert schema_version(db_path) == SCHEMA_VERSION == 2
+        old = store.get(7)
+        assert (old.state, old.file_name, old.received_bytes) == ("completed", "a.zip", 10)
+        assert (old.part_path, old.etag, old.resumable) == (None, None, False)
+        assert store.add(URL, FOLDER).id == 8  # ids are never reused
+        store.mark_downloading(8)
+        store.mark_paused(8)  # the new state is accepted
+    finally:
+        store.close()
+
+
+def partial_for(folder, name="a.zip"):
+    from pathlib import Path
+
+    from sdm.core.downloads import PartialDownload
+
+    return PartialDownload(Path(folder) / f"{name}.sdmpart", name, 1000, '"v1"', None, True)
+
+
+def test_partial_file_round_trip_and_pause_resume(store, tmp_path):
+    download_id = store.add(URL, str(tmp_path)).id
+    store.mark_downloading(download_id)
+    partial = partial_for(tmp_path)
+    store.set_partial(download_id, partial)
+    store.set_progress(download_id, 400)
+    store.mark_paused(download_id)
+
+    record = store.get(download_id)
+    assert record.state == DownloadState.PAUSED
+    assert record.partial() == partial
+    assert record.received_bytes == 400
+
+    store.mark_queued(download_id)  # resume
+    record = store.get(download_id)
+    assert record.state == DownloadState.QUEUED
+    assert record.finished_at is None and record.error is None
+    assert record.partial() == partial  # still known, for the resume
+
+
+@pytest.mark.parametrize("kept", [True, False])
+def test_failure_keeps_the_partial_only_if_it_was_kept(store, tmp_path, kept):
+    download_id = store.add(URL, str(tmp_path)).id
+    store.mark_downloading(download_id)
+    store.set_partial(download_id, partial_for(tmp_path))
+    store.mark_failed(download_id, "interrupted", partial_kept=kept)
+    assert (store.get(download_id).partial() is not None) is kept
+
+
+def test_cancel_and_complete_forget_the_partial(store, tmp_path):
+    first = store.add(URL, str(tmp_path)).id
+    store.mark_downloading(first)
+    store.set_partial(first, partial_for(tmp_path))
+    store.mark_paused(first)
+    store.mark_cancelled(first)
+    assert store.get(first).partial() is None
+
+    second = store.add(URL, str(tmp_path)).id
+    store.mark_downloading(second)
+    store.set_partial(second, partial_for(tmp_path, "b.zip"))
+    store.mark_completed(second, path=str(tmp_path / "b.zip"), size=1000, verified_complete=True)
+    assert store.get(second).partial() is None
+
+
+def test_interrupted_entries_keep_their_partial_for_resuming(db_path, tmp_path):
+    first = DownloadStore(db_path)
+    download_id = first.add(URL, str(tmp_path)).id
+    first.mark_downloading(download_id)
+    first.set_partial(download_id, partial_for(tmp_path))
+    first.close()  # crash
+
+    second = DownloadStore(db_path)
+    try:
+        second.mark_interrupted_on_startup()
+        record = second.get(download_id)
+        assert record.state == DownloadState.INTERRUPTED
+        assert record.partial() is not None
+        second.mark_queued(download_id)  # interrupted entries can be resumed
+    finally:
+        second.close()

@@ -95,3 +95,20 @@ File writes run in the event loop thread for now (ADR-0006 consequences).
 ## Decided later
 
 - Native messaging host packaging and registration (M7).
+
+## Resume (M4, ADR-0011)
+
+```
+attempt
+  ├─ partial file with N trusted bytes?  no ─▶ plain GET
+  │                                      yes ─▶ GET + Range: bytes=N- (+ If-Range tag)
+  │                                             or bytes=(N-64)- without tags
+  ├─ 206 + exact Content-Range (+ same tags, + 64-byte overlap matches) ─▶ append from N
+  ├─ 416 and N == total ─▶ already complete: finish
+  └─ anything else (200, wrong range, changed size/tag, overlap mismatch) ─▶ restart at 0
+```
+
+`download(..., resume_from=, keep_partial=, on_partial=)`: `on_partial` reports the partial
+file and version tags (the manager's `PartialSaved` event; the controller stores them). The
+manager's `pause()` keeps the partial file (`Paused` event); `cancel()` deletes it. `shutdown()`
+pauses everything.

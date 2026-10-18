@@ -9,7 +9,7 @@ and its tests have actually run and passed.
 | M1 | Project structure, configuration, documentation, initial desktop window | Done (2026-10-17) |
 | M2 | Reliable single-connection HTTP downloader | Done (2026-10-18) |
 | M3 | Progress, cancellation, history and persistent state | Done (2026-10-19) |
-| M4 | Pause/resume and crash recovery | Not started |
+| M4 | Pause/resume and crash recovery | In progress (M4a done) |
 | M5 | Parallel segmented downloads | Not started |
 | M6 | Queue management and scheduling | Not started |
 | M7 | Chrome extension and native messaging bridge | Not started |
