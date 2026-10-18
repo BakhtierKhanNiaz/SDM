@@ -77,6 +77,7 @@ class Failed:
     download_id: int
     message: str  # fit to show the user
     partial: PartialDownload | None = None  # kept for a retry when the server can resume
+    retryable: bool = False  # a temporary problem (network, timeout, 5xx): worth retrying (M6)
 
 
 @dataclass(frozen=True)
@@ -297,7 +298,8 @@ class DownloadManager:
         except SDMError as exc:
             partial = self._partials.get(download_id)
             kept = partial if partial is not None and partial.part_path.is_file() else None
-            self._emit(Failed(download_id, str(exc), kept))
+            retryable = getattr(exc, "retryable", False)
+            self._emit(Failed(download_id, str(exc), kept, retryable))
         except Exception as exc:  # a bug: report it rather than lose the download silently
             log.exception("Download %d failed unexpectedly", download_id)
             self._emit(Failed(download_id, f"Unexpected error: {type(exc).__name__}."))

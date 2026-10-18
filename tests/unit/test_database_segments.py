@@ -25,7 +25,7 @@ def split_partial(folder: Path) -> PartialDownload:
 
 
 def test_schema_has_the_segments_column(store, tmp_path):
-    assert SCHEMA_VERSION == 3
+    assert SCHEMA_VERSION >= 3  # added in version 3
     with closing(sqlite3.connect(tmp_path / "sdm.db")) as conn:
         columns = [row[1] for row in conn.execute("PRAGMA table_info(downloads)")]
     assert "segments" in columns

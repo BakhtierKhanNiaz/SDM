@@ -129,3 +129,14 @@ Code: `sdm.core.segments` (planning, map checks), `sdm.engine.segmented` (`Segme
 `min_split_size`, `min_part_size`, `dynamic_splitting`. A free connection takes over the second
 half of the part with the most left (`core.segments.pick_split`). The connection count reaches
 the window through `on_connections` and the manager's `Progress.connections`.
+
+## The queue (M6, ADR-0013)
+
+```
+event / action / every 30 s ─▶ controller.pump()
+   queued + running entries, QueueSettings, clock ─▶ scheduler.plan_queue ─▶ start [...], pause [...]
+   start ─▶ manager.submit(resume_from=partial)     pause ─▶ manager.pause ─▶ back to waiting
+```
+
+`sdm.scheduler.queue` (pure planning, schedule, retry delays, reordering) and
+`sdm.scheduler.persist` (settings in the history). `sdm.core.categories` labels files by type.

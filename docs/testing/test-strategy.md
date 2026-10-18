@@ -45,6 +45,9 @@ default policy blocks the test server, as it should) and short timeouts.
 
 ## Rules
 
+- Time-dependent behavior (schedule, retry times) takes an injectable clock: tests move a
+  `FakeClock` instead of waiting (`tests/integration/test_queue.py`).
+
 - No test may open a real message box: `no_blocking_dialogs` (autouse, in `conftest.py`)
   makes any unplanned one fail at once instead of hanging the run. Tests that expect a
   dialog patch it themselves.

@@ -81,8 +81,19 @@ _MIGRATIONS = [
     """
     ALTER TABLE downloads ADD COLUMN segments TEXT;
     """,
+    # Version 4 (M6): the queue, categories, automatic retries, and settings.
+    """
+    ALTER TABLE downloads ADD COLUMN queue_position INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE downloads ADD COLUMN category TEXT NOT NULL DEFAULT 'General';
+    ALTER TABLE downloads ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE downloads ADD COLUMN retry_at TEXT;
+    ALTER TABLE downloads ADD COLUMN forced INTEGER NOT NULL DEFAULT 0;
+    UPDATE downloads SET queue_position = id;
+    CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    """,
 ]
 SCHEMA_VERSION = len(_MIGRATIONS)
+_DONE = {"forced": 0, "retry_at": None}  # leaving the queue for good
 _NO_PARTIAL = {
     "part_path": None,
     "etag": None,
@@ -165,7 +176,7 @@ class DownloadStore:
         return _record(row) if row else None
 
     def list_all(self) -> list[DownloadRecord]:
-        rows = self._conn.execute("SELECT * FROM downloads ORDER BY id").fetchall()
+        rows = self._conn.execute("SELECT * FROM downloads ORDER BY queue_position, id").fetchall()
         return [_record(row) for row in rows]
 
     def completed_with_url(self, url: str) -> list[DownloadRecord]:
@@ -178,13 +189,26 @@ class DownloadStore:
 
     # ----- writing -----
 
-    def add(self, url: str, folder: str, *, allow_local_network: bool = False) -> DownloadRecord:
+    def add(
+        self,
+        url: str,
+        folder: str,
+        *,
+        allow_local_network: bool = False,
+        start: bool = True,
+        category: str = "General",
+    ) -> DownloadRecord:
+        """A new entry at the end of the queue; `start=False` adds it paused (M6)."""
         now = _now()
+        state = DownloadState.QUEUED if start else DownloadState.PAUSED
         with self._conn:
+            (last,) = self._conn.execute(
+                "SELECT COALESCE(MAX(queue_position), 0) FROM downloads"
+            ).fetchone()
             cursor = self._conn.execute(
                 "INSERT INTO downloads (url, folder, allow_local_network, state, created_at,"
-                " updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (url, folder, int(allow_local_network), DownloadState.QUEUED, now, now),
+                " updated_at, queue_position, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (url, folder, int(allow_local_network), state, now, now, last + 1, category),
             )
         record = self.get(cursor.lastrowid)
         if record is None:
@@ -210,6 +234,42 @@ class DownloadStore:
             segments=encode_segments(partial.segments) if partial.segments else None,
         )
 
+    def set_category(self, download_id: int, category: str) -> None:
+        self._update(download_id, category=category)
+
+    def set_forced(self, download_id: int, forced: bool) -> None:
+        self._update(download_id, forced=int(forced))
+
+    def set_retry(self, download_id: int, count: int, at: str | None) -> None:
+        self._update(download_id, retry_count=count, retry_at=at)
+
+    def set_positions(self, order: list[int]) -> None:
+        """Renumber the given entries in this order, keeping them where they were overall."""
+        positions = sorted(
+            row[0]
+            for row in self._conn.execute(
+                f"SELECT queue_position FROM downloads WHERE id IN ({','.join('?' * len(order))})",  # noqa: S608
+                order,
+            )
+        )
+        with self._conn:
+            for download_id, position in zip(order, positions, strict=True):
+                self._conn.execute(
+                    "UPDATE downloads SET queue_position = ? WHERE id = ?", (position, download_id)
+                )
+
+    def get_setting(self, key: str) -> str | None:
+        row = self._conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        return row[0] if row else None
+
+    def set_setting(self, key: str, value: str) -> None:
+        with self._conn:
+            self._conn.execute(
+                "INSERT INTO settings (key, value) VALUES (?, ?)"
+                " ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (key, value),
+            )
+
     def mark_downloading(self, download_id: int) -> None:
         self._move(download_id, DownloadState.DOWNLOADING)
 
@@ -232,6 +292,7 @@ class DownloadStore:
             verified_complete=int(verified_complete),
             error=None,
             **_NO_PARTIAL,
+            **_DONE,
         )
 
     def mark_failed(self, download_id: int, error: str, *, partial_kept: bool = False) -> None:
@@ -240,7 +301,7 @@ class DownloadStore:
         self._move(download_id, DownloadState.FAILED, error=error, **extra)
 
     def mark_cancelled(self, download_id: int) -> None:
-        self._move(download_id, DownloadState.CANCELLED, **_NO_PARTIAL)
+        self._move(download_id, DownloadState.CANCELLED, **_NO_PARTIAL, **_DONE)
 
     def mark_interrupted_on_startup(self) -> int:
         """Entries a crash or forced exit left queued or downloading become "interrupted".
@@ -313,4 +374,9 @@ def _record(row: sqlite3.Row) -> DownloadRecord:
         last_modified=row["last_modified"],
         resumable=bool(row["resumable"]),
         segments=row["segments"],
+        queue_position=row["queue_position"],
+        category=row["category"],
+        retry_count=row["retry_count"],
+        retry_at=row["retry_at"],
+        forced=bool(row["forced"]),
     )

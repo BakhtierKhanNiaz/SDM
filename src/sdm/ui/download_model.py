@@ -171,6 +171,10 @@ def cell_text(
         return format_duration(time_left) if downloading and time_left is not None else ""
     if column == STATUS:
         label = STATE_LABELS[state]
+        if state == DownloadState.QUEUED and record.retry_at:
+            label = f"Retry {record.retry_count} of 3 at {_local_clock(record.retry_at)}"
+        elif state == DownloadState.QUEUED and record.forced:
+            label = "Starting now"
         if downloading and connections > 1:
             label += f" · {connections} connections"
         if state == DownloadState.COMPLETED and record.verified_complete is False:
@@ -195,3 +199,12 @@ def _tooltip(record: DownloadRecord, column: int) -> str | None:
                 lines.append("Resume starts from the beginning.")
         return "\n".join(lines) or None
     return None
+
+
+def _local_clock(iso_utc: str) -> str:
+    from datetime import datetime
+
+    try:
+        return datetime.fromisoformat(iso_utc).astimezone().strftime("%H:%M")
+    except ValueError:
+        return "?"

@@ -8,6 +8,13 @@ while SDM is in 0.x.
 
 ### Added
 
+- M6a, the queue: a pure planner (`sdm.scheduler.queue`) decides which waiting downloads start
+  and which go back to waiting: queue order, a limit of 1-8 (default 3), a schedule (start and
+  stop times, days, overnight windows), Start now, and automatic retries for temporary
+  failures after about 1, 5 and 15 minutes. Categories by file type, with optional IDM-style
+  subfolders (off by default). History schema version 4 (queue columns, settings table).
+  The controller's `pump()` is now the only place that starts downloads (ADR-0013).
+  46 new tests (389 in total).
 - M5b: dynamic splitting (a free connection takes over half of the part with the most left;
   `DownloadSettings.dynamic_splitting`), and the connection count in the window's status
   ("Downloading · 8 connections"). Spec FEAT-004; 6 new tests (343 in total).
@@ -95,6 +102,9 @@ while SDM is in 0.x.
 
 ### Changed
 
+- Resume puts an entry back in the queue (it starts when there's room) instead of starting it
+  at once; Start now starts it at once. A temporary failure now waits for an automatic retry
+  instead of staying Failed.
 - Fixed: a part's reply is checked against the range it requested, not its end after a
   dynamic split (a correct reply used to look wrong and restart the file).
 - The quit question now says "Quit and pause them?" (it said partial files would be

@@ -247,3 +247,36 @@ deleted. A changed decision gets a new record that supersedes the old one.
   against the range it actually requested: a split can shrink the part while the request is
   in flight (a bug found by `test_a_connection_that_finishes_early_helps_the_slowest`).
   `DownloadSettings.dynamic_splitting` can switch it off.
+
+## ADR-0013: The queue is planned outside the engine
+
+- **Date:** 2026-10-19 · **Status:** Accepted (M6 plan approved by the project owner)
+- **Context:** Until M5 the engine decided who runs next (first in, first out, at most 3).
+  M6 needs a reorderable queue, a changeable limit, a schedule, "Start now" and automatic
+  retries. IDM: categories by file type with folders (OBS-001/002/005); its OBS-006 message
+  offers a queue that retries from the start until success. IDM's queue and scheduler screens
+  were not observed.
+- **Decision:**
+  - `sdm.scheduler.queue.plan_queue` (pure, clock passed in) decides what to start and what to
+    send back to waiting. The controller's `pump()` is the only code that submits to the
+    engine; it runs after every event and action and every 30 s. The engine's own limit is
+    raised to 32 as a safety net.
+  - One queue, ordered by `queue_position`. Limit 1-8 (default 3). "Start now" ignores the
+    limit and the schedule. "Add without starting" adds the entry paused.
+  - Schedule: start and stop times plus days; an overnight window belongs to the day it
+    starts on; equal times mean the whole day. Outside the window running queue downloads go
+    back to waiting with their partial file. The scheduler only starts and pauses downloads:
+    no shutdown or sleep (owner's decision).
+  - Pauses made by the planner (schedule, lower limit) return the entry to *waiting*; the
+    user's Pause makes it *paused* (the planner ignores it).
+  - Automatic retries for temporary failures (network, timeout, 5xx): after about 1, 5 and
+    15 minutes, resuming each time; a manual Resume or Retry resets the count. Permanent
+    failures (404) aren't retried.
+  - Categories (General, Compressed, Documents, Music, Video, Programs) are labels from the
+    file extension. An optional setting (off by default) saves into `<folder>\<Category>`,
+    created when its first download starts; the category comes from the URL at that point.
+  - Settings live in the history's new `settings` table. Quitting still pauses everything and
+    nothing starts on its own at the next launch (M4 rule): queue order, settings and retry
+    counts survive, and Resume all continues in order.
+- **Consequences:** The queue logic is tested without Qt or a network (`test_queue_planner.py`,
+  fake clock in `test_queue.py`). A schedule only acts while SDM is running.

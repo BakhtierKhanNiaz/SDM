@@ -96,6 +96,11 @@ class DownloadRecord:
     last_modified: str | None = None
     resumable: bool = False
     segments: str | None = None  # the saved parts map (JSON), for split downloads (M5)
+    queue_position: int = 0  # order in the queue, smaller first (M6)
+    category: str = "General"  # from the file type (M6)
+    retry_count: int = 0  # automatic retries used (M6)
+    retry_at: str | None = None  # ISO 8601 UTC: waiting for an automatic retry until then
+    forced: bool = False  # "Start now": ignores the limit and the schedule
 
     def partial(self) -> PartialDownload | None:
         """What the engine needs to continue this download, if a partial file is recorded."""

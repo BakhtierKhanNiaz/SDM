@@ -94,12 +94,14 @@ def test_retry_after_a_failure_continues_where_it_stopped(
     mock_server.add("/data.bin", cut, cut, cut, mock_server.ranged(DATA, etag='"v1"', log=log))
     controller = make_controller()
     record = controller.add(mock_server.url("/data.bin"), downloads)
-    wait_for_state(qtbot, controller, record.id, DownloadState.FAILED)
-    failed = controller.store.get(record.id)
-    assert "interrupted after" in failed.error
-    assert failed.part_path is not None  # kept: this server can resume
+    # M6: a temporary failure waits for an automatic retry instead of staying failed.
+    qtbot.waitUntil(lambda: controller.store.get(record.id).retry_count == 1, timeout=15_000)
+    waiting = controller.store.get(record.id)
+    assert waiting.state == DownloadState.QUEUED
+    assert waiting.retry_at is not None  # about a minute from now
+    assert waiting.part_path is not None  # kept: this server can resume
 
-    controller.resume(record.id)  # the window's Retry
+    controller.start_now(record.id)  # don't wait the minute
     wait_for_state(qtbot, controller, record.id, DownloadState.COMPLETED)
 
     assert sha(Path(controller.store.get(record.id).path).read_bytes()) == sha(DATA)

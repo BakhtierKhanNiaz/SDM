@@ -278,7 +278,9 @@ class SegmentedDownload:
                     return
                 attempt += 1
                 if attempt >= self._settings.max_attempts:
-                    raise DownloadError(interrupted_message(self.received, self._total)) from exc
+                    raise DownloadError(
+                        interrupted_message(self.received, self._total), retryable=True
+                    ) from exc
                 delay = self._settings.backoff_base * 2 ** (attempt - 1)
                 await asyncio.sleep(min(delay, self._settings.max_retry_after))
 

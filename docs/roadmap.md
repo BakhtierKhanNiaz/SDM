@@ -11,7 +11,7 @@ and its tests have actually run and passed.
 | M3 | Progress, cancellation, history and persistent state | Done (2026-10-19) |
 | M4 | Pause/resume and crash recovery | Done (2026-10-19) |
 | M5 | Parallel segmented downloads | Done (2026-10-19) |
-| M6 | Queue management and scheduling | Not started |
+| M6 | Queue management and scheduling | In progress (M6a done) |
 | M7 | Chrome extension and native messaging bridge | Not started |
 | M8 | Browser handoff integrated with the download engine | Not started |
 | M9 | Interface, settings, notifications and usability | Not started |
