@@ -208,7 +208,10 @@ processes: a second SDM exited quietly in 1.2 s; the host handed a link to the r
 
 Remaining before M7 is **Done**:
 
-- [ ] Register the host (owner approves running the install script).
+- [x] Register the host (approved by the owner, 2026-10-19): one HKCU value pointing at
+  `%LOCALAPPDATA%\SDMridge\com.sdm.bridge.json`, allowed origin limited to the owner's
+  extension ID. The launcher, run through `cmd.exe` as Chrome does, refused a message with an
+  extra field (`bad_request`) and wrote nothing else to stdout.
 - [ ] Owner's Chrome check in a separate profile: the menu appears on links, a handoff opens
   the filled-in dialog with SDM running and with SDM closed, and nothing downloads until
   Download is pressed (checklist in [extension/README.md](../extension/README.md)).
