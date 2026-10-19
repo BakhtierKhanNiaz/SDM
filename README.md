@@ -14,7 +14,17 @@ Internet Download Manager (IDM) and written from scratch (clean-room).
 - [uv](https://docs.astral.sh/uv/): creates the virtual environment and installs dependencies
 - Git
 
-## Set up
+## Install (Windows, no administrator rights)
+
+Run `SDM-Setup-<version>.exe` (built with `uv run python scripts/build_release.py
+--installer`). Windows SmartScreen may say "Windows protected your PC" because SDM isn't
+code-signed (that costs money): click **More info**, then **Run anyway**. SDM installs into
+`%LOCALAPPDATA%\Programs\SDM` and appears in the Start menu. To use Chrome with the installed
+SDM, open **Help > Set up Chrome integration** and paste the extension's ID
+([extension setup](extension/README.md)). Uninstall from Windows Settings > Apps; your history
+and downloads are kept.
+
+## Set up (from source)
 
 ```powershell
 cd D:\Projects\SDM

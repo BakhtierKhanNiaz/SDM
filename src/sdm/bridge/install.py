@@ -24,6 +24,7 @@ HOST_NAME = "com.sdm.bridge"
 CHROME_HOSTS_KEY = "Software\\Google\\Chrome\\NativeMessagingHosts"
 MANIFEST_NAME = f"{HOST_NAME}.json"
 LAUNCHER_NAME = "sdm-bridge-host.bat"
+HOST_EXE_NAME = "sdm-bridge-host.exe"  # the installed SDM's host, next to SDM.exe (M10)
 _EXTENSION_ID = re.compile(r"[a-p]{32}")
 
 
@@ -63,14 +64,23 @@ def install(
     python: Path | None = None,
     root: int = winreg.HKEY_CURRENT_USER,
     hosts_key: str = CHROME_HOSTS_KEY,
+    frozen_host: Path | None = None,
 ) -> Path:
-    """Write the launcher and manifest, register the manifest, and return its path."""
+    """Write the launcher and manifest, register the manifest, and return its path.
+
+    In the installed (PyInstaller) SDM, Chrome starts `sdm-bridge-host.exe` directly and no
+    .bat launcher is written (M10); `frozen_host` defaults to that exe when SDM is frozen.
+    """
     folder = folder or host_folder()
-    launcher = folder / LAUNCHER_NAME
+    if frozen_host is None and getattr(sys, "frozen", False):
+        frozen_host = Path(sys.executable).with_name(HOST_EXE_NAME)
+    launcher = frozen_host or folder / LAUNCHER_NAME
     manifest = host_manifest(extension_id, launcher)  # checks the ID before writing anything
-    text = launcher_text(python or Path(sys.executable))
     folder.mkdir(parents=True, exist_ok=True)
-    launcher.write_bytes(text.encode("ascii"))
+    if frozen_host is None:
+        launcher.write_bytes(launcher_text(python or Path(sys.executable)).encode("ascii"))
+    else:
+        (folder / LAUNCHER_NAME).unlink(missing_ok=True)  # a source checkout's old launcher
     manifest_path = folder / MANIFEST_NAME
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     with winreg.CreateKeyEx(root, f"{hosts_key}\\{HOST_NAME}", 0, winreg.KEY_SET_VALUE) as key:

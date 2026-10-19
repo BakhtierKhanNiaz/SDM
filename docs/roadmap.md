@@ -314,4 +314,17 @@ On branch `m10/hardening` (ADR-0017):
   which found that pre-sizing a split download's file wrote the whole file as zeros on the
   event loop (fixed with `set_file_size`); `scripts/check_all.py` runs every check;
   five full runs in a row passed (670 tests each, 2026-10-20): no flaky tests found.
-- M10c (next): PyInstaller build and a per-user Inno Setup installer.
+- M10c: PyInstaller build (`dist\SDM`: SDM.exe, sdm-bridge-host.exe, licence notices) and a
+  per-user Inno Setup installer script; Help > Set up / Remove Chrome integration for the
+  installed app (ADR-0018). Smoke test of the build with throwaway data: the packaged host
+  refused a bad message, SDM.exe started and logged version 0.1.0, the host handed a link
+  to it, and with SDM closed the host started SDM.exe itself.
+
+Remaining before M10 is **Done**:
+
+- [ ] The owner installs Inno Setup 6 (own PowerShell, machine scope); Claude builds
+  `dist\SDM-Setup-0.1.0.exe`.
+- [ ] The owner installs SDM with it, starts it from the Start menu (history still there),
+  downloads python.org's embeddable zip with its SHA-256 (Completed · verified), sets up
+  Chrome integration from Help and captures one download, then uninstalls (Start-menu entry
+  and registration gone; history and downloads kept).

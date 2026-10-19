@@ -8,6 +8,10 @@ while SDM is in 0.x.
 
 ### Added
 
+- M10c, packaging: `scripts/build_release.py` builds `dist\SDM` with PyInstaller (SDM.exe,
+  sdm-bridge-host.exe, THIRD-PARTY-NOTICES.txt) and, with `--installer`, a per-user Inno
+  Setup installer (`packaging\sdm.iss`). Help > Set up / Remove Chrome integration registers
+  the installed host. ADR-0018.
 - M10b: `scripts/check_all.py` (every check, one summary) and `scripts/perf/measure.py`
   (local performance measurements, results in docs/research/performance-m10.md).
 - M10a, hardening: fuzz tests for every parser of untrusted data; a log file

@@ -60,3 +60,4 @@ resolve the hex form (`test_disguised_spellings_of_this_computer_never_reach_it`
 - 2026-10-20: `pip-audit` 2.10.1 on every locked package (runtime and development: aiohttp
   3.14.5, PySide6-Essentials 6.12.0, pytest 9.1.1, ruff 0.17.1 and their dependencies, 20 in
   all): no known vulnerabilities (ADR-0017). Repeat before each release.
+- 2026-10-20, after adding PyInstaller (27 packages): no known vulnerabilities (ADR-0018).

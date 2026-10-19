@@ -174,6 +174,12 @@ class MainWindow(QMainWindow):
         help_menu = self.menuBar().addMenu("&Help")
         self.open_logs_action = help_menu.addAction("Open &log folder")
         self.open_logs_action.triggered.connect(lambda: open_folder(log_folder()))
+        help_menu.addSeparator()
+        self.chrome_setup_action = help_menu.addAction("Set up &Chrome integration…")
+        self.chrome_setup_action.triggered.connect(self.ask_chrome_setup)
+        self.chrome_remove_action = help_menu.addAction("&Remove Chrome integration")
+        self.chrome_remove_action.triggered.connect(self.remove_chrome)
+        help_menu.addSeparator()
         self.about_action = help_menu.addAction("&About SDM")
         self.about_action.triggered.connect(self.show_about)
         toolbar = self.addToolBar("Main")
@@ -327,6 +333,44 @@ class MainWindow(QMainWindow):
 
     def show_about(self) -> None:
         QMessageBox.about(self, "About SDM", about_text())
+
+    # ----- Chrome integration (M10: the installed SDM registers its own host) -----
+
+    def ask_chrome_setup(self) -> None:
+        text, ok = QInputDialog.getText(
+            self,
+            "Set up Chrome integration",
+            "Paste the ID that chrome://extensions shows for SDM's extension (32 letters a-p):",
+        )
+        if ok:
+            title, message, success = self.register_chrome(text.strip())
+            box = QMessageBox.information if success else QMessageBox.warning
+            box(self, title, message)
+
+    def register_chrome(self, extension_id: str) -> tuple[str, str, bool]:
+        """Register SDM's native messaging host for one extension: (title, message, ok)."""
+        from sdm.bridge.install import InstallError, install
+
+        try:
+            install(extension_id)
+        except (InstallError, OSError) as exc:
+            return "Chrome integration not set up", str(exc), False
+        return (
+            "Chrome integration set up",
+            "Quit Chrome completely (every window, and its tray icon) and open it again. Then "
+            "right-click a link and choose Download with SDM.",
+            True,
+        )
+
+    def remove_chrome(self) -> None:
+        from sdm.bridge.install import uninstall
+
+        removed = uninstall()
+        QMessageBox.information(
+            self,
+            "Chrome integration",
+            "Chrome integration was removed." if removed else "Chrome integration wasn't set up.",
+        )
 
     # ----- finished files -----
 

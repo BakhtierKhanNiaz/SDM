@@ -457,3 +457,34 @@ deleted. A changed decision gets a new record that supersedes the old one.
   - **Dependency audit:** `pip-audit` 2.10.1 (run once with `uvx`, not a project dependency)
     on all 20 locked packages, 2026-10-20: no known vulnerabilities.
 - **Consequences:** No new dependencies.
+
+## ADR-0018: Windows packaging with PyInstaller and a per-user Inno Setup installer
+
+- **Date:** 2026-10-20 · **Status:** Accepted (M10 plan approved by the project owner)
+- **Context:** SDM only ran from source (`uv run python app.py`). M10 makes it an installable
+  Windows program, at $0 and without administrator rights.
+- **Decision:**
+  - **PyInstaller 6.22.3** (development dependency only; GPL-2.0-or-later with an exception
+    that allows distributing any program built with it; supports Python 3.12-3.15). One
+    folder, `dist\SDM`, with `SDM.exe` (the window, no console) and `sdm-bridge-host.exe`
+    (Chrome's host, a console program Chrome starts hidden; it never loads Qt or aiohttp).
+    Its new transitive packages (altgraph, pefile, pyinstaller-hooks-contrib,
+    pywin32-ctypes, setuptools) were audited with the rest: no known vulnerabilities.
+  - **Licences:** Qt's DLLs stay separate files in the folder (no single-file packing), as
+    Qt's LGPL-3.0 expects; `THIRD-PARTY-NOTICES.txt` carries the licence of Python and of every
+    library in the build, copied from the libraries themselves (`scripts/build_release.py`).
+  - **Inno Setup 6** (free) builds a per-user installer (`PrivilegesRequired=lowest`) into
+    `%LOCALAPPDATA%\Programs\SDM` with a Start-menu shortcut. Uninstalling removes the program
+    and SDM's Chrome registration (registry key and host files) but keeps the history,
+    settings, logs and downloads. A fixed AppId lets new versions upgrade in place; a running
+    SDM is closed first.
+  - **Chrome registration in the installed app:** Help > Set up Chrome integration registers
+    `sdm-bridge-host.exe` directly (no `.bat`, no Python); Help > Remove Chrome integration.
+    Run from the owner's SDM, it writes the owner's real registry (unlike Claude's sandboxed
+    shell, M8).
+  - **Not done ($0):** no code signing, so Windows SmartScreen warns the first time ("More
+    info > Run anyway"); the extension stays an unpacked developer-mode extension (the Chrome
+    Web Store charges a fee).
+- **Consequences:** The installed SDM and a source checkout share `%LOCALAPPDATA%\SDM` and the
+  single-instance pipe, so only one runs at a time. Build: `uv run python
+  scripts/build_release.py --installer`.
