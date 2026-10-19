@@ -53,7 +53,10 @@ export function describeReply(reply) {
 export function describeFailure(error) {
   const message = String(error?.message ?? error);
   if (message.includes("host not found")) {
-    return { ok: false, text: "SDM's browser bridge isn't installed for this extension." };
+    return {
+      ok: false,
+      text: "SDM's browser bridge isn't installed for this extension. If you just installed it, quit Chrome completely and open it again.",
+    };
   }
   if (message.includes("Access to the specified native messaging host is forbidden")) {
     return { ok: false, text: "SDM's browser bridge is installed for a different extension ID." };

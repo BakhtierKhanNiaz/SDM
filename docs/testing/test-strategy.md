@@ -9,6 +9,7 @@ uv run pytest -k redirect         # tests whose name contains "redirect"
 uv run ruff check .               # lint
 uv run ruff format --check .      # formatting
 cd extension; node --test         # the Chrome extension (Node's built-in runner)
+node scripts/chrome_bridge_check/check.mjs   # does the real Chrome find the registered host?
 ```
 
 Qt runs off-screen during tests (`QT_QPA_PLATFORM=offscreen`, set in `tests/conftest.py`), so

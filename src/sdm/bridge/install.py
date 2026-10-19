@@ -132,7 +132,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print(f"Registered {HOST_NAME} for extension {args.extension_id.strip()}.")
     print(f"Manifest: {manifest_path}")
-    print("If the extension still says SDM isn't installed, restart Chrome.")
+    print("Now quit Chrome completely (every window, and its tray icon if it has one) and")
+    print("open it again: a Chrome that was already running won't find the new host.")
     return 0
 
 

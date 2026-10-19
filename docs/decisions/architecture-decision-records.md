@@ -325,6 +325,9 @@ deleted. A changed decision gets a new record that supersedes the old one.
   reach localhost); the host downloading by itself (it would bypass the window, queue and
   history); passing the URL as a command-line argument to a new SDM (a second copy, and the
   command line is visible to other programs).
+- **Observed during setup (2026-10-19):** a Chrome that was already running when the host was
+  registered answered "Specified native messaging host not found"; a newly started Chrome
+  found the same registration. Registration is therefore followed by a full Chrome restart.
 - **Consequences:** No new dependencies. Same-user programs that can read the key can also
   hand SDM links, but only through the same schema and confirmation dialog. The pipe accepts
   remote (SMB) clients by default; they would need this account's credentials and the key.

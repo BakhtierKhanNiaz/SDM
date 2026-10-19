@@ -212,6 +212,12 @@ Remaining before M7 is **Done**:
   `%LOCALAPPDATA%\SDM\bridge\com.sdm.bridge.json`, allowed origin limited to the owner's
   extension ID. The launcher, run through `cmd.exe` as Chrome does, refused a message with an
   extra field (`bad_request`) and wrote nothing else to stdout.
+- [x] Chrome finds and runs the registered host (2026-10-19). The owner's first try said
+  "host not found": that Chrome had been running since before the registration. A fresh
+  throwaway Chrome (same program, same Windows account) found it at once: an invalid link got
+  `bad_request`, and a valid one started SDM (throwaway data) and got `{"ok": true}`.
+  `scripts/chrome_bridge_check/check.mjs` repeats the first check; the install script and the
+  extension's tooltip now say to restart Chrome completely.
 - [ ] Owner's Chrome check in a separate profile: the menu appears on links, a handoff opens
   the filled-in dialog with SDM running and with SDM closed, and nothing downloads until
   Download is pressed (checklist in [extension/README.md](../extension/README.md)).
