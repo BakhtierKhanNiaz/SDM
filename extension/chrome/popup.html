@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SDM</title>
+  <style>
+    :root { --bg: #ffffff; --text: #1f1f1f; --muted: #5f6368; --line: #dadce0; --accent: #1a73e8; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #202124; --text: #e8eaed; --muted: #9aa0a6; --line: #3c4043; --accent: #8ab4f8; }
+    }
+    body { margin: 0; padding: 14px 16px; width: 300px; background: var(--bg); color: var(--text);
+           font: 13px/1.45 "Segoe UI", system-ui, sans-serif; }
+    h1 { font-size: 15px; margin: 0 0 10px; }
+    label.switch { display: flex; gap: 8px; align-items: flex-start; font-weight: 600; }
+    input[type="checkbox"] { margin-top: 2px; accent-color: var(--accent); }
+    p { margin: 6px 0 0; color: var(--muted); }
+    .row { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+    input[type="number"] { width: 80px; margin: 0 4px; }
+    #status { min-height: 1.4em; margin-top: 10px; color: var(--accent); }
+  </style>
+</head>
+<body>
+  <h1>SDM</h1>
+  <label class="switch">
+    <input type="checkbox" id="capture">
+    <span>Send my downloads to SDM</span>
+  </label>
+  <p>When this is on, downloads Chrome starts go to SDM instead, and SDM asks you to confirm
+    each one. Chrome asks first whether SDM may manage your downloads. Incognito windows are
+    never affected. If SDM can't take a download, Chrome downloads it as usual.</p>
+  <div class="row">
+    <label for="min">Leave files smaller than</label>
+    <input type="number" id="min" min="0" max="100000" step="1" value="0"> MB to Chrome
+  </div>
+  <div id="status" role="status"></div>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

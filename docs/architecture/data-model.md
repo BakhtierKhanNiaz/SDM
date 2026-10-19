@@ -1,6 +1,6 @@
 # Data model
 
-Status: **M6, schema version 4.** Code: `sdm/core/downloads.py` (states, record) and
+Status: **M8, schema version 5.** Code: `sdm/core/downloads.py` (states, record) and
 `sdm/storage/database.py` (SQLite). Decisions: ADR-0010.
 
 ## Where it lives
@@ -33,6 +33,8 @@ SQLite runs in WAL mode, so `sdm.db-wal` and `sdm.db-shm` appear next to it whil
 | `forced` | 0/1 | "Start now": ignores the limit and the schedule (M6) |
 | `segments` | text, null | For a split download: JSON list of `[start, end, received]` parts covering the whole file (M5). Checked strictly when read; a map that doesn't cover the file exactly means "start over" |
 | `resumable` | 0/1 | The server advertised (`Accept-Ranges: bytes`) or proved (a `206`) that it can resume (M4) |
+| `referrer` | text, null | The page a browser download came from (M8). Sent as the Referer under the browser's rules; may hold tokens, so never logged |
+| `suggested_name` | text, null | The browser's bare file name, used when the server gives none (M8) |
 
 Index: `downloads_by_url` (for the "you downloaded this before" check).
 
@@ -64,7 +66,8 @@ queued ──▶ downloading ──▶ completed
 
 - Table `settings` (key, value): `queue.limit`, `queue.schedule` (JSON),
   `categories.subfolders` (M6). Bad values fall back to the defaults.
-- `PRAGMA user_version` holds the schema version (4 now; version 4 added the queue columns
+- `PRAGMA user_version` holds the schema version (5 now; version 5 added `referrer` and
+  `suggested_name`; version 4 added the queue columns
   and the settings table; version 3 added `segments`; version 2 rebuilt the table to
   allow `paused` and add the resume columns, copying every row with its id). Each entry in `_MIGRATIONS` upgrades
   one version, inside its own transaction, so a failed upgrade changes nothing.

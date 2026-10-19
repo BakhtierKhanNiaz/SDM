@@ -3,7 +3,9 @@
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlsplit
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -18,8 +20,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from sdm.core.downloads import DownloadRecord
+from sdm.bridge.protocol import DownloadRequest
+from sdm.core.downloads import BrowserContext, DownloadRecord
 from sdm.core.errors import InvalidURLError
+from sdm.core.units import format_size
 from sdm.core.urls import validate_url
 
 PreviousDownloads = Callable[[str], list[DownloadRecord]]
@@ -37,6 +41,7 @@ class AddUrlDialog(QDialog):
         self.setWindowTitle("Add URL")
         self.setMinimumWidth(560)
         self._previous_downloads = previous_downloads
+        self._browser_request: DownloadRequest | None = None
 
         self.url_edit = QLineEdit()
         self.url_edit.setPlaceholderText("https://example.com/file.zip")
@@ -51,6 +56,12 @@ class AddUrlDialog(QDialog):
         self.local_network_check = QCheckBox(
             "Allow servers on my local network (for example a NAS at 192.168.x.x)"
         )
+
+        # What the browser said (M8). Plain text: a file name must never be read as HTML.
+        self.browser_label = QLabel()
+        self.browser_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.browser_label.setWordWrap(True)
+        self.browser_label.hide()
 
         # A gentle warning (already downloaded) and a blocking error (can't continue).
         self.warning_label = QLabel()
@@ -73,6 +84,7 @@ class AddUrlDialog(QDialog):
         form.addRow("Save to:", folder_row)
         layout = QVBoxLayout(self)
         layout.addLayout(form)
+        layout.addWidget(self.browser_label)
         layout.addWidget(self.start_check)
         layout.addWidget(self.local_network_check)
         layout.addWidget(self.warning_label)
@@ -98,6 +110,32 @@ class AddUrlDialog(QDialog):
     @property
     def start_now(self) -> bool:
         return self.start_check.isChecked()
+
+    @property
+    def browser_context(self) -> BrowserContext | None:
+        """The browser's hints, kept only while the address is still the browser's own."""
+        request = self._browser_request
+        if request is None or self.url != request.url:
+            return None  # the user typed another address: the page and name may not fit it
+        return request.context()
+
+    def show_browser_request(self, request: DownloadRequest) -> None:
+        """Fill in a link handed over by the browser and say what the browser knew."""
+        self._browser_request = request
+        self.url_edit.setText(request.url)
+        details = []
+        if request.filename:
+            details.append(request.filename)
+        if request.size:
+            details.append(format_size(request.size))
+        if request.mime:
+            details.append(request.mime)
+        page = urlsplit(request.referrer).hostname if request.referrer else None
+        if page:
+            details.append(f"from a page on {page}")
+        intro = "Captured from Chrome" if request.source == "capture" else "From Chrome"
+        self.browser_label.setText(f"{intro}: {' · '.join(details)}" if details else intro)
+        self.browser_label.show()
 
     # ----- behavior -----
 

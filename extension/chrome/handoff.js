@@ -4,30 +4,65 @@
 export const HOST_NAME = "com.sdm.bridge";
 export const MENU_ID = "sdm-download-link";
 export const MAX_URL_LENGTH = 8192;
+const MAX_NAME_LENGTH = 255;
+const MAX_SIZE = 2 ** 53;
 
 export function menuItem() {
   return {
     id: MENU_ID,
     title: "Download with SDM",
-    contexts: ["link"],
+    contexts: ["link", "video", "audio"],
+    // Applies to the link's or the player's address: blob: and data: players never match.
     targetUrlPatterns: ["http://*/*", "https://*/*"],
   };
 }
 
-// The one message SDM accepts, or null when the link isn't something SDM downloads.
-export function messageFor(linkUrl) {
-  if (typeof linkUrl !== "string" || linkUrl.length === 0 || linkUrl.length > MAX_URL_LENGTH) {
+// A plain http(s) address without a user name or password, or null.
+export function webUrl(value) {
+  if (typeof value !== "string" || value.length === 0 || value.length > MAX_URL_LENGTH) {
     return null;
   }
   let parsed;
   try {
-    parsed = new URL(linkUrl);
+    parsed = new URL(value);
   } catch {
     return null;
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
   if (parsed.username !== "" || parsed.password !== "") return null;
-  return { version: 1, type: "download", url: linkUrl };
+  return value;
+}
+
+// The last part of a path Chrome gives (e.g. "C:\Users\me\Downloads\a.zip" -> "a.zip"), if it
+// is a name SDM will accept: no separators, colons or control characters, not just dots.
+export function bareName(path) {
+  if (typeof path !== "string") return null;
+  const name = path.split(/[\\/]/).pop();
+  if (!name || name.length > MAX_NAME_LENGTH) return null;
+  if (/[:\u0000-\u001f\u007f]/.test(name) || name.replace(/[ .]/g, "") === "") return null;
+  return name;
+}
+
+// The message SDM accepts (version 2), or null when the address isn't one SDM downloads.
+// The hints are optional: anything that doesn't pass its check is simply left out.
+export function messageFor(url, { referrer, filename, size, mime, source = "menu" } = {}) {
+  if (webUrl(url) === null) return null;
+  const message = { version: 2, type: "download", url };
+  if (webUrl(referrer) !== null) message.referrer = referrer;
+  const name = bareName(filename);
+  if (name !== null) message.filename = name;
+  if (Number.isInteger(size) && size > 0 && size <= MAX_SIZE) message.size = size;
+  if (typeof mime === "string" && /^[\x21-\x7e]{1,200}$/.test(mime)) message.mime = mime;
+  message.source = source === "capture" ? "capture" : "menu";
+  return message;
+}
+
+// From a right-click: a player's own address when the click was on video or audio, else the
+// link's. The page (or frame) it was on becomes the referrer.
+export function menuMessage(info) {
+  const onMedia = info.mediaType === "video" || info.mediaType === "audio";
+  const url = onMedia && info.srcUrl ? info.srcUrl : info.linkUrl;
+  return messageFor(url, { referrer: info.frameUrl || info.pageUrl, source: "menu" });
 }
 
 const ERROR_TEXT = {

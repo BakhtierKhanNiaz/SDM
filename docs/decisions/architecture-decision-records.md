@@ -334,3 +334,52 @@ deleted. A changed decision gets a new record that supersedes the old one.
   Tests: `test_bridge_protocol.py`, `test_bridge_hostile_messages.py`, `test_bridge_pipe.py`,
   `test_bridge_host.py` (in-process and as a real process), `test_window_handoff.py`,
   `test_bridge_install.py` (throwaway registry key), and `node --test` for the extension.
+
+## ADR-0015: Browser context, opt-in capture, and no https-to-http redirects
+
+- **Date:** 2026-10-19 · **Status:** Accepted (M8 plan approved by the project owner)
+- **Context:** In M7 a handoff carried only an address. Servers that check the Referer, or
+  name the file only for the browser, behaved differently in SDM than in Chrome, and ordinary
+  clicks still went to Chrome. The security model left https-to-http redirects open for M8.
+  IDM's capture behavior was not observed.
+- **Decision:**
+  - **Message version 2:** optional `referrer` (an http(s) URL that passes `validate_url`),
+    `filename` (1-255 characters, no `/`, `\`, `:` or control characters, not only dots),
+    `size` (0 to 2^53), `mime` (printable ASCII, at most 200) and `source` (`menu` or
+    `capture`). Still no headers, cookies, folders or options; version 1 is still accepted.
+  - **Referer:** the browser's default rule, strict-origin-when-cross-origin
+    (`sdm.core.referrer`): the full page (no fragment) to the same origin, the origin alone to
+    another, nothing from https to http. It is recomputed for every redirect hop and sent on
+    every request of the download: split parts, resumes, retries. History schema version 5
+    stores it with the suggested name, so a resume after a restart is the same request. It is
+    never logged.
+  - **File name:** the server's `Content-Disposition` first, then the browser's suggestion,
+    then the URL; always through the same sanitizer (ADR-0008). Category from the suggestion.
+  - **No cookies** (owner's decision): they would need access to every site and are sensitive.
+    Downloads that need a login therefore still fail in SDM; with capture, they could be
+    sent back to Chrome by hand.
+  - **Capture is opt-in:** off by default. The toolbar panel's switch asks for the optional
+    `downloads` permission (Chrome shows "Manage your downloads"), plus `storage` for the
+    minimum size; the permission *is* the switch, and turning it off removes it. When a
+    download starts: skip it if it is incognito, not http(s) (blob:, data:), smaller than the
+    minimum when the size is known, or started by this extension; otherwise cancel Chrome's
+    copy, and if it hasn't already finished, erase it and send it to SDM (`source:
+    "capture"`). The confirm dialog still decides.
+  - **Hand back:** if SDM can't take it (any reply but ok, or the host can't be reached),
+    the extension restarts it in Chrome with `chrome.downloads.download`. Downloads it starts
+    carry its ID (`byExtensionId`), so they are never captured again. Pressing Cancel in SDM's
+    dialog cancels the download.
+  - **Right-click on players:** the menu also appears on video and audio; it sends the
+    player's address (`targetUrlPatterns` keeps blob: players out). The page or frame becomes
+    the referrer.
+  - **https to http:** every download refuses a redirect from https to http
+    (`check_redirect`), with a message saying so, as browsers do.
+  - **The dialog** shows what the browser knew as plain text (never HTML): name, size, type,
+    and the page's host only. Editing the address drops the hints.
+- **Consequences:** No new dependencies. The extension still has two required permissions.
+  A download Chrome restarts after a hand-back is requested again from the start. POST-only
+  downloads can't be captured correctly (SDM requests with GET). Whether Chrome's own Save As
+  dialog appears before capture when "Ask where to save each file" is on was not yet observed.
+  Tests: `test_referrer.py`, `test_browser_context.py`, `test_controller_browser_context.py`,
+  `test_bridge_v2_messages.py`, `test_window_handoff.py`, and the extension's
+  `capture.test.js`, `background.test.js`, `popup.test.js`.

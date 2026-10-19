@@ -211,6 +211,37 @@ the partial file.
   started and showed the dialog; SDM running → a python.org installer downloaded completely;
   Cancel added nothing (roadmap).
 
+## FEAT-007: Browser context and automatic capture (M8)
+
+- **Purpose:** Downloads from Chrome behave in SDM as they would in Chrome, and ordinary clicks
+  can go to SDM.
+- **Based on:** Project goals (brief §1, §6: consent for automatic capture). Rules: ADR-0015.
+  IDM's capture was not observed.
+- **User workflow:** turn on "Send my downloads to SDM" in the toolbar panel once (Chrome asks
+  for permission); click any download link; SDM's dialog appears with the name and size; press
+  Download.
+
+| ID | Requirement | Tests |
+|---|---|---|
+| FR-1 | The Referer follows the browser's rule, per redirect hop, on every connection and resume | `test_referrer.py`, `test_browser_context.py`, `test_a_resume_after_a_restart_sends_the_same_referer` |
+| FR-2 | A redirect from https to http is refused for every download | `test_https_to_http_redirects_are_refused`, `test_a_redirect_from_https_to_http_is_refused` |
+| FR-3 | The browser's name is used when the server gives none, sanitized; the server's wins | `test_the_browsers_name_is_used_when_the_server_gives_none`, `test_the_servers_name_wins_over_the_browsers`, `test_the_browsers_name_is_sanitized` |
+| FR-4 | Version 2 hints are optional and strictly checked; no cookies, headers or paths | `test_bridge_v2_messages.py` |
+| FR-5 | The history keeps the hints (schema 5) | `test_the_history_keeps_the_hints`, `test_upgrading_to_version_5_keeps_old_entries` |
+| FR-6 | Capture is off until the user turns it on, which asks Chrome for `downloads`; off removes it | `popup.test.js` |
+| FR-7 | Captured: Chrome's copy cancelled and erased before SDM is asked; finished ones stay | `with capture on, Chrome's copy is stopped...`, `a download that finished before it could be stopped stays in Chrome` |
+| FR-8 | Skipped: incognito, blob:/data:, below the minimum size, our own restarts | `capture.test.js`, `background.test.js` |
+| FR-9 | If SDM can't take it, Chrome downloads it, without a loop | `when SDM can't take it, Chrome downloads it after all`, `the download Chrome restarts for SDM isn't captured again (no loop)` |
+| FR-10 | Right-click on video and audio sends the player's address | `a right-click on a player sends the player's own address` |
+| FR-11 | The dialog shows the browser's information as plain text; editing the address drops it | `test_the_dialog_says_what_the_browser_knew`, `test_a_file_name_is_shown_as_text_never_as_html`, `test_editing_the_address_drops_the_hints` |
+
+### Acceptance criteria
+
+- All tests above pass; ruff is clean; `node --test` passes.
+- With capture on in the owner's Chrome, a normal click on python.org's
+  `python-3.14.7-embed-amd64.zip` opens SDM's dialog, Chrome's own copy disappears, and SDM's
+  file matches python.org's SHA-256.
+
 ## Template
 
 ```markdown

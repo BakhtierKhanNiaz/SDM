@@ -1,6 +1,6 @@
 # Security model
 
-Status: **M7.** Rules marked *Implemented* have code and tests; the others are planned for
+Status: **M8.** Rules marked *Implemented* have code and tests; the others are planned for
 the milestone listed.
 
 ## Trust boundaries
@@ -17,15 +17,15 @@ the milestone listed.
 
 | # | Rule | Status |
 |---|---|---|
-| 1 | **Protocols:** only `http` and `https`, on the first request and every redirect hop. No embedded `user:pass@` credentials. | Implemented (M2) — `sdm.core.urls` |
+| 1 | **Protocols:** only `http` and `https`, on the first request and every redirect hop. No embedded `user:pass@` credentials. No redirect from `https` down to `http` (M8, ADR-0015). | Implemented (M2, M8) — `sdm.core.urls`, `sdm.core.referrer.check_redirect` |
 | 2 | **Destinations:** ADR-0007. Loopback, link-local, multicast, unspecified and reserved addresses are blocked. Private networks need `--allow-local-network`. IP literals are checked per hop, and hostnames after DNS inside aiohttp's resolver. | Implemented (M2) — `sdm.engine.policy` |
 | 3 | **Filenames:** one sanitized Windows component (ADR-0008). Never written outside the chosen folder. Length fits the 260-character path limit. Bidi-control spoofing removed. | Implemented (M2) — `sdm.core.filenames` |
 | 4 | **No overwrite:** existing files are never replaced. A taken name becomes `name (n).ext`. | Implemented (M2) |
 | 5 | **Never execute** downloaded files, and never open them automatically. | Holds: no code opens downloads |
 | 6 | **No local HTTP server.** Browser communication goes only through Chrome Native Messaging, restricted to SDM's own extension ID. The host reaches the app over a named pipe that both sides authenticate with a per-user key (`%LOCALAPPDATA%\SDM\bridge.key`); no network port is opened (ADR-0014). | Implemented (M7) — `test_bridge_pipe.py`, `test_bridge_install.py` |
-| 7 | **Browser messages:** exactly `{version: 1, type: "download", url}`, at most 64 KiB, checked in the host and again in the app. No filesystem operations or paths. Generic error replies. JSON only, never pickle. A handoff only fills in the Add URL dialog; the user confirms. | Implemented (M7) — `test_bridge_hostile_messages.py`, `test_bridge_host.py`, `test_window_handoff.py` |
+| 7 | **Browser messages:** exactly `{version: 1, type: "download", url}` or version 2 with the optional, strictly checked hints of ADR-0015 (a bare file name, never a path), at most 64 KiB, checked in the host and again in the app. No filesystem operations or paths. Generic error replies. JSON only, never pickle. A handoff only fills in the Add URL dialog; the user confirms. | Implemented (M7) — `test_bridge_hostile_messages.py`, `test_bridge_host.py`, `test_window_handoff.py` |
 | 8 | **Secrets:** logs show URLs without credentials or query strings (`redact_url`). Cookies and authorization headers are never logged. | Implemented for URLs (M2); headers when auth arrives |
-| 9 | **Privacy:** no browsing-history collection beyond explicit handoffs. No data sent to third parties. | Holds |
+| 9 | **Privacy:** no browsing-history collection beyond explicit handoffs, and downloads the user chose to capture. Capture is off by default, needs the user to grant `downloads` in Chrome's own prompt, and never touches Incognito. The Referer follows the browser's rule (origin only to other sites, nothing from https to http) and is never logged; the window shows only the page's host. No cookies are read or forwarded. No data sent to third parties. | Holds (M8: `popup.test.js`, `test_referrer.py`) |
 | 10 | **Dependencies:** free/open-source only, license and support checked, versions pinned in `uv.lock`. | Holds (ADR-0001, ADR-0006) |
 | 11 | **Proxies:** proxy environment variables are ignored, because a proxy would hide the real destination from rule 2. | Implemented (M2) |
 | 12 | **History database:** per-user `%LOCALAPPDATA%\SDM\sdm.db`. Full URLs are stored (they may hold tokens, ADR-0010) but never logged. Every query uses `?` parameters. A corrupted file is set aside, never deleted. | Implemented (M3a) — `sdm.storage.database`, `test_urls_are_stored_as_data_not_sql` |
@@ -45,8 +45,9 @@ resolve the hex form (`test_disguised_spellings_of_this_computer_never_reach_it`
 - The bridge pipe accepts remote (SMB) clients by default; they would need this account's
   credentials and the bridge key. Any program running as this user can read the key and
   hand SDM links, but only through the same schema and confirmation dialog (ADR-0014).
-- Redirects from https to http are allowed. Browsers increasingly block such insecure
-  downloads; decide in M8 when downloads come from the browser.
+- Captured downloads are requested again by SDM with GET: a download Chrome started with a
+  POST form can't be reproduced, and one that needs the site's cookies fails in SDM (the
+  owner chose not to forward cookies, ADR-0015).
 - A server that sends no `Content-Length` and closes early is indistinguishable from a
   complete download (inherent to HTTP). Integrity checks (M9) can help when a checksum is known.
 

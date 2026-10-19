@@ -16,7 +16,7 @@ class HandoffReceiver(QObject):
     """
 
     MAX_PENDING = 5
-    received = Signal(str)
+    received = Signal(object)  # the whole DownloadRequest (M8), delivered on the main thread
 
     def __init__(self) -> None:
         super().__init__()
@@ -29,7 +29,7 @@ class HandoffReceiver(QObject):
                 return False
             self._pending += 1
         # Emitted from another thread, so Qt queues it to this object's (the main) thread.
-        self.received.emit(request.url)
+        self.received.emit(request)
         return True
 
     def done(self) -> None:

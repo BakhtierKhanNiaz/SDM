@@ -163,3 +163,18 @@ event / action / every 30 s ─▶ controller.pump()
 
 The listener's pipe is also the single-instance lock: `BridgeListener` raises
 `AlreadyRunning` when another SDM owns it, and `sdm.app.main` exits before opening the history.
+
+## Browser context and capture (M8, ADR-0015)
+
+```
+ Chrome download starts (capture on)        right-click on a link, video or audio
+   └─ capture.js reasonToSkip?                └─ handoff.js menuMessage
+        └─ cancel Chrome's copy, erase it          │
+             └─────────────── version 2 message ◀──┘ {url, referrer, filename, size, mime, source}
+                                  └─ host → pipe → Add URL dialog (shows name, size, page host)
+                                       └─ controller.add(context=BrowserContext)
+                                            └─ history v5 → manager → download(context=...)
+                                                 └─ every request: Referer per referer_header()
+                                                    every redirect hop: check_redirect()
+ SDM can't take it → chrome.downloads.download(url) (marked with the extension's ID: no loop)
+```

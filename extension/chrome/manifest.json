@@ -1,15 +1,23 @@
 {
   "manifest_version": 3,
   "name": "SDM: Download with SDM",
-  "version": "0.1.0",
-  "description": "Adds \"Download with SDM\" to the right-click menu of links and hands the link to SDM on this computer.",
+  "version": "0.2.0",
+  "description": "Adds \"Download with SDM\" to the right-click menu of links and players, and can send your downloads to SDM on this computer (off until you turn it on).",
   "minimum_chrome_version": "116",
-  "permissions": ["contextMenus", "nativeMessaging"],
+  "permissions": [
+    "contextMenus",
+    "nativeMessaging"
+  ],
+  "optional_permissions": [
+    "downloads",
+    "storage"
+  ],
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
   "action": {
-    "default_title": "SDM"
+    "default_title": "SDM",
+    "default_popup": "popup.html"
   }
 }

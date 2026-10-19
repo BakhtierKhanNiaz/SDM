@@ -13,7 +13,7 @@ and its tests have actually run and passed.
 | M5 | Parallel segmented downloads | Done (2026-10-19) |
 | M6 | Queue management and scheduling | Done (2026-10-19) |
 | M7 | Chrome extension and native messaging bridge | Done (2026-10-19) |
-| M8 | Browser handoff integrated with the download engine | Not started |
+| M8 | Browser handoff integrated with the download engine | Implemented and tested; owner's capture check pending |
 | M9 | Interface, settings, notifications and usability | Not started |
 | M10 | Security, performance, regression testing and Windows packaging | Not started |
 
@@ -229,3 +229,26 @@ Acceptance, all met on 2026-10-19:
   - The first two tries said "host not found" while the extension and registration were
     correct; after Chrome was fully closed and reopened it worked. The exact cause of those
     failures wasn't captured (Chrome's log was only switched on for the try that worked).
+
+## M8: Browser handoff integrated with the download engine
+
+Done on branch `m8/browser-integration` (ADR-0015, spec FEAT-007):
+
+- M8a (`c140cbf`): message version 2; the browser's Referer rules on every request, redirect
+  hop, split part and resume; the browser's file name as a fallback; history schema version 5;
+  https-to-http redirects refused for every download.
+- M8b: the extension's opt-in capture (toolbar panel, optional `downloads` permission, minimum
+  size, hand-back to Chrome without loops), right-click on video and audio, and the dialog
+  showing what the browser knew.
+
+Checked on 2026-10-19: 570 Python tests and 36 extension tests pass; ruff is clean. In a
+throwaway headless Chrome, the new extension loaded, and a full version 2 message (referrer,
+name, size, `source: capture`) went through the host to a throwaway SDM: `{"ok": true}`.
+
+Remaining before M8 is **Done**:
+
+- [ ] Owner's Chrome check: reload the extension; turn capture on (Chrome's prompt); a normal
+  click on python.org's `python-3.14.7-embed-amd64.zip` opens SDM's dialog with the name and
+  size, Chrome's copy disappears, and SDM's file matches python.org's SHA-256; with SDM unable
+  to take it, Chrome downloads it instead; capture off leaves downloads in Chrome. Also note
+  whether Chrome's Save As dialog appears first when "Ask where to save" is on.

@@ -3,8 +3,8 @@
 A personal-use download manager for Windows. It's modelled on the observable behavior of
 Internet Download Manager (IDM) and written from scratch (clean-room).
 
-> **Status: M7, browser handoff.** Right-click a link in Chrome and choose "Download with
-> SDM" ([set up the extension](extension/README.md)). See
+> **Status: M8, browser integration.** Right-click a link or player in Chrome, or turn on
+> automatic capture in the extension's panel ([set up](extension/README.md)). See
 > [docs/roadmap.md](docs/roadmap.md).
 
 ## Requirements

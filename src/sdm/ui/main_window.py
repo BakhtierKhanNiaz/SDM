@@ -15,8 +15,9 @@ from PySide6.QtWidgets import (
     QTableView,
 )
 
+from sdm.bridge.protocol import DownloadRequest
 from sdm.core.categories import CATEGORIES
-from sdm.core.downloads import DownloadRecord, DownloadState
+from sdm.core.downloads import BrowserContext, DownloadRecord, DownloadState
 from sdm.core.errors import SDMError
 from sdm.ui.add_url_dialog import AddUrlDialog
 from sdm.ui.controller import DownloadController, summarize
@@ -41,7 +42,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.controller = controller
         self._default_folder = default_folder or default_download_folder()
-        self._handoffs: deque[str] = deque()  # browser links waiting for their dialog
+        self._handoffs: deque[DownloadRequest] = deque()  # browser links waiting for a dialog
         self.handoff_dialog: AddUrlDialog | None = None
         self.setWindowTitle("SDM - Smart Download Manager")
         self.resize(900, 500)
@@ -157,9 +158,11 @@ class MainWindow(QMainWindow):
                 dialog.url, dialog.folder, dialog.allow_local_network, start=dialog.start_now
             )
 
-    def receive_handoff(self, url: str) -> None:
+    def receive_handoff(self, request: DownloadRequest | str) -> None:
         """A link from the browser: confirm it in the Add URL dialog, one at a time."""
-        self._handoffs.append(url)
+        if isinstance(request, str):
+            request = DownloadRequest(request)
+        self._handoffs.append(request)
         if self.isMinimized():
             self.showNormal()
         self.raise_()
@@ -175,7 +178,7 @@ class MainWindow(QMainWindow):
             parent=self,
         )
         dialog.setWindowTitle("Add URL from the browser")
-        dialog.url_edit.setText(self._handoffs.popleft())  # checked again when accepted
+        dialog.show_browser_request(self._handoffs.popleft())  # checked again when accepted
         dialog.finished.connect(lambda result, d=dialog: self._handoff_finished(d, result))
         self.handoff_dialog = dialog
         dialog.open()  # not exec(): the window keeps running while the dialog waits
@@ -184,17 +187,29 @@ class MainWindow(QMainWindow):
         self.handoff_dialog = None
         if result == QDialog.DialogCode.Accepted:
             self.add_download(
-                dialog.url, dialog.folder, dialog.allow_local_network, start=dialog.start_now
+                dialog.url,
+                dialog.folder,
+                dialog.allow_local_network,
+                start=dialog.start_now,
+                context=dialog.browser_context,
             )
         dialog.deleteLater()
         self.handoff_closed.emit()
         self._show_next_handoff()
 
     def add_download(
-        self, url: str, folder: Path, allow_local_network: bool = False, *, start: bool = True
+        self,
+        url: str,
+        folder: Path,
+        allow_local_network: bool = False,
+        *,
+        start: bool = True,
+        context: BrowserContext | None = None,
     ) -> None:
         try:
-            self.controller.add(url, folder, allow_local_network=allow_local_network, start=start)
+            self.controller.add(
+                url, folder, allow_local_network=allow_local_network, start=start, context=context
+            )
         except SDMError as exc:
             QMessageBox.warning(self, "Can't add this download", str(exc))
             return

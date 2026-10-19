@@ -97,3 +97,63 @@ def test_too_many_waiting_handoffs_are_refused(window):
     assert results == [True] * HandoffReceiver.MAX_PENDING + [False]
     window.handoff_dialog.reject()  # one dialog closes, so one more fits
     assert receiver.offer(request) is True
+
+
+# ----- M8: what the browser said -----
+
+CAPTURED = DownloadRequest(
+    "https://example.com/dl?id=9",
+    referrer="https://example.com/files/page?session=secret",
+    filename="report.pdf",
+    size=12_673_227,
+    mime="application/pdf",
+    source="capture",
+)
+
+
+def test_the_dialog_says_what_the_browser_knew(window):
+    window.receive_handoff(CAPTURED)
+    label = window.handoff_dialog.browser_label
+    assert not label.isHidden()
+    text = label.text()
+    assert text.startswith("Captured from Chrome: report.pdf")
+    assert "12.1 MB" in text and "application/pdf" in text
+    assert "from a page on example.com" in text
+    assert "secret" not in text  # only the page's host is shown, never its address
+
+
+def test_confirming_keeps_the_browsers_hints(window):
+    window.receive_handoff(CAPTURED)
+    dialog = window.handoff_dialog
+    dialog.start_check.setChecked(False)
+    dialog.accept()
+    (record,) = window.controller.model.records()
+    stored = window.controller.store.get(record.id)
+    assert stored.referrer == CAPTURED.referrer
+    assert stored.suggested_name == "report.pdf"
+    assert stored.category == "Documents"
+
+
+def test_editing_the_address_drops_the_hints(window):
+    window.receive_handoff(CAPTURED)
+    dialog = window.handoff_dialog
+    dialog.url_edit.setText("https://other.example/x.zip")
+    dialog.start_check.setChecked(False)
+    dialog.accept()
+    (record,) = window.controller.model.records()
+    assert window.controller.store.get(record.id).context() is None
+
+
+def test_a_file_name_is_shown_as_text_never_as_html(window):
+    from PySide6.QtCore import Qt
+
+    window.receive_handoff(DownloadRequest("https://example.com/a", filename="<img src=x>.zip"))
+    label = window.handoff_dialog.browser_label
+    assert label.textFormat() == Qt.TextFormat.PlainText
+    assert "<img src=x>.zip" in label.text()
+
+
+def test_a_plain_link_from_the_menu_says_where_it_came_from(window):
+    window.receive_handoff(DownloadRequest("https://example.com/a.zip",
+                                           referrer="https://example.com/"))  # fmt: skip
+    assert window.handoff_dialog.browser_label.text() == "From Chrome: from a page on example.com"

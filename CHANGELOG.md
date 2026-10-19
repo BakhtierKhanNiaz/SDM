@@ -8,6 +8,15 @@ while SDM is in 0.x.
 
 ### Added
 
+- M8b, the browser: opt-in automatic capture from the extension's toolbar panel (asks
+  Chrome for the `downloads` permission when turned on), a minimum size, hand-back to
+  Chrome when SDM can't take a download, right-click on video and audio players, and the
+  Add URL dialog showing the browser's name, size, type and page host.
+- M8a, the engine: message version 2 with optional referrer, file name, size, type and
+  source; the Referer sent the way browsers do on every request; the browser's name used
+  when the server gives none; history schema version 5. ADR-0015, spec FEAT-007;
+  85 new Python tests (570 in total) and 36 extension tests.
+
 - M7 done: the owner's Chrome check passed (a handoff started SDM when it was closed, and a
   python.org download sent from Chrome completed). Setup guidance now says to restart
   Chrome completely after registering, and `scripts/chrome_bridge_check/check.mjs` checks
@@ -117,6 +126,7 @@ while SDM is in 0.x.
 
 ### Changed
 
+- Every download now refuses a redirect from https to http, as browsers do (M8).
 - Resume puts an entry back in the queue (it starts when there's room) instead of starting it
   at once; Start now starts it at once. A temporary failure now waits for an automatic retry
   instead of staying Failed.
