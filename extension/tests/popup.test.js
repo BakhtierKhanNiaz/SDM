@@ -6,6 +6,7 @@ import {
   captureEnabled,
   disableCapture,
   enableCapture,
+  lastResult,
   loadMinMegabytes,
   saveMinMegabytes,
 } from "../chrome/popup.js";
@@ -76,4 +77,10 @@ test("the minimum size is saved only when it is a whole number of megabytes", as
   assert.equal(await saveMinMegabytes(api, "-3"), false);
   assert.equal(await loadMinMegabytes(api), 25);
   assert.equal(await saveMinMegabytes(fakeChrome({ withStorage: false }), "5"), false);
+});
+
+test("the panel shows the last problem the icon reported", async () => {
+  assert.equal(await lastResult({ action: { getTitle: async () => "SDM" } }), "");
+  const api = { action: { getTitle: async () => "SDM: Too many links are waiting in SDM." } };
+  assert.equal(await lastResult(api), "Too many links are waiting in SDM.");
 });

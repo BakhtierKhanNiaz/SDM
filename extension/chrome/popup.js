@@ -19,6 +19,12 @@ export function disableCapture(api) {
   return api.permissions.remove(CAPTURE);
 }
 
+// The last result the toolbar icon reports ("SDM: ..." after a problem), or "" when all is well.
+export async function lastResult(api) {
+  const title = await api.action.getTitle({});
+  return title.startsWith("SDM: ") ? title.slice(5) : "";
+}
+
 export async function loadMinMegabytes(api) {
   if (!api.storage?.local) return DEFAULT_SETTINGS.minMegabytes;
   const stored = await api.storage.local.get(SETTINGS_KEY);
@@ -58,6 +64,8 @@ async function setUp() {
     if (!saved) min.value = String(await loadMinMegabytes(chrome));
   });
   await refresh();
+  const last = await lastResult(chrome);
+  if (last) status.textContent = `Last time: ${last}`;
 }
 
 if (typeof document !== "undefined") setUp();

@@ -36,25 +36,57 @@ function watchDownloads() {
   // chrome.downloads exists only while the permission is granted. Registering at the top level
   // lets Chrome wake this worker for new downloads; onAdded covers turning capture on later.
   if (chrome.downloads && !watching) {
-    chrome.downloads.onCreated.addListener(onDownloadCreated);
+    chrome.downloads.onDeterminingFilename.addListener(onDeterminingFilename);
     watching = true;
   }
 }
 watchDownloads();
 chrome.permissions.onAdded.addListener(watchDownloads);
 
-export async function onDownloadCreated(item) {
+// Addresses this extension just gave back to Chrome. Their restart is never captured again:
+// Chrome doesn't mark it with byExtensionId early enough to rely on (seen 2026-10-19: one
+// click made Save As appear again and again).
+export const HAND_BACK_MS = 60_000;
+const handedBack = new Map();
+
+function takeHandedBack(url, now = Date.now()) {
+  for (const [address, until] of handedBack) if (until < now) handedBack.delete(address);
+  if (!handedBack.has(url)) return false;
+  handedBack.delete(url);
+  return true;
+}
+
+// Chrome asks extensions about the file name *before* it shows its own Save As window, and
+// waits until every listener calls suggest(). Capturing here stops Chrome's copy before the
+// user is asked anything. suggest() is always called exactly once, or the download would hang.
+export function onDeterminingFilename(item, suggest) {
+  let answered = false;
+  const answer = () => {
+    if (answered) return;
+    answered = true;
+    try {
+      suggest();
+    } catch {
+      // the download was already cancelled: nothing left to answer
+    }
+  };
+  capture(item, answer)
+    .catch((error) => console.warn(`SDM: capture failed: ${String(error?.message ?? error)}`))
+    .finally(answer);
+  return true; // "I will call suggest() later"
+}
+
+async function capture(item, answer) {
+  if (takeHandedBack(item.url)) return;
   if (!(await chrome.permissions.contains({ permissions: ["downloads"] }))) return;
   const settings = await loadSettings();
   if (reasonToSkip(item, { ...settings, ownId: chrome.runtime.id }) !== null) return;
   const message = captureMessage(item);
   if (message === null) return;
 
-  // Stop Chrome's copy before SDM starts, so the file is never downloaded twice. A small file
-  // may already be finished: then Chrome keeps it and SDM isn't asked.
+  // Stop Chrome's copy before SDM starts, so the file is never downloaded twice.
   await chrome.downloads.cancel(item.id);
-  const [after] = await chrome.downloads.search({ id: item.id });
-  if (after && after.state === "complete") return;
+  answer();
   await chrome.downloads.erase({ id: item.id });
 
   showStatus({ ok: true, text: "" });
@@ -64,11 +96,13 @@ export async function onDownloadCreated(item) {
     return;
   }
   // SDM can't take it (not running and couldn't start, busy, refused): give it back to
-  // Chrome. A download this extension starts is marked with its ID, so it isn't captured again.
+  // Chrome, once. Its restart is recognised by its address and left alone.
+  handedBack.set(item.url, Date.now() + HAND_BACK_MS);
   try {
     await chrome.downloads.download({ url: item.url });
     showStatus({ ok: false, text: `${status.text} Chrome downloaded it instead.` });
   } catch (error) {
+    handedBack.delete(item.url);
     console.warn(`SDM: Chrome couldn't restart the download: ${String(error?.message ?? error)}`);
     showStatus({ ok: false, text: `${status.text} Chrome couldn't download it either.` });
   }

@@ -8,7 +8,6 @@ const listeners = {};
 let nativeReply;
 let granted;
 let stored;
-let stateAfterCancel;
 let restartFails;
 
 globalThis.chrome = {
@@ -29,6 +28,7 @@ globalThis.chrome = {
     create: (item) => calls.push(["create", item]),
   },
   action: {
+    getTitle: async () => "SDM",
     setBadgeText: ({ text }) => calls.push(["badge", text]),
     setTitle: ({ title }) => calls.push(["title", title]),
   },
@@ -37,9 +37,8 @@ globalThis.chrome = {
     contains: async ({ permissions }) => permissions.every((p) => granted.has(p)),
   },
   downloads: {
-    onCreated: { addListener: (fn) => (listeners.downloadCreated = fn) },
+    onDeterminingFilename: { addListener: (fn) => (listeners.determining = fn) },
     cancel: async (id) => calls.push(["cancel", id]),
-    search: async ({ id }) => [{ id, state: stateAfterCancel }],
     erase: async ({ id }) => calls.push(["erase", id]),
     download: async (options) => {
       calls.push(["chrome-download", options]);
@@ -58,7 +57,6 @@ beforeEach(() => {
   nativeReply = () => Promise.resolve({ ok: true });
   granted = new Set(["downloads", "storage"]);
   stored = {};
-  stateAfterCancel = "interrupted";
   restartFails = false;
 });
 
@@ -121,10 +119,27 @@ test("a missing host is reported without the link", async () => {
 
 // ----- capture -----
 
-test("with capture on, Chrome's copy is stopped and erased and SDM gets the download", async () => {
-  await listeners.downloadCreated(download({ filename: "C:\\Users\\me\\Downloads\\a.zip" }));
+// Runs Chrome's "determining filename" step and waits until the extension has finished with it.
+async function determine(item) {
+  let answers = 0;
+  const done = new Promise((resolve) => {
+    const keepsAnswerOpen = listeners.determining(item, () => {
+      answers += 1;
+      calls.push(["suggest"]);
+    });
+    assert.equal(keepsAnswerOpen, true);
+    setTimeout(resolve, 20);
+  });
+  await done;
+  await new Promise((r) => setTimeout(r, 20));
+  return answers;
+}
+
+test("with capture on, Chrome's copy is stopped before it asks where to save", async () => {
+  const answers = await determine(download({ filename: "C:\\Users\\me\\Downloads\\a.zip" }));
+  assert.equal(answers, 1); // Chrome is always answered, exactly once
   const kinds = calls.map((c) => c[0]);
-  assert.ok(kinds.indexOf("cancel") < kinds.indexOf("erase"));
+  assert.ok(kinds.indexOf("cancel") < kinds.indexOf("suggest"));
   assert.ok(kinds.indexOf("erase") < kinds.indexOf("native"));
   assert.deepEqual(last("native")[2], {
     version: 2, type: "download", url: link, referrer: page, filename: "a.zip", source: "capture",
@@ -133,52 +148,74 @@ test("with capture on, Chrome's copy is stopped and erased and SDM gets the down
   assert.deepEqual(last("badge"), ["badge", ""]);
 });
 
-test("with capture off nothing is touched", async () => {
+test("with capture off nothing is touched, but Chrome is still answered", async () => {
   granted = new Set();
-  await listeners.downloadCreated(download());
-  assert.equal(calls.length, 0);
+  assert.equal(await determine(download()), 1);
+  assert.deepEqual(calls, [["suggest"]]);
 });
 
-test("a download that finished before it could be stopped stays in Chrome", async () => {
-  stateAfterCancel = "complete";
-  await listeners.downloadCreated(download());
-  assert.deepEqual(calls.map((c) => c[0]), ["cancel"]);
-});
-
-test("when SDM can't take it, Chrome downloads it after all", async () => {
+test("when SDM can't take it, Chrome downloads it once, and that restart isn't captured", async () => {
   nativeReply = () => Promise.resolve({ ok: false, error: "busy" });
-  await listeners.downloadCreated(download());
+  await determine(download());
   assert.deepEqual(last("chrome-download"), ["chrome-download", { url: link }]);
   assert.match(last("title")[1], /Too many links .* Chrome downloaded it instead\./);
+
+  // Chrome now starts the restarted download, *without* marking it as the extension's.
+  calls.length = 0;
+  assert.equal(await determine(download({ id: 8 })), 1);
+  assert.deepEqual(calls, [["suggest"]]); // left alone: no cancel, no SDM, no second restart
+});
+
+test("the hand-back is remembered once: a later click on the same link is captured again", async () => {
+  nativeReply = () => Promise.resolve({ ok: false, error: "busy" });
+  await determine(download());
+  await determine(download({ id: 8 })); // the restart: skipped
+  nativeReply = () => Promise.resolve({ ok: true });
+  calls.length = 0;
+  await determine(download({ id: 9 })); // the user clicks again later
+  assert.ok(calls.some((c) => c[0] === "native"));
 });
 
 test("when SDM's host is missing, Chrome downloads it after all", async () => {
   nativeReply = () => Promise.reject(new Error("Specified native messaging host not found."));
-  await listeners.downloadCreated(download());
-  assert.deepEqual(last("chrome-download"), ["chrome-download", { url: link }]);
+  await determine(download({ url: "https://example.com/b.zip" }));
+  assert.deepEqual(last("chrome-download"), ["chrome-download", { url: "https://example.com/b.zip" }]);
+  assert.match(last("title")[1], /isn't installed/);
 });
 
 test("if Chrome can't restart it either, the tooltip says so", async () => {
   nativeReply = () => Promise.resolve({ ok: false, error: "not_running" });
   restartFails = true;
-  await listeners.downloadCreated(download());
+  await determine(download({ url: "https://example.com/c.zip" }));
   assert.match(last("title")[1], /Chrome couldn't download it either\./);
 });
 
-test("the download Chrome restarts for SDM isn't captured again (no loop)", async () => {
-  await listeners.downloadCreated(download({ byExtensionId: OWN_ID }));
-  assert.equal(calls.length, 0);
+test("a download marked as the extension's own isn't captured", async () => {
+  assert.equal(await determine(download({ byExtensionId: OWN_ID })), 1);
+  assert.deepEqual(calls, [["suggest"]]);
 });
 
 test("the minimum size from the panel is respected", async () => {
   stored = { sdmCapture: { minMegabytes: 10 } };
-  await listeners.downloadCreated(download({ totalBytes: 1_000_000 }));
-  assert.equal(calls.length, 0);
-  await listeners.downloadCreated(download({ totalBytes: 20_000_000 }));
+  await determine(download({ url: "https://example.com/small.zip", totalBytes: 1_000_000 }));
+  assert.equal(calls.some((c) => c[0] === "native"), false);
+  await determine(download({ url: "https://example.com/big.zip", totalBytes: 20_000_000 }));
   assert.ok(calls.some((c) => c[0] === "native"));
 });
 
 test("incognito downloads are left alone", async () => {
-  await listeners.downloadCreated(download({ incognito: true }));
-  assert.equal(calls.length, 0);
+  await determine(download({ incognito: true }));
+  assert.deepEqual(calls, [["suggest"]]);
+});
+
+test("an unexpected error still answers Chrome, so the download never hangs", async () => {
+  stored = undefined;
+  globalThis.chrome.storage.local.get = async () => {
+    throw new Error("storage broke");
+  };
+  try {
+    assert.equal(await determine(download({ url: "https://example.com/d.zip" })), 1);
+  } finally {
+    globalThis.chrome.storage.local.get = async () => stored;
+  }
 });

@@ -360,15 +360,19 @@ deleted. A changed decision gets a new record that supersedes the old one.
     sent back to Chrome by hand.
   - **Capture is opt-in:** off by default. The toolbar panel's switch asks for the optional
     `downloads` permission (Chrome shows "Manage your downloads"), plus `storage` for the
-    minimum size; the permission *is* the switch, and turning it off removes it. When a
-    download starts: skip it if it is incognito, not http(s) (blob:, data:), smaller than the
-    minimum when the size is known, or started by this extension; otherwise cancel Chrome's
-    copy, and if it hasn't already finished, erase it and send it to SDM (`source:
-    "capture"`). The confirm dialog still decides.
+    minimum size; the permission *is* the switch, and turning it off removes it. Capture runs
+    in `downloads.onDeterminingFilename`, which Chrome calls *before* its own Save As window
+    and waits on: skip the download if it is incognito, not http(s) (blob:, data:), smaller
+    than the minimum when the size is known, or one this extension handed back; otherwise
+    cancel Chrome's copy, answer Chrome (`suggest()` is always called exactly once, even on
+    errors, or the download would hang), erase it and send it to SDM (`source: "capture"`).
+    The confirm dialog still decides.
   - **Hand back:** if SDM can't take it (any reply but ok, or the host can't be reached),
-    the extension restarts it in Chrome with `chrome.downloads.download`. Downloads it starts
-    carry its ID (`byExtensionId`), so they are never captured again. Pressing Cancel in SDM's
-    dialog cancels the download.
+    the extension restarts it in Chrome once with `chrome.downloads.download`, after noting
+    its address for 60 s; that restart is recognised by its address and left alone.
+    `byExtensionId` alone was not enough: the first version captured at `onCreated` (after
+    Save As appeared) and relied on it, and one click made Save As appear again and again in
+    the owner's Chrome (2026-10-19). Pressing Cancel in SDM's dialog cancels the download.
   - **Right-click on players:** the menu also appears on video and audio; it sends the
     player's address (`targetUrlPatterns` keeps blob: players out). The page or frame becomes
     the referrer.
