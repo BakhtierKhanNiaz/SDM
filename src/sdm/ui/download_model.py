@@ -8,6 +8,7 @@ from dataclasses import dataclass, replace
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelIndex, Qt
 
+from sdm.core.checksums import CHECKING, MISMATCH, MISSING, VERIFIED
 from sdm.core.downloads import DownloadRecord, DownloadState
 from sdm.core.units import format_duration, format_size, format_speed
 from sdm.core.urls import redact_url
@@ -142,6 +143,22 @@ class DownloadTableModel(QAbstractTableModel):
         self.dataChanged.emit(self.index(position, 0), self.index(position, len(COLUMNS) - 1))
 
 
+CHECKSUM_LABELS = {
+    CHECKING: "checking…",
+    VERIFIED: "verified",
+    MISMATCH: "checksum doesn't match",
+    MISSING: "file not found",
+}
+CHECKSUM_TIPS = {
+    VERIFIED: "The file's SHA-256 matches the one you entered.",
+    MISMATCH: (
+        "The file's SHA-256 is not the one you entered: the file may be damaged or not the "
+        "one the publisher made. It was kept; don't run it."
+    ),
+    MISSING: "The finished file wasn't found in its folder, so it couldn't be checked.",
+}
+
+
 def cell_text(
     record: DownloadRecord,
     column: int,
@@ -181,6 +198,8 @@ def cell_text(
             label += f" · {connections} connections"
         if state == DownloadState.COMPLETED and record.verified_complete is False:
             label += " (size unconfirmed)"
+        if state == DownloadState.COMPLETED and record.checksum_state in CHECKSUM_LABELS:
+            label += f" · {CHECKSUM_LABELS[record.checksum_state]}"
         return label
     return ""
 
@@ -192,6 +211,8 @@ def _tooltip(record: DownloadRecord, column: int) -> str | None:
         lines = [record.error] if record.error else []
         if record.state == DownloadState.COMPLETED and record.verified_complete is False:
             lines.append(UNCONFIRMED)
+        if record.checksum_state in CHECKSUM_TIPS:
+            lines.append(CHECKSUM_TIPS[record.checksum_state])
         if record.state.can_resume:
             if record.part_path and record.resumable:
                 lines.append("Resume continues from where it stopped.")

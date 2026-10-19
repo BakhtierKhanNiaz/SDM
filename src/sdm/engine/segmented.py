@@ -34,6 +34,7 @@ import aiohttp
 from sdm.core.errors import DownloadError
 from sdm.core.segments import Segment, pick_split
 from sdm.core.units import format_size
+from sdm.engine.limiter import SpeedLimiter
 from sdm.engine.models import DownloadSettings, ProgressCallback
 
 log = logging.getLogger(__name__)
@@ -150,8 +151,10 @@ class SegmentedDownload:
         on_progress: ProgressCallback | None,
         on_snapshot: SnapshotCallback,
         on_connections: ConnectionsCallback | None = None,
+        limiter: SpeedLimiter | None = None,
     ) -> None:
         self._request = request
+        self._limiter = limiter  # the speed limit shared by every download (M9)
         self._part_path = part_path
         self._total = total
         self._if_range = if_range
@@ -382,6 +385,8 @@ class SegmentedDownload:
         self, part: _Part, response: aiohttp.ClientResponse, *, may_wait: bool
     ) -> None:
         async for chunk in response.content.iter_chunked(self._settings.chunk_size):
+            if self._limiter is not None:
+                await self._limiter.take(len(chunk))
             while chunk:
                 room = part.end + 1 - part.next_byte
                 if room <= 0:

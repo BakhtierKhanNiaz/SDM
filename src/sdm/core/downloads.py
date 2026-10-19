@@ -116,6 +116,8 @@ class DownloadRecord:
     forced: bool = False  # "Start now": ignores the limit and the schedule
     referrer: str | None = None  # from the browser (M8); may hold tokens: never log it
     suggested_name: str | None = None  # the browser's file name, used if the server gives none
+    expected_sha256: str | None = None  # what the publisher says the file's SHA-256 is (M9)
+    checksum_state: str | None = None  # checking, verified, mismatch or missing (M9)
 
     def context(self) -> BrowserContext | None:
         """The browser's hints for this download, if it came from the browser."""

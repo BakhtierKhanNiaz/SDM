@@ -46,6 +46,7 @@ from sdm.core.filenames import (
 from sdm.core.referrer import check_redirect, referer_header
 from sdm.core.segments import Segment, plan_segments, segments_cover, total_received
 from sdm.core.urls import redact_url, validate_url
+from sdm.engine.limiter import SpeedLimiter
 from sdm.engine.models import (
     DownloadResult,
     DownloadSettings,
@@ -89,6 +90,7 @@ class _Transfer:
     segments: list[Segment] | None = None  # set while the download is split (M5)
     no_split: bool = False  # after a failed split, stay on one connection
     context: BrowserContext = BrowserContext()  # what the browser said (M8)
+    limiter: SpeedLimiter | None = None  # the shared speed limit (M9)
 
     @classmethod
     def start(cls, directory: Path, resume_from: PartialDownload | None) -> "_Transfer":
@@ -184,12 +186,13 @@ async def download(
     keep_partial: bool = False,
     on_connections: Callable[[int], None] | None = None,
     context: BrowserContext | None = None,
+    limiter: SpeedLimiter | None = None,
 ) -> DownloadResult:
     """Download `url` into `destination_dir` and return where the file was saved.
 
     `context` carries what the browser said about the link (M8): its page becomes the Referer
     of every request, under the browser's rules, and its suggested name is used when the server
-    names no file.
+    names no file. `limiter` is the speed limit shared with other downloads (M9).
 
     `resume_from` continues an earlier partial file. With `keep_partial` (the window's download
     manager), the partial file is kept when the download is cancelled (the caller decides
@@ -208,6 +211,7 @@ async def download(
         raise DownloadError(f"The download folder does not exist: {directory}")
     transfer = _Transfer.start(directory, resume_from)
     transfer.context = context or BrowserContext()
+    transfer.limiter = limiter
 
     log.info("Downloading %s into %s", redact_url(url), directory)
     timeout = aiohttp.ClientTimeout(
@@ -441,6 +445,7 @@ async def _run_segmented(
         on_progress=on_progress,
         on_snapshot=on_snapshot,
         on_connections=on_connections,
+        limiter=transfer.limiter,
     ).run(first_response)
 
 
@@ -671,6 +676,8 @@ async def _stream_to_file(
         on_progress(transfer.received, transfer.total)
     try:
         async for chunk in response.content.iter_chunked(settings.chunk_size):
+            if transfer.limiter is not None:
+                await transfer.limiter.take(len(chunk))
             file.write(chunk)
             transfer.received += len(chunk)  # a retry continues from here
             if on_progress:

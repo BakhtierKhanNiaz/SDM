@@ -25,6 +25,7 @@ from pathlib import Path
 from sdm.core.downloads import BrowserContext, PartialDownload
 from sdm.core.errors import SDMError
 from sdm.engine.http_download import download, is_own_part_file
+from sdm.engine.limiter import SpeedLimiter
 from sdm.engine.models import DownloadResult, DownloadSettings
 from sdm.engine.policy import NetworkPolicy
 
@@ -109,6 +110,7 @@ class DownloadManager:
     ) -> None:
         self._on_event = on_event
         self._settings = settings
+        self._limiter = SpeedLimiter()  # one limit for every download (M9); none by default
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._run_loop, name="sdm-engine", daemon=True)
         self._semaphore = asyncio.Semaphore(max_concurrent)  # binds to the loop on first use
@@ -145,6 +147,14 @@ class DownloadManager:
             resume_from,
             context,
         )
+
+    def set_speed_limit(self, bytes_per_second: int | None) -> None:
+        """Limit all downloads together (None or 0: no limit). Running downloads follow at once."""
+        self._loop.call_soon_threadsafe(self._limiter.set_rate, bytes_per_second)
+
+    def set_settings(self, settings: DownloadSettings) -> None:
+        """Settings for downloads started from now on (e.g. connections per download)."""
+        self._loop.call_soon_threadsafe(setattr, self, "_settings", settings)
 
     def pause(self, download_id: int) -> None:
         """Stop a waiting or running download but keep its partial file; Paused follows."""
@@ -299,6 +309,7 @@ class DownloadManager:
                     keep_partial=True,
                     on_connections=on_connections,
                     context=context,
+                    limiter=self._limiter,
                 )
         except SDMError as exc:
             partial = self._partials.get(download_id)

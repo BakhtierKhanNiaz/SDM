@@ -12,6 +12,7 @@ is the only place that submits work to the engine, so nothing can be started twi
 import logging
 import time
 from collections.abc import Callable
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -19,6 +20,7 @@ from pathlib import Path
 from PySide6.QtCore import QCoreApplication, QObject, QTimer, Signal
 
 from sdm.core.categories import GENERAL, category_for
+from sdm.core.checksums import CHECKING, MISMATCH, MISSING, VERIFIED, normalize_sha256, sha256_of
 from sdm.core.downloads import BrowserContext, DownloadRecord, DownloadState
 from sdm.core.filenames import filename_from_url
 from sdm.core.progress import TransferMeter
@@ -43,6 +45,7 @@ from sdm.scheduler.queue import QueueEntry, QueueSettings, plan_queue, reorder, 
 from sdm.storage.database import DownloadStore
 from sdm.ui.download_model import DownloadTableModel
 from sdm.ui.engine_adapter import EngineAdapter
+from sdm.ui.preferences import Preferences, load_preferences, save_preferences
 
 log = logging.getLogger(__name__)
 
@@ -61,6 +64,22 @@ def _local_now() -> datetime:
     return datetime.now().astimezone()
 
 
+def finished_file(record: DownloadRecord) -> Path | None:
+    """The entry's finished file, if it exists directly in the entry's folder.
+
+    The path comes from the database: never let it point SDM (hashing, Show in folder)
+    somewhere else (security rule 15).
+    """
+    if record.state != DownloadState.COMPLETED or not record.path:
+        return None
+    path = Path(record.path)
+    try:
+        inside = path.parent.resolve() == Path(record.folder).resolve()
+    except OSError:
+        return None
+    return path if inside and path.is_file() else None
+
+
 def _parse_time(value: str | None) -> datetime | None:
     try:
         return datetime.fromisoformat(value) if value else None
@@ -70,6 +89,10 @@ def _parse_time(value: str | None) -> datetime | None:
 
 class DownloadController(QObject):
     summary_changed = Signal(str)  # one line for the status bar
+    download_finished = Signal(int)  # a download completed (M9: notifications)
+    download_failed = Signal(int, str)  # failed for good (no automatic retry left)
+    checksum_checked = Signal(int, str)  # VERIFIED, MISMATCH or MISSING
+    _hashed = Signal(int, object)  # worker thread -> main thread: the SHA-256, or None
 
     def __init__(
         self,
@@ -87,9 +110,13 @@ class DownloadController(QObject):
         self._policy_for = policy_for
         self._adapter = EngineAdapter(self)
         self._adapter.event_received.connect(self._on_event)
+        self._base_settings = settings or DownloadSettings()
+        self.preferences: Preferences = load_preferences(store)
         self._manager = DownloadManager(
-            self._adapter, max_concurrent=ENGINE_CAPACITY, settings=settings
+            self._adapter, max_concurrent=ENGINE_CAPACITY, settings=self._engine_settings()
         )
+        self._hasher = ThreadPoolExecutor(max_workers=1, thread_name_prefix="sdm-checksum")
+        self._hashed.connect(self._on_hashed)
         self._clock = clock
         self.queue_settings: QueueSettings = load_queue_settings(store)
         self._dispatched: set[int] = set()  # handed to the engine and not finished yet
@@ -106,6 +133,7 @@ class DownloadController(QObject):
 
     def start(self) -> None:
         self._manager.start()
+        self._manager.set_speed_limit(self.preferences.speed_limit_bytes)
         self._running = True
         self._timer.start()
         self.pump()
@@ -117,6 +145,7 @@ class DownloadController(QObject):
             return
         self._running = False
         self._timer.stop()
+        self._hasher.shutdown(wait=False, cancel_futures=True)
         self._requeue.clear()  # quitting pauses for real: nothing starts on its own later (M4)
         self._manager.shutdown()  # waits until every download has stopped
         QCoreApplication.processEvents()  # deliver the events the engine sent while stopping
@@ -136,6 +165,7 @@ class DownloadController(QObject):
         allow_local_network: bool = False,
         start: bool = True,
         context: BrowserContext | None = None,
+        expected_sha256: str | None = None,
     ) -> DownloadRecord:
         """Add a download to the end of the queue (paused if `start` is False).
 
@@ -144,6 +174,7 @@ class DownloadController(QObject):
         """
         url = url.strip()
         validate_url(url)
+        expected_sha256 = normalize_sha256(expected_sha256)  # raises InvalidChecksumError
         hinted = context.suggested_name if context else None
         category = category_for(hinted or filename_from_url(url))
         folder = Path(folder)
@@ -156,6 +187,7 @@ class DownloadController(QObject):
             start=start,
             category=category,
             context=context,
+            expected_sha256=expected_sha256,
         )
         self.model.upsert(record)
         self._emit_summary()
@@ -204,6 +236,77 @@ class DownloadController(QObject):
         self.store.set_positions(reorder(order, download_id, where))
         self._reload()
         self.pump()
+
+    def set_preferences(self, preferences: Preferences) -> None:
+        """Save SDM's settings and apply the speed limit and connections at once."""
+        preferences = preferences.checked()
+        save_preferences(self.store, preferences)
+        self.preferences = preferences
+        self._manager.set_settings(self._engine_settings())  # downloads started from now on
+        self._manager.set_speed_limit(preferences.speed_limit_bytes)  # running ones too
+
+    def _engine_settings(self) -> DownloadSettings:
+        # The preference can only lower the number of connections the controller was given.
+        connections = min(self._base_settings.max_connections, self.preferences.connections)
+        return replace(self._base_settings, max_connections=connections)
+
+    def pause_all(self) -> int:
+        """Pause every running and waiting download; returns how many."""
+        active = [r.id for r in self.model.records() if r.state.is_active]
+        for download_id in active:
+            self.pause(download_id)
+        return len(active)
+
+    def verify(self, download_id: int, expected: str | None) -> None:
+        """Check a finished file against a SHA-256 (raises InvalidChecksumError if malformed)."""
+        value = normalize_sha256(expected)
+        record = self.store.get(download_id)
+        if record is None or value is None:
+            return
+        self.store.set_checksum(download_id, value, None)
+        self._verify(download_id)
+
+    def _verify(self, download_id: int) -> None:
+        record = self.store.get(download_id)
+        if record is None or not record.expected_sha256:
+            return
+        path = finished_file(record)
+        if path is None:
+            self._checksum_result(download_id, MISSING)
+            return
+        self.store.set_checksum(download_id, record.expected_sha256, CHECKING)
+        self._refresh(download_id)
+        try:
+            future = self._hasher.submit(sha256_of, path)
+        except RuntimeError:  # shutting down
+            return
+        future.add_done_callback(lambda done: self._deliver_hash(download_id, done))
+
+    def _deliver_hash(self, download_id: int, done: Future) -> None:
+        """Runs on the hashing thread: hand the result to the main thread."""
+        try:
+            self._hashed.emit(download_id, _digest(done))
+        except RuntimeError:  # SDM closed while hashing: nobody is left to tell
+            pass
+
+    def _on_hashed(self, download_id: int, digest: str | None) -> None:
+        record = self.store.get(download_id)
+        if record is None or not record.expected_sha256:
+            return
+        if digest is None:
+            self._checksum_result(download_id, MISSING)
+        else:
+            self._checksum_result(
+                download_id, VERIFIED if digest == record.expected_sha256 else MISMATCH
+            )
+
+    def _checksum_result(self, download_id: int, state: str) -> None:
+        record = self.store.get(download_id)
+        if record is None:
+            return
+        self.store.set_checksum(download_id, record.expected_sha256, state)
+        self._refresh(download_id)
+        self.checksum_checked.emit(download_id, state)
 
     def set_queue_settings(self, settings: QueueSettings) -> None:
         save_queue_settings(self.store, settings)
@@ -316,14 +419,16 @@ class DownloadController(QObject):
                     size=result.size,
                     verified_complete=result.verified_complete,
                 )
+                self.download_finished.emit(download_id)
+                self._verify(download_id)  # if a SHA-256 was given
             case Failed(message=message, partial=partial, retryable=retryable):
                 self._dispatched.discard(download_id)
                 self._save_latest(download_id)
                 self._move(
                     download_id, self.store.mark_failed, message, partial_kept=partial is not None
                 )
-                if retryable:
-                    self._schedule_retry(download_id)
+                if not (retryable and self._schedule_retry(download_id)):
+                    self.download_failed.emit(download_id, message)
             case Paused():
                 self._dispatched.discard(download_id)
                 self._save_latest(download_id)
@@ -338,17 +443,21 @@ class DownloadController(QObject):
         if not isinstance(event, Progress | PartialSaved | FileInfo):
             self.pump()
 
-    def _schedule_retry(self, download_id: int) -> None:
-        """Automatic retries for temporary failures: after about 1, 5 and 15 minutes."""
+    def _schedule_retry(self, download_id: int) -> bool:
+        """Automatic retries for temporary failures: after about 1, 5 and 15 minutes.
+
+        Returns False when no retry is left (the download stays failed).
+        """
         record = self.store.get(download_id)
         if record is None:
-            return
+            return False
         delay = retry_delay(record.retry_count)
         if delay is None:
-            return  # the 3 automatic retries are used up: it stays failed
+            return False  # the 3 automatic retries are used up: it stays failed
         at = (self._clock() + timedelta(seconds=delay)).astimezone(UTC)
         self.store.set_retry(download_id, record.retry_count + 1, at.isoformat(timespec="seconds"))
         self._move(download_id, self.store.mark_queued)
+        return True
 
     def _on_progress(
         self, download_id: int, received: int, total: int | None, connections: int = 1
@@ -405,6 +514,13 @@ class DownloadController(QObject):
 
     def _emit_summary(self) -> None:
         self.summary_changed.emit(summarize(self.model.records()))
+
+
+def _digest(future: Future) -> str | None:
+    try:
+        return future.result()
+    except Exception:  # a missing or unreadable file is reported as MISSING
+        return None
 
 
 def summarize(records: list[DownloadRecord]) -> str:

@@ -104,6 +104,11 @@ _MIGRATIONS = [
     ALTER TABLE downloads ADD COLUMN referrer TEXT;
     ALTER TABLE downloads ADD COLUMN suggested_name TEXT;
     """,
+    # Version 6 (M9): checking a finished file against its published SHA-256.
+    """
+    ALTER TABLE downloads ADD COLUMN expected_sha256 TEXT;
+    ALTER TABLE downloads ADD COLUMN checksum_state TEXT;
+    """,
 ]
 SCHEMA_VERSION = len(_MIGRATIONS)
 _DONE = {"forced": 0, "retry_at": None}  # leaving the queue for good
@@ -217,6 +222,7 @@ class DownloadStore:
         start: bool = True,
         category: str = "General",
         context: BrowserContext | None = None,
+        expected_sha256: str | None = None,
     ) -> DownloadRecord:
         """A new entry at the end of the queue; `start=False` adds it paused (M6).
 
@@ -231,8 +237,8 @@ class DownloadStore:
             ).fetchone()
             cursor = self._conn.execute(
                 "INSERT INTO downloads (url, folder, allow_local_network, state, created_at,"
-                " updated_at, queue_position, category, referrer, suggested_name)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " updated_at, queue_position, category, referrer, suggested_name,"
+                " expected_sha256) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     url,
                     folder,
@@ -244,12 +250,19 @@ class DownloadStore:
                     category,
                     context.referrer,
                     context.suggested_name,
-                ),  # fmt: skip
+                    expected_sha256,
+                ),
             )
         record = self.get(cursor.lastrowid)
         if record is None:
             raise StorageError("The new history entry could not be read back.")
         return record
+
+    def set_checksum(
+        self, download_id: int, expected_sha256: str | None, state: str | None
+    ) -> None:
+        """The SHA-256 to check against and the result so far (M9)."""
+        self._update(download_id, expected_sha256=expected_sha256, checksum_state=state)
 
     def set_file_info(self, download_id: int, file_name: str, total_bytes: int | None) -> None:
         self._update(download_id, file_name=file_name, total_bytes=total_bytes)
@@ -417,4 +430,6 @@ def _record(row: sqlite3.Row) -> DownloadRecord:
         forced=bool(row["forced"]),
         referrer=row["referrer"],
         suggested_name=row["suggested_name"],
+        expected_sha256=row["expected_sha256"],
+        checksum_state=row["checksum_state"],
     )
