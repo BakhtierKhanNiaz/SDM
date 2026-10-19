@@ -12,7 +12,7 @@ and its tests have actually run and passed.
 | M4 | Pause/resume and crash recovery | Done (2026-10-19) |
 | M5 | Parallel segmented downloads | Done (2026-10-19) |
 | M6 | Queue management and scheduling | Done (2026-10-19) |
-| M7 | Chrome extension and native messaging bridge | Implemented and tested; Chrome check by the owner pending |
+| M7 | Chrome extension and native messaging bridge | Done (2026-10-19) |
 | M8 | Browser handoff integrated with the download engine | Not started |
 | M9 | Interface, settings, notifications and usability | Not started |
 | M10 | Security, performance, regression testing and Windows packaging | Not started |
@@ -189,7 +189,7 @@ Acceptance criteria, all met on 2026-10-19:
   settings were saved before the demo and restored afterwards (checked).
 - [ ] Optional: observe IDM's queue and scheduler screens (checklist).
 
-## M7: Chrome extension and native messaging bridge
+## M7: Chrome extension and native messaging bridge (done)
 
 Done on branch `m7/browser-bridge` (ADR-0014, spec FEAT-006):
 
@@ -206,7 +206,7 @@ clean. A launch check with a throwaway `LOCALAPPDATA` used the real `sdm.exe` an
 processes: a second SDM exited quietly in 1.2 s; the host handed a link to the running SDM in
 0.2 s; with SDM closed, the host started it and got `{"ok": true}` in 1.5 s.
 
-Remaining before M7 is **Done**:
+Acceptance, all met on 2026-10-19:
 
 - [x] Register the host (approved by the owner, 2026-10-19): one HKCU value pointing at
   `%LOCALAPPDATA%\SDM\bridge\com.sdm.bridge.json`, allowed origin limited to the owner's
@@ -218,6 +218,14 @@ Remaining before M7 is **Done**:
   `bad_request`, and a valid one started SDM (throwaway data) and got `{"ok": true}`.
   `scripts/chrome_bridge_check/check.mjs` repeats the first check; the install script and the
   extension's tooltip now say to restart Chrome completely.
-- [ ] Owner's Chrome check in a separate profile: the menu appears on links, a handoff opens
-  the filled-in dialog with SDM running and with SDM closed, and nothing downloads until
-  Download is pressed (checklist in [extension/README.md](../extension/README.md)).
+- [x] Owner's Chrome check (in the owner's Default profile rather than a separate one; IDM's
+  extension is also installed there, which didn't interfere with the right-click item):
+  - With SDM closed, a right-click handoff started SDM (`sdm.exe --from-browser`, 5:42:05 PM)
+    and opened "Add URL from the browser" filled in. That link was a web page, so the owner
+    pressed Cancel: no history entry was added.
+  - With SDM running, a handoff of python.org's `python-3.15.0-amd64.exe` was confirmed and
+    completed: 45,383,680 bytes, the size the server announced, category Programs, in
+    about 9 s. The file was not opened or run.
+  - The first two tries said "host not found" while the extension and registration were
+    correct; after Chrome was fully closed and reopened it worked. The exact cause of those
+    failures wasn't captured (Chrome's log was only switched on for the try that worked).

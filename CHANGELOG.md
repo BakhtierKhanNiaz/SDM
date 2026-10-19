@@ -8,6 +8,10 @@ while SDM is in 0.x.
 
 ### Added
 
+- M7 done: the owner's Chrome check passed (a handoff started SDM when it was closed, and a
+  python.org download sent from Chrome completed). Setup guidance now says to restart
+  Chrome completely after registering, and `scripts/chrome_bridge_check/check.mjs` checks
+  the registration in a throwaway headless Chrome.
 - M7, browser handoff: a Chrome extension (Manifest V3, `contextMenus` and
   `nativeMessaging` only) adds "Download with SDM" to links. A native messaging host
   (`com.sdm.bridge`) checks the message against a strict schema and passes it to SDM over a

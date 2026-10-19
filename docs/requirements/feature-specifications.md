@@ -207,7 +207,9 @@ the partial file.
 - All tests above pass; ruff is clean; `node --test` passes.
 - In a separate Chrome profile, the owner loads the extension, registers it (after approving
   the registry change), and a right-click handoff opens SDM's dialog filled in, both with SDM
-  running and with SDM closed.
+  running and with SDM closed. Done 2026-10-19 (in the owner's main profile): SDM closed →
+  started and showed the dialog; SDM running → a python.org installer downloaded completely;
+  Cancel added nothing (roadmap).
 
 ## Template
 
