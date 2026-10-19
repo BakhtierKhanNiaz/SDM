@@ -21,7 +21,8 @@ URL = "https://example.com/a.zip"
         {"version": 1, "type": "download", "url": URL, "filename": "..\\..\\evil.exe"},
         {"version": 1, "type": "download", "url": URL, "headers": {"Cookie": "a=b"}},
         {"version": 1, "type": "download", "url": URL, "allow_local_network": True},
-        {"version": 2, "type": "download", "url": URL},
+        {"version": 3, "type": "download", "url": URL},  # not invented yet
+        {"version": 0, "type": "download", "url": URL},
         {"version": "1", "type": "download", "url": URL},
         {"version": True, "type": "download", "url": URL},  # bool is an int in Python
         {"version": 1.0, "type": "download", "url": URL},

@@ -16,7 +16,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from sdm.core.categories import category_for
-from sdm.core.downloads import DownloadRecord, DownloadState, PartialDownload, check_transition
+from sdm.core.downloads import (
+    BrowserContext,
+    DownloadRecord,
+    DownloadState,
+    PartialDownload,
+    check_transition,
+)
 from sdm.core.errors import SDMError
 from sdm.core.paths import app_data_dir
 from sdm.core.segments import encode_segments
@@ -92,6 +98,11 @@ _MIGRATIONS = [
     ALTER TABLE downloads ADD COLUMN forced INTEGER NOT NULL DEFAULT 0;
     UPDATE downloads SET queue_position = id;
     CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    """,
+    # Version 5 (M8): what the browser told SDM about a download it handed over.
+    """
+    ALTER TABLE downloads ADD COLUMN referrer TEXT;
+    ALTER TABLE downloads ADD COLUMN suggested_name TEXT;
     """,
 ]
 SCHEMA_VERSION = len(_MIGRATIONS)
@@ -205,9 +216,14 @@ class DownloadStore:
         allow_local_network: bool = False,
         start: bool = True,
         category: str = "General",
+        context: BrowserContext | None = None,
     ) -> DownloadRecord:
-        """A new entry at the end of the queue; `start=False` adds it paused (M6)."""
+        """A new entry at the end of the queue; `start=False` adds it paused (M6).
+
+        `context` keeps what the browser said about it (M8), so a resume sends the same Referer.
+        """
         now = _now()
+        context = context or BrowserContext()
         state = DownloadState.QUEUED if start else DownloadState.PAUSED
         with self._conn:
             (last,) = self._conn.execute(
@@ -215,8 +231,20 @@ class DownloadStore:
             ).fetchone()
             cursor = self._conn.execute(
                 "INSERT INTO downloads (url, folder, allow_local_network, state, created_at,"
-                " updated_at, queue_position, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (url, folder, int(allow_local_network), state, now, now, last + 1, category),
+                " updated_at, queue_position, category, referrer, suggested_name)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    url,
+                    folder,
+                    int(allow_local_network),
+                    state,
+                    now,
+                    now,
+                    last + 1,
+                    category,
+                    context.referrer,
+                    context.suggested_name,
+                ),  # fmt: skip
             )
         record = self.get(cursor.lastrowid)
         if record is None:
@@ -387,4 +415,6 @@ def _record(row: sqlite3.Row) -> DownloadRecord:
         retry_count=row["retry_count"],
         retry_at=row["retry_at"],
         forced=bool(row["forced"]),
+        referrer=row["referrer"],
+        suggested_name=row["suggested_name"],
     )

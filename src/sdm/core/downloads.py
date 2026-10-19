@@ -59,6 +59,19 @@ def check_transition(old: DownloadState, new: DownloadState) -> None:
 
 
 @dataclass(frozen=True)
+class BrowserContext:
+    """What the browser knew about a download it handed over (M8, ADR-0015).
+
+    Both values are untrusted. The referrer is sent as a Referer header under the browser's
+    rules (sdm.core.referrer); the suggested name is used only when the server names no file,
+    and is sanitized like any other file name. Cookies are never part of it.
+    """
+
+    referrer: str | None = None  # the page the link was on; may hold tokens: never log it
+    suggested_name: str | None = None  # a bare file name, never a path
+
+
+@dataclass(frozen=True)
 class PartialDownload:
     """What SDM remembers about an unfinished download, so it can continue it later."""
 
@@ -101,6 +114,14 @@ class DownloadRecord:
     retry_count: int = 0  # automatic retries used (M6)
     retry_at: str | None = None  # ISO 8601 UTC: waiting for an automatic retry until then
     forced: bool = False  # "Start now": ignores the limit and the schedule
+    referrer: str | None = None  # from the browser (M8); may hold tokens: never log it
+    suggested_name: str | None = None  # the browser's file name, used if the server gives none
+
+    def context(self) -> BrowserContext | None:
+        """The browser's hints for this download, if it came from the browser."""
+        if self.referrer is None and self.suggested_name is None:
+            return None
+        return BrowserContext(self.referrer, self.suggested_name)
 
     def partial(self) -> PartialDownload | None:
         """What the engine needs to continue this download, if a partial file is recorded."""

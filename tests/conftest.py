@@ -280,6 +280,15 @@ def mock_server():
 
 
 @pytest.fixture
+def other_server():
+    """A second MockServer: another port, so another site (origin) than mock_server."""
+    server = MockServer()
+    server.start()
+    yield server
+    server.stop()
+
+
+@pytest.fixture
 def loopback_policy() -> NetworkPolicy:
     """The default policy, except that this computer (where MockServer runs) is allowed."""
     return NetworkPolicy(allow_loopback=True)
@@ -294,7 +303,9 @@ def fast_settings() -> DownloadSettings:
 def fetch(tmp_path, loopback_policy, fast_settings):
     """Run one download synchronously; defaults: into tmp_path, loopback allowed, fast."""
 
-    def _fetch(url, *, dest=None, policy=None, settings=None, on_progress=None, on_file_info=None):
+    def _fetch(
+        url, *, dest=None, policy=None, settings=None, on_progress=None, on_file_info=None, **extra
+    ):  # extra: any other download() keyword, e.g. context= or resume_from=
         return asyncio.run(
             download(
                 url,
@@ -303,6 +314,7 @@ def fetch(tmp_path, loopback_policy, fast_settings):
                 settings=settings or fast_settings,
                 on_progress=on_progress,
                 on_file_info=on_file_info,
+                **extra,
             )
         )
 
@@ -364,12 +376,14 @@ class BridgeHarness:
         self.key = load_or_create_key(key_path)
         self.address = pipe_address(key_path)
         self.received: list[str] = []
+        self.requests: list = []  # the full DownloadRequest objects, in order
         self.accept = True
         self.listener = BridgeListener(self.key, self.address, self._on_request)
         self.listener.start()
 
     def _on_request(self, request) -> bool:
         self.received.append(request.url)
+        self.requests.append(request)
         return self.accept
 
 

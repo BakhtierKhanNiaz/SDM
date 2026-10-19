@@ -22,7 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from sdm.core.downloads import PartialDownload
+from sdm.core.downloads import BrowserContext, PartialDownload
 from sdm.core.errors import SDMError
 from sdm.engine.http_download import download, is_own_part_file
 from sdm.engine.models import DownloadResult, DownloadSettings
@@ -133,6 +133,7 @@ class DownloadManager:
         folder: str | Path,
         policy: NetworkPolicy | None = None,
         resume_from: PartialDownload | None = None,
+        context: BrowserContext | None = None,
     ) -> None:
         """Queue a download (or a resume). Events for it will carry `download_id`."""
         self._loop.call_soon_threadsafe(
@@ -142,6 +143,7 @@ class DownloadManager:
             Path(folder),
             policy or NetworkPolicy(),
             resume_from,
+            context,
         )
 
     def pause(self, download_id: int) -> None:
@@ -181,6 +183,7 @@ class DownloadManager:
         folder: Path,
         policy: NetworkPolicy,
         resume_from: PartialDownload | None,
+        context: BrowserContext | None = None,
     ) -> None:
         if download_id in self._tasks:
             log.warning("Download %d was submitted twice; ignoring the second time", download_id)
@@ -189,7 +192,7 @@ class DownloadManager:
         if resume_from is not None:
             self._partials[download_id] = resume_from
         task = self._loop.create_task(
-            self._run_one(download_id, url, folder, policy, resume_from),
+            self._run_one(download_id, url, folder, policy, resume_from, context),
             name=f"download-{download_id}",
         )
         task.add_done_callback(lambda done: self._task_done(download_id, done))
@@ -240,6 +243,7 @@ class DownloadManager:
         folder: Path,
         policy: NetworkPolicy,
         resume_from: PartialDownload | None,
+        context: BrowserContext | None = None,
     ) -> None:
         # Chunks arrive many times a second; the window only needs about 5 updates a second.
         # An update held back is sent when its 0.2 s is up, so the last numbers before the
@@ -294,6 +298,7 @@ class DownloadManager:
                     resume_from=resume_from,
                     keep_partial=True,
                     on_connections=on_connections,
+                    context=context,
                 )
         except SDMError as exc:
             partial = self._partials.get(download_id)

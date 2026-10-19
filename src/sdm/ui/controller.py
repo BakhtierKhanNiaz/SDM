@@ -19,7 +19,7 @@ from pathlib import Path
 from PySide6.QtCore import QCoreApplication, QObject, QTimer, Signal
 
 from sdm.core.categories import GENERAL, category_for
-from sdm.core.downloads import DownloadRecord, DownloadState
+from sdm.core.downloads import BrowserContext, DownloadRecord, DownloadState
 from sdm.core.filenames import filename_from_url
 from sdm.core.progress import TransferMeter
 from sdm.core.urls import validate_url
@@ -135,14 +135,17 @@ class DownloadController(QObject):
         *,
         allow_local_network: bool = False,
         start: bool = True,
+        context: BrowserContext | None = None,
     ) -> DownloadRecord:
         """Add a download to the end of the queue (paused if `start` is False).
 
-        Raises InvalidURLError for an unusable URL.
+        `context` is what the browser said about the link (M8). Raises InvalidURLError for an
+        unusable URL.
         """
         url = url.strip()
         validate_url(url)
-        category = category_for(filename_from_url(url))
+        hinted = context.suggested_name if context else None
+        category = category_for(hinted or filename_from_url(url))
         folder = Path(folder)
         if self.queue_settings.category_subfolders and category != GENERAL:
             folder = folder / category  # IDM-style subfolder (setting, off by default)
@@ -152,6 +155,7 @@ class DownloadController(QObject):
             allow_local_network=allow_local_network,
             start=start,
             category=category,
+            context=context,
         )
         self.model.upsert(record)
         self._emit_summary()
@@ -246,6 +250,7 @@ class DownloadController(QObject):
             record.folder,
             self._policy_for(record),
             resume_from=record.partial(),
+            context=record.context(),
         )
 
     def resume_all(self) -> int:

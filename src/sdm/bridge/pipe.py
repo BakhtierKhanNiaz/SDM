@@ -32,7 +32,6 @@ from sdm.bridge.protocol import (
     decode_json,
     encode_json,
     parse_request,
-    request_message,
 )
 from sdm.core.errors import SDMError
 from sdm.core.paths import app_data_dir
@@ -204,7 +203,7 @@ def send_request(
         raise BridgeError(f"Couldn't connect to SDM: {exc}") from None
     try:
         with conn:
-            conn.send_bytes(encode_json(request_message(request.url)))
+            conn.send_bytes(encode_json(request.to_message()))
             if not conn.poll(timeout):
                 raise BridgeError("SDM didn't answer in time.")
             reply = decode_json(conn.recv_bytes(MAX_MESSAGE_BYTES))

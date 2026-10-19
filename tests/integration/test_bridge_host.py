@@ -138,3 +138,15 @@ def test_the_host_process_survives_an_empty_stdin(tmp_path):
     result = run_host_process(tmp_path, b"")
     assert result.returncode == 1
     assert result.stdout == framed({"ok": False, "error": "bad_request"})
+
+
+def test_a_version_2_message_reaches_the_app_with_all_its_hints(bridge):
+    from sdm.bridge.protocol import DownloadRequest
+
+    sent = DownloadRequest(URL, "https://example.com/page", "a.zip", 1234, "application/zip",
+                           "capture")  # fmt: skip
+    stdout = io.BytesIO()
+    code = run([ORIGIN], io.BytesIO(framed(sent.to_message())), stdout,
+               key_path=bridge.key_path, launch=never_launch)  # fmt: skip
+    assert code == 0
+    assert bridge.requests == [sent]

@@ -35,7 +35,7 @@ from urllib.parse import urljoin, urlsplit
 
 import aiohttp
 
-from sdm.core.downloads import PartialDownload
+from sdm.core.downloads import BrowserContext, PartialDownload
 from sdm.core.errors import DownloadError, InvalidURLError, SDMError
 from sdm.core.filenames import (
     filename_from_content_disposition,
@@ -43,6 +43,7 @@ from sdm.core.filenames import (
     numbered_name,
     sanitize_filename,
 )
+from sdm.core.referrer import check_redirect, referer_header
 from sdm.core.segments import Segment, plan_segments, segments_cover, total_received
 from sdm.core.urls import redact_url, validate_url
 from sdm.engine.models import (
@@ -87,6 +88,7 @@ class _Transfer:
     resumable: bool = False
     segments: list[Segment] | None = None  # set while the download is split (M5)
     no_split: bool = False  # after a failed split, stay on one connection
+    context: BrowserContext = BrowserContext()  # what the browser said (M8)
 
     @classmethod
     def start(cls, directory: Path, resume_from: PartialDownload | None) -> "_Transfer":
@@ -181,8 +183,13 @@ async def download(
     resume_from: PartialDownload | None = None,
     keep_partial: bool = False,
     on_connections: Callable[[int], None] | None = None,
+    context: BrowserContext | None = None,
 ) -> DownloadResult:
     """Download `url` into `destination_dir` and return where the file was saved.
+
+    `context` carries what the browser said about the link (M8): its page becomes the Referer
+    of every request, under the browser's rules, and its suggested name is used when the server
+    names no file.
 
     `resume_from` continues an earlier partial file. With `keep_partial` (the window's download
     manager), the partial file is kept when the download is cancelled (the caller decides
@@ -200,6 +207,7 @@ async def download(
     if not directory.is_dir():
         raise DownloadError(f"The download folder does not exist: {directory}")
     transfer = _Transfer.start(directory, resume_from)
+    transfer.context = context or BrowserContext()
 
     log.info("Downloading %s into %s", redact_url(url), directory)
     timeout = aiohttp.ClientTimeout(
@@ -301,7 +309,9 @@ async def _attempt(
         plan = _range_plan(transfer)
         while True:
             extra = plan.headers() if plan else None
-            response = await _get_following_redirects(session, url, policy, settings, extra)
+            response = await _get_following_redirects(
+                session, url, policy, settings, extra, transfer.context.referrer
+            )
             async with response:
                 try:
                     offset = await _accept_response(response, plan, transfer, directory)
@@ -415,7 +425,9 @@ async def _run_segmented(
 
     async def request(headers: dict[str, str]) -> aiohttp.ClientResponse:
         # Every part request goes through the same redirect checks and network policy.
-        return await _get_following_redirects(session, url, policy, settings, headers)
+        return await _get_following_redirects(
+            session, url, policy, settings, headers, transfer.context.referrer
+        )
 
     await SegmentedDownload(
         request=request,
@@ -492,7 +504,7 @@ async def _accept_response(
     transfer.last_modified = response.headers.get("Last-Modified")
     transfer.resumable = response.headers.get("Accept-Ranges", "").strip().lower() == "bytes"
     if transfer.part_path is None:
-        transfer.file_name = _choose_filename(response, directory)
+        transfer.file_name = _choose_filename(response, directory, transfer.context.suggested_name)
     _check_free_space(directory, transfer.total)
     if transfer.part_path is None:
         transfer.part_path = _create_part_file(directory, transfer.file_name or "download")
@@ -536,6 +548,7 @@ async def _get_following_redirects(
     policy: NetworkPolicy,
     settings: DownloadSettings,
     extra_headers: dict[str, str] | None = None,
+    referrer: str | None = None,
 ) -> aiohttp.ClientResponse:
     current = url
     for _ in range(settings.max_redirects + 1):
@@ -546,14 +559,24 @@ async def _get_following_redirects(
                 f"The server redirected to an address SDM refuses: {exc}"
             ) from None
         policy.check_url_host(parts.hostname or "")
-        response = await session.get(current, allow_redirects=False, headers=extra_headers)
+        headers = dict(extra_headers or {})
+        referer = referer_header(referrer, current)  # recomputed for every hop, like a browser
+        if referer is not None:
+            headers["Referer"] = referer
+        response = await session.get(current, allow_redirects=False, headers=headers or None)
         if response.status not in _REDIRECT_STATUSES:
             return response
         location = response.headers.get("Location")
         response.release()
         if not location:
             raise DownloadError("The server sent a redirect without a destination.")
-        current = urljoin(current, location.strip())
+        following = urljoin(current, location.strip())
+        if not check_redirect(current, following):
+            raise DownloadError(
+                "The server redirected from a secure (https) address to an insecure (http) one."
+                " SDM refuses that, as browsers do."
+            )
+        current = following
         log.info("Redirected to %s", redact_url(current))
     raise DownloadError(f"Too many redirects (more than {settings.max_redirects}).")
 
@@ -590,10 +613,15 @@ def parse_retry_after(value: str | None) -> float | None:
     return max(0.0, (when - datetime.now(UTC)).total_seconds())
 
 
-def _choose_filename(response: aiohttp.ClientResponse, directory: Path) -> str:
-    raw = filename_from_content_disposition(
-        response.headers.get("Content-Disposition")
-    ) or filename_from_url(str(response.url))
+def _choose_filename(
+    response: aiohttp.ClientResponse, directory: Path, suggested: str | None = None
+) -> str:
+    # The server's own name first, then the browser's suggestion (M8), then the URL's last part.
+    raw = (
+        filename_from_content_disposition(response.headers.get("Content-Disposition"))
+        or (suggested or "").strip()
+        or filename_from_url(str(response.url))
+    )
     # Leave room in the 260-character path limit for the ".sdmpart" and " (999)" suffixes.
     folder_length = len(os.path.abspath(directory).encode("utf-16-le")) // 2
     budget = WINDOWS_MAX_PATH - folder_length - 1 - len(PART_SUFFIX)
