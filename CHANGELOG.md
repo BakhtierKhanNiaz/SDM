@@ -8,6 +8,8 @@ while SDM is in 0.x.
 
 ### Added
 
+- M8 done: in the owner's own Chrome, a captured python.org download went to SDM with the
+  browser's name and page, and matched python.org's SHA-256.
 - M8b, the browser: opt-in automatic capture from the extension's toolbar panel (asks
   Chrome for the `downloads` permission when turned on), a minimum size, hand-back to
   Chrome when SDM can't take a download, right-click on video and audio players, and the
@@ -126,6 +128,11 @@ while SDM is in 0.x.
 
 ### Changed
 
+- Extension 0.2.1: capture runs before Chrome's Save As, a download handed back to Chrome is
+  never captured again (0.2.0 could make Save As reappear in a loop), and the toolbar panel
+  shows the last problem.
+- Docs: the M7 "host not found" was caused by registering from Claude's sandboxed shell, not by
+  Chrome needing a restart; the owner registers the host from their own terminal.
 - Every download now refuses a redirect from https to http, as browsers do (M8).
 - Resume puts an entry back in the queue (it starts when there's room) instead of starting it
   at once; Start now starts it at once. A temporary failure now waits for an automatic retry

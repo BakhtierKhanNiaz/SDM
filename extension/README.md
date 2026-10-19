@@ -22,8 +22,10 @@ IDM and Free Download Manager also hook into Chrome, so try SDM in a profile of 
 2. In that profile, open `chrome://extensions`, turn on **Developer mode** (top right), click
    **Load unpacked** and choose the folder `D:\Projects\SDM\extension\chrome`.
 3. Copy the **ID** shown on SDM's card: 32 letters from a to p.
-4. Register SDM's helper for that ID (it writes one per-user registry value and two files in
-   `%LOCALAPPDATA%\SDM\bridge`):
+4. In **your own** PowerShell window (Start, type PowerShell), in `D:\Projects\SDM`,
+   register SDM's helper for that ID. It writes one per-user registry value and two files in
+   `%LOCALAPPDATA%\SDM\bridge`. Don't let an AI assistant's sandboxed shell run this: its
+   registry changes aren't visible to your Chrome.
 
    ```powershell
    uv run python -m sdm.bridge.install --extension-id <the ID>
@@ -68,7 +70,7 @@ The toolbar icon shows a red **!** and its tooltip says why:
 
 | Tooltip | Meaning |
 |---|---|
-| SDM's browser bridge isn't installed for this extension | Chrome was already running when step 4 ran: quit it completely (every window, and the tray icon) and open it again. Otherwise step 4 hasn't run, or ran in another Windows account |
+| SDM's browser bridge isn't installed for this extension | Check in your own PowerShell: `reg query "HKCU\Software\Google\Chrome\NativeMessagingHosts\com.sdm.bridge"`. If it's missing, step 4 didn't run for your account (or ran in a sandbox): run it yourself, then restart Chrome |
 | ...installed for a different extension ID | The extension's ID changed: run step 4 with the new one |
 | SDM didn't start | SDM couldn't start within 15 seconds: start it by hand and try again |
 | Too many links are waiting in SDM | Five Add URL dialogs are already waiting: close some |

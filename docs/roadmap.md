@@ -13,7 +13,7 @@ and its tests have actually run and passed.
 | M5 | Parallel segmented downloads | Done (2026-10-19) |
 | M6 | Queue management and scheduling | Done (2026-10-19) |
 | M7 | Chrome extension and native messaging bridge | Done (2026-10-19) |
-| M8 | Browser handoff integrated with the download engine | Implemented and tested; owner's capture check pending |
+| M8 | Browser handoff integrated with the download engine | Done (2026-10-20) |
 | M9 | Interface, settings, notifications and usability | Not started |
 | M10 | Security, performance, regression testing and Windows packaging | Not started |
 
@@ -212,12 +212,16 @@ Acceptance, all met on 2026-10-19:
   `%LOCALAPPDATA%\SDM\bridge\com.sdm.bridge.json`, allowed origin limited to the owner's
   extension ID. The launcher, run through `cmd.exe` as Chrome does, refused a message with an
   extra field (`bad_request`) and wrote nothing else to stdout.
-- [x] Chrome finds and runs the registered host (2026-10-19). The owner's first try said
-  "host not found": that Chrome had been running since before the registration. A fresh
-  throwaway Chrome (same program, same Windows account) found it at once: an invalid link got
-  `bad_request`, and a valid one started SDM (throwaway data) and got `{"ok": true}`.
-  `scripts/chrome_bridge_check/check.mjs` repeats the first check; the install script and the
-  extension's tooltip now say to restart Chrome completely.
+  **Correction (2026-10-20):** Claude ran this registration from its sandboxed shell. The
+  registry value and files were visible only to programs started inside that sandbox, so the
+  owner's own Chrome kept answering "host not found" (`reg query` in the owner's terminal
+  found no key). The owner then registered it from their own PowerShell, which fixed it.
+  Registration must be run by the owner, in their own terminal.
+- [x] Chrome finds and runs the registered host (2026-10-19). A throwaway Chrome started from
+  Claude's shell found it: an invalid link got `bad_request`, and a valid one started SDM
+  (throwaway data) and got `{"ok": true}`. `scripts/chrome_bridge_check/check.mjs` repeats the
+  first check, but it only proves what the environment it runs in can see. (The explanation
+  given at the time, that Chrome had to be restarted, was wrong; see the correction above.)
 - [x] Owner's Chrome check (in the owner's Default profile rather than a separate one; IDM's
   extension is also installed there, which didn't interfere with the right-click item):
   - With SDM closed, a right-click handoff started SDM (`sdm.exe --from-browser`, 5:42:05 PM)
@@ -226,11 +230,12 @@ Acceptance, all met on 2026-10-19:
   - With SDM running, a handoff of python.org's `python-3.15.0-amd64.exe` was confirmed and
     completed: 45,383,680 bytes, the size the server announced, category Programs, in
     about 9 s. The file was not opened or run.
-  - The first two tries said "host not found" while the extension and registration were
-    correct; after Chrome was fully closed and reopened it worked. The exact cause of those
-    failures wasn't captured (Chrome's log was only switched on for the try that worked).
+  - The first two tries said "host not found"; the try that worked used a Chrome that Claude
+    had started from its sandboxed shell (to switch logging on), which could see the
+    sandboxed registration. The owner's own Chrome only worked after the owner registered the
+    host themselves (M8, 2026-10-20).
 
-## M8: Browser handoff integrated with the download engine
+## M8: Browser handoff integrated with the download engine (done)
 
 Done on branch `m8/browser-integration` (ADR-0015, spec FEAT-007):
 
@@ -245,10 +250,27 @@ Checked on 2026-10-19: 570 Python tests and 36 extension tests pass; ruff is cle
 throwaway headless Chrome, the new extension loaded, and a full version 2 message (referrer,
 name, size, `source: capture`) went through the host to a throwaway SDM: `{"ok": true}`.
 
-Remaining before M8 is **Done**:
+Fix after the owner's first capture test (`63ec0bf`, extension 0.2.1): with extension 0.2.0,
+one click made Chrome's Save As appear again and again. Capture ran at `onCreated` (after Save
+As), SDM's handoff failed ("host not found", see the M7 correction), and the download handed
+back to Chrome was captured again because Chrome hadn't marked it with `byExtensionId`. Capture
+now runs in `onDeterminingFilename`, before Save As; a handed-back address is left alone for
+60 s; the toolbar panel shows the last problem.
 
-- [ ] Owner's Chrome check: reload the extension; turn capture on (Chrome's prompt); a normal
-  click on python.org's `python-3.14.7-embed-amd64.zip` opens SDM's dialog with the name and
-  size, Chrome's copy disappears, and SDM's file matches python.org's SHA-256; with SDM unable
-  to take it, Chrome downloads it instead; capture off leaves downloads in Chrome. Also note
-  whether Chrome's Save As dialog appears first when "Ask where to save" is on.
+Acceptance, met on 2026-10-20 in the owner's own Chrome (Default profile, capture on, the host
+registered by the owner from their own PowerShell):
+
+- [x] A normal left-click on python.org's "Windows embeddable package (64-bit)" opened SDM's
+  "Captured from Chrome" dialog. SDM saved `python-3.14.7-embed-amd64 (5).zip`, 12,673,227
+  bytes, completed; its history (schema version 5, the owner's real history, entry #1) keeps
+  the browser's name `python-3.14.7-embed-amd64.zip` and the page `www.python.org`. The
+  SHA-256 matches python.org's published value (checked in the owner's own terminal).
+- [x] Hand-back: while the host couldn't be found, the panel said why and Chrome downloaded the
+  file itself, showing Save As once (extension 0.2.1).
+- [x] "Ask where to save each file" is on in the owner's Chrome. With 0.2.0, Chrome's Save As
+  appeared before capture; 0.2.1 captures before it.
+- Not checked separately: turning capture off again (covered by `popup.test.js`).
+
+Note: the owner's real SDM history started with this download. The histories of the M2-M7
+demos were written from Claude's sandboxed shell and are not in the owner's
+`%LOCALAPPDATA%\SDM` (their downloaded files in Downloads are real).

@@ -240,7 +240,7 @@ the partial file.
 - All tests above pass; ruff is clean; `node --test` passes.
 - With capture on in the owner's Chrome, a normal click on python.org's
   `python-3.14.7-embed-amd64.zip` opens SDM's dialog, Chrome's own copy disappears, and SDM's
-  file matches python.org's SHA-256.
+  file matches python.org's SHA-256. Done 2026-10-20 (roadmap).
 
 ## Template
 

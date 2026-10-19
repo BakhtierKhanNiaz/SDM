@@ -39,7 +39,7 @@ session), not that the feature was studied in full.
 | Scheduled downloads | Tested | M6 | Real-world: a python.org download waited for its window and started 1.7 s after it opened (roadmap). Start/stop times and days, overnight windows; only starts and pauses (`test_queue_planner.py`, `test_queue.py`). IDM's scheduler not observed |
 | Categories | Tested | M6 | Same categories IDM showed (OBS-001, 002, 005) plus Music, Video, Programs; labels by default, IDM-style subfolders as a setting (off) |
 | Browser-to-desktop handoff (explicit) | Tested | M7 | ADR-0014, FEAT-006: right-click "Download with SDM" on links opens Add URL filled in; starts SDM if needed. Owner's Chrome check passed (roadmap). IDM's browser integration not observed |
-| Automatic browser download capture (with consent) | Tested | M8 | ADR-0015, FEAT-007: opt-in from the toolbar panel (Chrome's permission prompt), minimum size, hand-back to Chrome. Referer and the browser's name forwarded; no cookies. Owner's check pending. IDM's capture not observed |
+| Automatic browser download capture (with consent) | Tested | M8 | ADR-0015, FEAT-007: opt-in from the toolbar panel (Chrome's permission prompt), minimum size, hand-back to Chrome. Referer and the browser's name forwarded; no cookies. Owner's check passed: a captured python.org download matched its SHA-256 (roadmap). IDM's capture not observed |
 | Speed limiter | Not investigated | M9 | |
 | Connection limits | Not investigated | M9 | |
 | Integrity verification (checksums) | Not investigated | M9 | |

@@ -325,9 +325,11 @@ deleted. A changed decision gets a new record that supersedes the old one.
   reach localhost); the host downloading by itself (it would bypass the window, queue and
   history); passing the URL as a command-line argument to a new SDM (a second copy, and the
   command line is visible to other programs).
-- **Observed during setup (2026-10-19):** a Chrome that was already running when the host was
-  registered answered "Specified native messaging host not found"; a newly started Chrome
-  found the same registration. Registration is therefore followed by a full Chrome restart.
+- **Observed during setup (2026-10-19, corrected 2026-10-20):** the owner's Chrome answered
+  "Specified native messaging host not found" because the registration had been run from
+  Claude's sandboxed shell, whose registry writes only programs inside the sandbox see. The
+  owner must run the install command in their own terminal. (First thought to be a Chrome
+  restart issue; that was wrong.)
 - **Consequences:** No new dependencies. Same-user programs that can read the key can also
   hand SDM links, but only through the same schema and confirmation dialog. The pipe accepts
   remote (SMB) clients by default; they would need this account's credentials and the key.
@@ -382,8 +384,9 @@ deleted. A changed decision gets a new record that supersedes the old one.
     and the page's host only. Editing the address drops the hints.
 - **Consequences:** No new dependencies. The extension still has two required permissions.
   A download Chrome restarts after a hand-back is requested again from the start. POST-only
-  downloads can't be captured correctly (SDM requests with GET). Whether Chrome's own Save As
-  dialog appears before capture when "Ask where to save each file" is on was not yet observed.
+  downloads can't be captured correctly (SDM requests with GET). Observed 2026-10-20: with
+  "Ask where to save each file" on, capturing at `onCreated` let Save As appear first, hence
+  `onDeterminingFilename`; with it, the owner's capture went straight to SDM's dialog.
   Tests: `test_referrer.py`, `test_browser_context.py`, `test_controller_browser_context.py`,
   `test_bridge_v2_messages.py`, `test_window_handoff.py`, and the extension's
   `capture.test.js`, `background.test.js`, `popup.test.js`.
