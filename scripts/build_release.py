@@ -27,6 +27,8 @@ RUNTIME = ["aiohttp", "aiohappyeyeballs", "aiosignal", "attrs", "frozenlist", "i
 ISCC_PLACES = [
     Path(r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe"),
     Path(r"C:\Program Files\Inno Setup 6\ISCC.exe"),
+    # a per-user install of Inno Setup
+    Path.home() / "AppData" / "Local" / "Programs" / "Inno Setup 6" / "ISCC.exe",
 ]
 
 
@@ -56,24 +58,55 @@ def notices() -> str:
     return "\n".join(parts) + "\n"
 
 
-def build(installer: bool) -> int:
+def find_iscc() -> Path | None:
+    """Inno Setup's compiler: the usual folders, then wherever its installer recorded itself."""
+    for place in ISCC_PLACES:
+        if place.is_file():
+            return place
+    import winreg
+
+    key_name = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1"
+    for root, view in (
+        (winreg.HKEY_LOCAL_MACHINE, winreg.KEY_WOW64_32KEY),
+        (winreg.HKEY_LOCAL_MACHINE, winreg.KEY_WOW64_64KEY),
+        (winreg.HKEY_CURRENT_USER, 0),
+    ):
+        try:
+            with winreg.OpenKey(root, key_name, 0, winreg.KEY_READ | view) as key:
+                folder, _ = winreg.QueryValueEx(key, "InstallLocation")
+        except OSError:
+            continue
+        candidate = Path(folder) / "ISCC.exe"
+        if candidate.is_file():
+            return candidate
+    found = shutil.which("ISCC")
+    return Path(found) if found else None
+
+
+def build(installer: bool, *, skip_build: bool = False, iscc: Path | None = None) -> int:
     version = metadata.version("sdm")
-    subprocess.run(  # noqa: S603 - fixed arguments
-        [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean",
-         "--distpath", str(DIST), "--workpath", str(ROOT / "build"),
-         str(ROOT / "packaging" / "sdm.spec")],
-        check=True, cwd=ROOT,
-    )  # fmt: skip
-    (APP / "THIRD-PARTY-NOTICES.txt").write_text(notices(), encoding="utf-8")
-    print(f"Built {APP} (SDM {version})")
+    if skip_build and (APP / "SDM.exe").is_file():
+        print(f"Using the existing {APP}")
+    else:
+        subprocess.run(  # noqa: S603 - fixed arguments
+            [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean",
+             "--distpath", str(DIST), "--workpath", str(ROOT / "build"),
+             str(ROOT / "packaging" / "sdm.spec")],
+            check=True, cwd=ROOT,
+        )  # fmt: skip
+        (APP / "THIRD-PARTY-NOTICES.txt").write_text(notices(), encoding="utf-8")
+        print(f"Built {APP} (SDM {version})")
     if not installer:
         return 0
-    iscc = next((p for p in ISCC_PLACES if p.is_file()), None) or (
-        Path(found) if (found := shutil.which("ISCC")) else None
-    )
-    if iscc is None:
-        print("Inno Setup's ISCC.exe wasn't found: install Inno Setup 6 first.", file=sys.stderr)
+    iscc = iscc or find_iscc()
+    if iscc is None or not iscc.is_file():
+        print(
+            "Inno Setup's ISCC.exe wasn't found. Install Inno Setup 6, or pass its path with "
+            '--iscc "C:\\...\\ISCC.exe".',
+            file=sys.stderr,
+        )
         return 1
+    print(f"Using {iscc}")
     subprocess.run(  # noqa: S603 - fixed arguments
         [str(iscc), f"/DAppVersion={version}", f"/DSourceDir={APP}", f"/O{DIST}",
          str(ROOT / "packaging" / "sdm.iss")],
@@ -86,7 +119,12 @@ def build(installer: bool) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build the installable SDM.")
     parser.add_argument("--installer", action="store_true", help="also build the installer")
-    return build(parser.parse_args().installer)
+    parser.add_argument(
+        "--skip-build", action="store_true", help="reuse an existing dist\\SDM (installer only)"
+    )
+    parser.add_argument("--iscc", type=Path, help="path to Inno Setup's ISCC.exe")
+    args = parser.parse_args()
+    return build(args.installer, skip_build=args.skip_build, iscc=args.iscc)
 
 
 if __name__ == "__main__":

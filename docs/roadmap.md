@@ -322,8 +322,10 @@ On branch `m10/hardening` (ADR-0017):
 
 Remaining before M10 is **Done**:
 
-- [ ] The owner installs Inno Setup 6 (own PowerShell, machine scope); Claude builds
-  `dist\SDM-Setup-0.1.0.exe`.
+- [x] The owner installed Inno Setup 6 and built `dist\SDM-Setup-0.1.0.exe` (30.2 MB) in their
+  own PowerShell (2026-10-20; Claude's sandbox can't see the Inno Setup install).
+  `build_release.py` now also finds Inno Setup through its uninstall registry entry, and has
+  `--skip-build` (reuse `dist\SDM`) and `--iscc PATH`.
 - [ ] The owner installs SDM with it, starts it from the Start menu (history still there),
   downloads python.org's embeddable zip with its SHA-256 (Completed · verified), sets up
   Chrome integration from Help and captures one download, then uninstalls (Start-menu entry
