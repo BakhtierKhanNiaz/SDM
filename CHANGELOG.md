@@ -8,6 +8,14 @@ while SDM is in 0.x.
 
 ### Added
 
+- M9b, the window: Tools > Settings (default folder, remember the last folder, connections
+  per download, speed limit, notifications, keep running in the tray), a SHA-256 box in Add
+  URL, a tray icon with Pause all / Resume all / Quit, Windows notifications, a right-click
+  menu with Show in folder, Copy address and Verify checksum, total speed in the status bar,
+  and a remembered window layout. No "Open file", by design.
+- M9a, the engine: one speed limit shared by every download and connection, connections per
+  download, SHA-256 checks of finished files (history schema version 6), saved preferences.
+  ADR-0016, spec FEAT-008; 58 new tests (628 in total).
 - M8 done: in the owner's own Chrome, a captured python.org download went to SDM with the
   browser's name and page, and matched python.org's SHA-256.
 - M8b, the browser: opt-in automatic capture from the extension's toolbar panel (asks

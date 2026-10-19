@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from sdm.bridge.protocol import DownloadRequest
+from sdm.core.checksums import InvalidChecksumError, normalize_sha256
 from sdm.core.downloads import BrowserContext, DownloadRecord
 from sdm.core.errors import InvalidURLError
 from sdm.core.units import format_size
@@ -51,6 +52,11 @@ class AddUrlDialog(QDialog):
         folder_row = QHBoxLayout()
         folder_row.addWidget(self.folder_edit)
         folder_row.addWidget(browse)
+        self.sha256_edit = QLineEdit()
+        self.sha256_edit.setPlaceholderText("Optional: the SHA-256 the publisher lists")
+        self.sha256_edit.setToolTip(
+            "When the download finishes, SDM checks the file against this value (M9)."
+        )
         self.start_check = QCheckBox("Start the download now (otherwise it waits, paused)")
         self.start_check.setChecked(True)
         self.local_network_check = QCheckBox(
@@ -82,6 +88,7 @@ class AddUrlDialog(QDialog):
         form = QFormLayout()
         form.addRow("Address:", self.url_edit)
         form.addRow("Save to:", folder_row)
+        form.addRow("SHA-256:", self.sha256_edit)
         layout = QVBoxLayout(self)
         layout.addLayout(form)
         layout.addWidget(self.browser_label)
@@ -106,6 +113,14 @@ class AddUrlDialog(QDialog):
     @property
     def allow_local_network(self) -> bool:
         return self.local_network_check.isChecked()
+
+    @property
+    def expected_sha256(self) -> str | None:
+        """The checksum typed in, normalized, or None (accept() has checked it)."""
+        try:
+            return normalize_sha256(self.sha256_edit.text())
+        except InvalidChecksumError:
+            return None
 
     @property
     def start_now(self) -> bool:
@@ -147,6 +162,11 @@ class AddUrlDialog(QDialog):
             return
         if not self.folder_edit.text().strip() or not self.folder.is_dir():
             self._show_error(f"The folder doesn't exist: {self.folder_edit.text().strip()}")
+            return
+        try:
+            normalize_sha256(self.sha256_edit.text())
+        except InvalidChecksumError as exc:
+            self._show_error(str(exc))
             return
         super().accept()
 

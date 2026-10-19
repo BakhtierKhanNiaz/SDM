@@ -1,6 +1,6 @@
 # Data model
 
-Status: **M8, schema version 5.** Code: `sdm/core/downloads.py` (states, record) and
+Status: **M9, schema version 6.** Code: `sdm/core/downloads.py` (states, record) and
 `sdm/storage/database.py` (SQLite). Decisions: ADR-0010.
 
 ## Where it lives
@@ -35,6 +35,8 @@ SQLite runs in WAL mode, so `sdm.db-wal` and `sdm.db-shm` appear next to it whil
 | `resumable` | 0/1 | The server advertised (`Accept-Ranges: bytes`) or proved (a `206`) that it can resume (M4) |
 | `referrer` | text, null | The page a browser download came from (M8). Sent as the Referer under the browser's rules; may hold tokens, so never logged |
 | `suggested_name` | text, null | The browser's bare file name, used when the server gives none (M8) |
+| `expected_sha256` | text, null | The SHA-256 the user gave, 64 lowercase hex digits (M9) |
+| `checksum_state` | text, null | `checking`, `verified`, `mismatch` or `missing` (M9) |
 
 Index: `downloads_by_url` (for the "you downloaded this before" check).
 
@@ -65,8 +67,10 @@ queued ──▶ downloading ──▶ completed
 ## Versions and upgrades
 
 - Table `settings` (key, value): `queue.limit`, `queue.schedule` (JSON),
-  `categories.subfolders` (M6). Bad values fall back to the defaults.
-- `PRAGMA user_version` holds the schema version (5 now; version 5 added `referrer` and
+  `categories.subfolders` (M6); `prefs.*` (SDM's Settings) and `ui.geometry`, `ui.header`
+  (window layout, base64) (M9). Bad values fall back to the defaults.
+- `PRAGMA user_version` holds the schema version (6 now; version 6 added `expected_sha256`
+  and `checksum_state`; version 5 added `referrer` and
   `suggested_name`; version 4 added the queue columns
   and the settings table; version 3 added `segments`; version 2 rebuilt the table to
   allow `paused` and add the resume columns, copying every row with its id). Each entry in `_MIGRATIONS` upgrades

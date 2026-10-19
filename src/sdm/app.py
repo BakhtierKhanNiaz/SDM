@@ -59,6 +59,9 @@ def main(argv: list[str] | None = None) -> int:
     app.aboutToQuit.connect(controller.shutdown)  # a second safety net besides closeEvent
 
     window = MainWindow(controller)
+    # The window decides when SDM ends (it may only hide to the tray, M9).
+    app.setQuitOnLastWindowClosed(False)
+    window.quit_confirmed.connect(app.quit)
     window.show()
     receiver.received.connect(window.receive_handoff)
     window.handoff_closed.connect(receiver.done)

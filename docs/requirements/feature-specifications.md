@@ -242,6 +242,31 @@ the partial file.
   `python-3.14.7-embed-amd64.zip` opens SDM's dialog, Chrome's own copy disappears, and SDM's
   file matches python.org's SHA-256. Done 2026-10-20 (roadmap).
 
+## FEAT-008: Settings, speed limit, checksums, tray and notifications (M9)
+
+- **Purpose:** Day-to-day comfort: limit bandwidth, check files, be told when downloads finish,
+  find the files.
+- **Based on:** Project goals (brief §1). IDM: completion dialog with "Don't show this dialog
+  again" (OBS-001). Rules: ADR-0016.
+
+| ID | Requirement | Tests |
+|---|---|---|
+| FR-1 | One speed limit for all downloads and connections; changes act at once | `test_limiter.py`, `test_split_connections_share_the_limit`, `test_lifting_the_limit_speeds_up_a_running_download` |
+| FR-2 | Connections per download 1-8; 1 never splits | `test_one_connection_per_download_never_splits` |
+| FR-3 | SHA-256 accepted as printed; malformed refused; finished files verified, mismatch kept | `test_checksums_and_preferences.py`, `test_a_matching_checksum_is_verified`, `test_a_mismatch_keeps_the_file_and_says_so`, `test_add_url_checks_the_sha256_box` |
+| FR-4 | Settings saved; damaged values fall back to defaults | `test_preferences_default_and_round_trip`, `test_damaged_settings_fall_back_to_defaults`, `test_settings_dialog_round_trip` |
+| FR-5 | Notifications for finished, verified, mismatch and final failures; can be switched off | `test_notifications_follow_the_downloads`, `test_finishing_and_failing_are_announced_once`, `test_notifications_can_be_switched_off` |
+| FR-6 | Optional close-to-tray; Exit/Quit really quit | `test_closing_hides_to_the_tray_when_chosen`, `test_without_the_option_closing_quits` |
+| FR-7 | Right-click menu; Show in folder only for SDM's own finished file; no Open | `test_the_right_click_menu`, `test_show_in_folder_only_for_sdms_own_finished_file` |
+| FR-8 | Total speed in the status bar; window size, columns and last folder remembered | `test_status_bar_shows_the_total_speed`, `test_the_window_layout_is_remembered`, `test_the_last_folder_is_offered_next_time` |
+
+### Acceptance criteria
+
+- All tests above pass; ruff is clean.
+- The owner, in their own SDM: python.org's `python-3.14.7-embed-amd64.zip` with a 1 MB/s limit
+  takes about 12 s, finishes as "Completed · verified" with the published SHA-256, and a
+  Windows notification appears.
+
 ## Template
 
 ```markdown

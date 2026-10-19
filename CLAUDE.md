@@ -30,6 +30,9 @@ milestone**; it is the full mission, rules and milestone list.
   write reaches Python as `FileNotFoundError` even though the folder exists; SDM translates it.
 - This shell's PATH may predate the Git install: if `git` isn't found, use the full path above.
 - Windows long paths are disabled: full paths are limited to about 260 characters.
+- Claude's shell is sandboxed: its registry (HKCU) and `%LOCALAPPDATA%` writes are invisible to
+  the owner's own apps (found in M8: the bridge registration). The owner runs anything that must
+  take effect on their PC (registration, demos in their own SDM) in their own terminal.
 - IDM 6.42 build 22 and Free Download Manager are installed and registered as Chrome native
   messaging hosts. Test SDM's extension in a separate Chrome profile; give SDM's host a unique name.
 

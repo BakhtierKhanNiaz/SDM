@@ -3,8 +3,8 @@
 A personal-use download manager for Windows. It's modelled on the observable behavior of
 Internet Download Manager (IDM) and written from scratch (clean-room).
 
-> **Status: M8, browser integration.** Right-click a link or player in Chrome, or turn on
-> automatic capture in the extension's panel ([set up](extension/README.md)). See
+> **Status: M9, settings and comfort.** Limit the speed, check files against their SHA-256,
+> get notified, and find files with Show in folder (Tools > Settings). See
 > [docs/roadmap.md](docs/roadmap.md).
 
 ## Requirements

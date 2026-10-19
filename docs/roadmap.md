@@ -14,7 +14,7 @@ and its tests have actually run and passed.
 | M6 | Queue management and scheduling | Done (2026-10-19) |
 | M7 | Chrome extension and native messaging bridge | Done (2026-10-19) |
 | M8 | Browser handoff integrated with the download engine | Done (2026-10-20) |
-| M9 | Interface, settings, notifications and usability | Not started |
+| M9 | Interface, settings, notifications and usability | Implemented and tested; owner's demo pending |
 | M10 | Security, performance, regression testing and Windows packaging | Not started |
 
 ## M0: Environment inspection (done)
@@ -274,3 +274,23 @@ registered by the owner from their own PowerShell):
 Note: the owner's real SDM history started with this download. The histories of the M2-M7
 demos were written from Claude's sandboxed shell and are not in the owner's
 `%LOCALAPPDATA%\SDM` (their downloaded files in Downloads are real).
+
+## M9: Interface, settings, notifications and usability
+
+Done on branch `m9/usability` (ADR-0016, spec FEAT-008):
+
+- M9a (`d6a5e57`): the shared speed limit, connections per download, SHA-256 checks (history
+  schema version 6), SDM's saved preferences, and signals for notifications.
+- M9b: the Settings dialog, the SHA-256 box in Add URL, the tray icon (optional close-to-tray),
+  Windows notifications, the list's right-click menu, Show in folder (no Open), Copy address,
+  Verify checksum, total speed in the status bar, remembered window layout and last folder.
+
+Checked on 2026-10-20: 628 Python tests and 38 extension tests pass; ruff is clean. In tests a
+3 MiB download split over several connections was held to 1 MiB/s (about 3 s). Screenshots of
+the window, the menu and the Settings tabs (drawn off-screen with throwaway data) look right.
+
+Remaining before M9 is **Done**:
+
+- [ ] Owner's demo in their own SDM: Settings > Connections, limit 1024 KB/s; Add URL with
+  python.org's `python-3.14.7-embed-amd64.zip` and its published SHA-256; it takes about 12 s,
+  ends "Completed · verified", and a Windows notification appears. Show in folder selects it.

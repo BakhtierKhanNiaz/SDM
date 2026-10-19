@@ -1,6 +1,6 @@
 # Security model
 
-Status: **M8.** Rules marked *Implemented* have code and tests; the others are planned for
+Status: **M9.** Rules marked *Implemented* have code and tests; the others are planned for
 the milestone listed.
 
 ## Trust boundaries
@@ -21,7 +21,7 @@ the milestone listed.
 | 2 | **Destinations:** ADR-0007. Loopback, link-local, multicast, unspecified and reserved addresses are blocked. Private networks need `--allow-local-network`. IP literals are checked per hop, and hostnames after DNS inside aiohttp's resolver. | Implemented (M2) — `sdm.engine.policy` |
 | 3 | **Filenames:** one sanitized Windows component (ADR-0008). Never written outside the chosen folder. Length fits the 260-character path limit. Bidi-control spoofing removed. | Implemented (M2) — `sdm.core.filenames` |
 | 4 | **No overwrite:** existing files are never replaced. A taken name becomes `name (n).ext`. | Implemented (M2) |
-| 5 | **Never execute** downloaded files, and never open them automatically. | Holds: no code opens downloads |
+| 5 | **Never execute** downloaded files, and never open them automatically. SDM has no "Open file": only "Show in folder", which selects the file in Explorer (M9). A checksum mismatch warns not to run the file. | Holds: no code opens downloads (`test_the_right_click_menu`) |
 | 6 | **No local HTTP server.** Browser communication goes only through Chrome Native Messaging, restricted to SDM's own extension ID. The host reaches the app over a named pipe that both sides authenticate with a per-user key (`%LOCALAPPDATA%\SDM\bridge.key`); no network port is opened (ADR-0014). | Implemented (M7) — `test_bridge_pipe.py`, `test_bridge_install.py` |
 | 7 | **Browser messages:** exactly `{version: 1, type: "download", url}` or version 2 with the optional, strictly checked hints of ADR-0015 (a bare file name, never a path), at most 64 KiB, checked in the host and again in the app. No filesystem operations or paths. Generic error replies. JSON only, never pickle. A handoff only fills in the Add URL dialog; the user confirms. | Implemented (M7) — `test_bridge_hostile_messages.py`, `test_bridge_host.py`, `test_window_handoff.py` |
 | 8 | **Secrets:** logs show URLs without credentials or query strings (`redact_url`). Cookies and authorization headers are never logged. | Implemented for URLs (M2); headers when auth arrives |
@@ -30,7 +30,7 @@ the milestone listed.
 | 11 | **Proxies:** proxy environment variables are ignored, because a proxy would hide the real destination from rule 2. | Implemented (M2) |
 | 12 | **History database:** per-user `%LOCALAPPDATA%\SDM\sdm.db`. Full URLs are stored (they may hold tokens, ADR-0010) but never logged. Every query uses `?` parameters. A corrupted file is set aside, never deleted. | Implemented (M3a) — `sdm.storage.database`, `test_urls_are_stored_as_data_not_sql` |
 | 14 | **Resume integrity:** a resume continues the file only on a `206` whose `Content-Range` starts exactly where the partial file ends, with the same total and version tags (or a matching 64-byte overlap). Otherwise it restarts, so versions are never mixed. `Content-Range` is parsed strictly (ASCII digits, consistent bounds) (ADR-0011). | Implemented (M4) — `tests/integration/test_resume.py`, `test_content_range.py` |
-| 15 | **Partial-file paths from the database** are used or deleted only if they are `.sdmpart` files directly inside the entry's folder, so a tampered database can't make SDM write or delete elsewhere. | Implemented (M4) — `test_partial_path_outside_the_download_folder_is_ignored` |
+| 15 | **Paths from the database** are used only inside the entry's folder: partial files must be `.sdmpart` files directly in it (M4), and Show in folder and checksum checks use only the finished file directly in it (M9, `finished_file`), so a tampered database can't point SDM elsewhere. | Implemented (M4, M9) — `test_partial_path_outside_the_download_folder_is_ignored`, `test_show_in_folder_only_for_sdms_own_finished_file` |
 | 16 | **Segmented integrity:** parts come only from `206` replies with the exact requested `Content-Range` and the same version tags, at the final URL through the same redirect checks and policy. Doubt means one connection; a saved parts map that doesn't cover the file exactly is ignored (ADR-0012). | Implemented (M5) — `test_segmented.py`, `test_segments.py` |
 | 13 | **Engine thread:** the window never runs network code, and only the main thread writes the database (ADR-0009). Every download submitted to the manager still goes through rule 2's policy. | Implemented (M3a) — `test_default_policy_blocks_this_computer` |
 

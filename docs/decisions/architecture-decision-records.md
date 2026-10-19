@@ -390,3 +390,38 @@ deleted. A changed decision gets a new record that supersedes the old one.
   Tests: `test_referrer.py`, `test_browser_context.py`, `test_controller_browser_context.py`,
   `test_bridge_v2_messages.py`, `test_window_handoff.py`, and the extension's
   `capture.test.js`, `background.test.js`, `popup.test.js`.
+
+## ADR-0016: One shared speed limit, checksum checks, and a tray that only hides
+
+- **Date:** 2026-10-20 · **Status:** Accepted (M9 plan approved by the project owner)
+- **Context:** M9 adds the brief's speed and connection limits, integrity checks, settings and
+  notifications. IDM's Options dialog, tray and speed limiter were not observed.
+- **Decision:**
+  - **Speed limit:** one limit for all downloads together (owner's choice), off by default.
+    `sdm.engine.limiter.SpeedLimiter` is a token bucket on the engine thread: every chunk of
+    every connection takes its size from it, so splitting can't exceed the limit; unused
+    allowance builds up for at most 0.5 s; waiting readers look again every 0.25 s, so a new
+    limit (applied with `DownloadManager.set_speed_limit`) acts on running downloads at once.
+  - **Connections per download:** 1-8 (default 8), applied to downloads started afterwards.
+    It can only lower what the controller was given; 1 never splits.
+  - **Checksums:** an optional SHA-256 in Add URL (accepted as publishers print it: any case,
+    spaces or line breaks, a `sha256:` prefix), or "Verify checksum..." on a finished entry. The
+    file is hashed on a worker thread; the entry records `verified`, `mismatch` or `missing`
+    (history schema version 6). A mismatched file is **kept**, never deleted (owner's choice),
+    and the status and notification say not to run it.
+  - **Settings:** `sdm.ui.preferences.Preferences` in the history's settings table, each value
+    checked when read (damaged values fall back to defaults). The Settings dialog has General
+    (default folder, remember the last folder), Connections and Notifications tabs.
+  - **Tray and closing:** a tray icon with Show, Add URL, Pause all, Resume all and Quit.
+    "Keep SDM running in the tray when I close the window" is off by default (owner's choice);
+    with it on, closing only hides the window, and File > Exit or the tray's Quit really quit.
+    The window decides when SDM ends (`quit_confirmed`), not "last window closed".
+  - **Notifications:** Windows notifications from the tray icon, on by default: finished,
+    finished and verified, checksum mismatch, failed for good (not while an automatic retry
+    is pending). Never a dialog, so they can't interrupt.
+  - **Files:** "Show in folder" (and double-click) opens Explorer with the file selected, only
+    for the entry's own finished file directly in its folder (`finished_file`). There is **no
+    "Open file"** (owner's choice): opening a downloaded program would run it (rule 5).
+- **Consequences:** No new dependencies. The window remembers its size and column widths.
+  Tests run with the tray simulated (`isSystemTrayAvailable` patched): whether Windows shows
+  the notifications is checked by the owner.

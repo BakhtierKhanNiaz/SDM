@@ -24,6 +24,7 @@ from sdm.core.checksums import CHECKING, MISMATCH, MISSING, VERIFIED, normalize_
 from sdm.core.downloads import BrowserContext, DownloadRecord, DownloadState
 from sdm.core.filenames import filename_from_url
 from sdm.core.progress import TransferMeter
+from sdm.core.units import format_speed
 from sdm.core.urls import validate_url
 from sdm.engine.http_download import is_own_part_file
 from sdm.engine.manager import (
@@ -50,6 +51,7 @@ from sdm.ui.preferences import Preferences, load_preferences, save_preferences
 log = logging.getLogger(__name__)
 
 SAVE_PROGRESS_EVERY = 1.0  # seconds between progress writes to the database, per download
+SUMMARY_EVERY = 1.0  # seconds between status-bar updates while downloading (total speed)
 PUMP_EVERY_MS = 30_000  # also check the queue twice a minute (schedule times, retry times)
 ENGINE_CAPACITY = 32  # the planner enforces the real limit; this is only a safety net
 
@@ -128,6 +130,7 @@ class DownloadController(QObject):
         self._latest: dict[int, int] = {}  # bytes received, for writes on the final event
         self._last_saved: dict[int, float] = {}
         self._running = False
+        self._last_summary = 0.0
 
     # ----- lifecycle -----
 
@@ -469,6 +472,8 @@ class DownloadController(QObject):
             download_id, received, total, meter.speed, meter.time_left(total), connections
         )
         now = time.monotonic()
+        if now - self._last_summary >= SUMMARY_EVERY:
+            self._emit_summary()  # the status bar's total speed
         if now - self._last_saved.get(download_id, 0.0) >= SAVE_PROGRESS_EVERY:
             self._last_saved[download_id] = now
             self.store.set_progress(download_id, received)
@@ -512,8 +517,14 @@ class DownloadController(QObject):
         self.model.set_records(self.store.list_all())
         self._emit_summary()
 
+    def total_speed(self) -> float | None:
+        """Bytes per second of all running downloads together, once known."""
+        speeds = [m.speed for m in self._meters.values() if m.speed is not None]
+        return sum(speeds) if speeds else None
+
     def _emit_summary(self) -> None:
-        self.summary_changed.emit(summarize(self.model.records()))
+        self._last_summary = time.monotonic()
+        self.summary_changed.emit(summarize(self.model.records(), self.total_speed()))
 
 
 def _digest(future: Future) -> str | None:
@@ -523,8 +534,8 @@ def _digest(future: Future) -> str | None:
         return None
 
 
-def summarize(records: list[DownloadRecord]) -> str:
-    """Status-bar line, e.g. "2 downloading, 1 waiting, 1 paused · 5 completed"."""
+def summarize(records: list[DownloadRecord], speed: float | None = None) -> str:
+    """Status-bar line, e.g. "2 downloading, 1 waiting · 5 completed · 1.2 MB/s"."""
     if not records:
         return "No downloads yet"
     count = {state: 0 for state in DownloadState}
@@ -538,4 +549,7 @@ def summarize(records: list[DownloadRecord]) -> str:
     if count[DownloadState.PAUSED]:
         parts.append(f"{count[DownloadState.PAUSED]} paused")
     done = f"{count[DownloadState.COMPLETED]} completed"
-    return f"{', '.join(parts)} · {done}" if parts else f"Ready · {done}"
+    line = f"{', '.join(parts)} · {done}" if parts else f"Ready · {done}"
+    if count[DownloadState.DOWNLOADING] and speed is not None:
+        line += f" · {format_speed(speed)}"
+    return line
