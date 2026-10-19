@@ -15,7 +15,7 @@ and its tests have actually run and passed.
 | M7 | Chrome extension and native messaging bridge | Done (2026-10-19) |
 | M8 | Browser handoff integrated with the download engine | Done (2026-10-20) |
 | M9 | Interface, settings, notifications and usability | Done (2026-10-20) |
-| M10 | Security, performance, regression testing and Windows packaging | In progress (M10a done) |
+| M10 | Security, performance, regression testing and Windows packaging | In progress (M10a, M10b done) |
 
 ## M0: Environment inspection (done)
 
@@ -310,5 +310,8 @@ On branch `m10/hardening` (ADR-0017):
   clients; seeded fuzz tests of every parser of untrusted data, which found and fixed five
   bugs; a rotating, redacted log file; a crash safety net; Help > Open log folder and About;
   `pip-audit`: no known vulnerabilities.
-- M10b (next): performance measurements, `scripts/check_all.py`, flakiness runs.
-- M10c: PyInstaller build and a per-user Inno Setup installer.
+- M10b: performance measurements ([research/performance-m10.md](research/performance-m10.md)),
+  which found that pre-sizing a split download's file wrote the whole file as zeros on the
+  event loop (fixed with `set_file_size`); `scripts/check_all.py` runs every check;
+  five full runs in a row passed (670 tests each, 2026-10-20): no flaky tests found.
+- M10c (next): PyInstaller build and a per-user Inno Setup installer.

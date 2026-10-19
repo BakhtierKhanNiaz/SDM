@@ -84,3 +84,28 @@ def test_decode_rejects_maps_that_dont_fit(text):
 def test_decode_needs_the_total():
     assert decode_segments("[[0, 999, 0]]", None) is None
     assert decode_segments(None, 1000) is None
+
+
+def test_presizing_a_part_file_writes_nothing(tmp_path):
+    """Regression (M10): Python's truncate() grows a file on Windows by writing zeros, which
+    wrote a 1 GiB split download's whole file before it could start, on the event loop."""
+    import os
+    import stat
+    import time
+
+    from sdm.engine.segmented import prepare_part_file, set_file_size
+
+    path = tmp_path / "big.sdmpart"
+    path.write_bytes(b"old")
+    size = 4 * 1024**3  # 4 GiB: zero-filling this would take far longer than a second
+    started = time.perf_counter()
+    prepare_part_file(path, size)
+    assert time.perf_counter() - started < 1.0
+    assert path.stat().st_size == size
+    attributes = os.stat(path).st_file_attributes
+    assert attributes & stat.FILE_ATTRIBUTE_SPARSE_FILE  # no disk space used for the gaps
+    with open(path, "rb") as file:
+        assert file.read(3) == b"\0\0\0"  # the old content was dropped, as before
+    with open(path, "r+b") as file:
+        set_file_size(file, 10)  # shrinking works too
+    assert path.stat().st_size == 10

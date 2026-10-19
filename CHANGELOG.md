@@ -8,6 +8,8 @@ while SDM is in 0.x.
 
 ### Added
 
+- M10b: `scripts/check_all.py` (every check, one summary) and `scripts/perf/measure.py`
+  (local performance measurements, results in docs/research/performance-m10.md).
 - M10a, hardening: fuzz tests for every parser of untrusted data; a log file
   (`%LOCALAPPDATA%\SDM\logs\sdm.log`, rotated, addresses redacted); a crash safety net;
   Help > Open log folder and About SDM. ADR-0017.
@@ -141,6 +143,9 @@ while SDM is in 0.x.
 
 ### Changed
 
+- Fixed (M10b, found by measuring): starting a split download wrote its whole partial file as
+  zeros first (Python's truncate() on Windows), on the thread all connections share; a 1 GiB
+  file stalled every connection for seconds. Pre-sizing now writes nothing.
 - Security (M10a): IPv4 addresses hidden in NAT64 and 6to4 IPv6 addresses are now checked as
   IPv4; the browser pipe refuses clients on other computers.
 - Fixed (found by fuzzing, M10a): a browser message with a list as `source`, file names with

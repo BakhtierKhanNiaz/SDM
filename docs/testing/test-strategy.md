@@ -3,7 +3,9 @@
 ## How to run
 
 ```powershell
-uv run pytest                     # everything (145 tests, ~35 s)
+uv run python scripts/check_all.py   # every check below, with one summary (M10)
+uv run python scripts/check_all.py --runs 5   # the Python tests 5 times (flakiness)
+uv run pytest                     # all Python tests (about 2 minutes)
 uv run pytest tests/unit -v       # one folder, verbose
 uv run pytest -k redirect         # tests whose name contains "redirect"
 uv run ruff check .               # lint

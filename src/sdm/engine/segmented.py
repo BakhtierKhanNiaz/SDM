@@ -109,11 +109,46 @@ def make_sparse(file: BinaryIO) -> bool:
 
 
 def prepare_part_file(path: Path, total: int) -> None:
-    """Size the partial file to the whole download, ready for parts written at any offset."""
+    """Size the partial file to the whole download, ready for parts written at any offset.
+
+    Instant (set_file_size writes nothing), so it may run on the event loop.
+    """
     with open(path, "r+b") as file:
         file.truncate(0)
         make_sparse(file)
-        file.truncate(total)
+        set_file_size(file, total)
+
+
+_FILE_END_OF_FILE_INFO = 6  # FILE_INFO_BY_HANDLE_CLASS.FileEndOfFileInfo
+
+
+def set_file_size(file: BinaryIO, size: int) -> None:
+    """Make the file `size` bytes long without writing anything.
+
+    On Windows, Python's truncate() grows a file by *writing zeros* up to the new size, which
+    undoes the sparse flag and wrote a whole 1 GiB file of zeros before a split download could
+    start (measured in M10: 3.6-5 s for 512 MiB, on the thread every connection shares).
+    SetFileInformationByHandle(FileEndOfFileInfo) only moves the end of the file: instant on a
+    sparse file.
+    """
+    if sys.platform != "win32":
+        file.truncate(size)
+        return
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+
+    file.flush()
+    kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+    kernel32.SetFileInformationByHandle.argtypes = [
+        wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD
+    ]  # fmt: skip
+    end_of_file = ctypes.c_longlong(size)  # FILE_END_OF_FILE_INFO is one LARGE_INTEGER
+    handle = wintypes.HANDLE(msvcrt.get_osfhandle(file.fileno()))
+    if not kernel32.SetFileInformationByHandle(
+        handle, _FILE_END_OF_FILE_INFO, ctypes.byref(end_of_file), ctypes.sizeof(end_of_file)
+    ):
+        file.truncate(size)  # e.g. a file system without this call: the slow, safe way
 
 
 class _Part:

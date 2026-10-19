@@ -331,6 +331,9 @@ async def _attempt(
                     transfer.segments = plan_segments(
                         transfer.total, settings.max_connections, settings.min_part_size
                     )
+                    # Instant since M10 (set_file_size writes nothing), so it stays on the loop:
+                    # waiting for a thread here let a dropped first connection's buffered bytes
+                    # be discarded by aiohttp (test_first_connection_dropped_continues_...).
                     prepare_part_file(transfer.part_path, transfer.total)
                 if on_file_info:
                     on_file_info(transfer.file_name, transfer.total)

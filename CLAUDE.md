@@ -42,6 +42,7 @@ milestone**; it is the full mission, rules and milestone list.
 uv sync                     # create/update .venv from uv.lock
 uv run python app.py        # start the app
 uv run sdm-get URL          # download one file (--dest, --allow-local-network, -v)
+uv run python scripts/check_all.py   # every check, one summary (--runs 5, --chrome)
 uv run pytest               # all tests (Qt off-screen, local mock HTTP server)
 uv run ruff check .         # lint
 uv run ruff format .        # format
