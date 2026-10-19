@@ -37,8 +37,7 @@ class NetworkPolicy:
     def check_ip(self, ip: str, host: str) -> None:
         """Raise BlockedDestinationError if `host`, which resolved to `ip`, is not allowed."""
         addr = ipaddress.ip_address(ip.split("%", 1)[0])  # drop an IPv6 zone such as %eth0
-        if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is not None:
-            addr = addr.ipv4_mapped  # ::ffff:127.0.0.1 is really 127.0.0.1
+        addr = embedded_ipv4(addr) or addr
 
         if addr.is_loopback:
             if self.allow_loopback:
@@ -66,6 +65,26 @@ class NetworkPolicy:
         except ValueError:
             return  # a hostname: PolicyResolver checks it once DNS has answered
         self.check_ip(host, host)
+
+
+_NAT64 = ipaddress.ip_network("64:ff9b::/96")  # RFC 6052's well-known prefix
+
+
+def embedded_ipv4(
+    addr: ipaddress.IPv4Address | ipaddress.IPv6Address,
+) -> ipaddress.IPv4Address | None:
+    """The IPv4 address an IPv6 address really leads to, if it carries one (M10).
+
+    ::ffff:127.0.0.1 (IPv4-mapped), 64:ff9b::7f00:1 (NAT64) and 2002:7f00:1:: (6to4) all lead
+    to 127.0.0.1; they are checked as that address, so they can't sneak past the rules.
+    """
+    if not isinstance(addr, ipaddress.IPv6Address):
+        return None
+    if addr.ipv4_mapped is not None:
+        return addr.ipv4_mapped
+    if addr in _NAT64:
+        return ipaddress.IPv4Address(int(addr) & 0xFFFFFFFF)
+    return addr.sixtofour  # None unless it is in 2002::/16
 
 
 class PolicyResolver(ThreadedResolver):

@@ -152,3 +152,33 @@ def test_each_key_location_has_its_own_pipe(tmp_path):
     assert a.startswith("\\\\.\\pipe\\sdm-bridge-")
     assert a == pipe_address(tmp_path / "a" / "bridge.key")
     assert a != pipe_address(tmp_path / "b" / "bridge.key")
+
+
+def test_the_pipe_refuses_remote_clients(monkeypatch, tmp_path):
+    """Every pipe instance is created with PIPE_REJECT_REMOTE_CLIENTS (M10).
+
+    It also guards the override: if Python's own PipeListener stops calling _new_handle, or
+    changes how, this test sees no flag and fails.
+    """
+    import _winapi
+    from multiprocessing import connection
+
+    seen = []
+    original = _winapi.CreateNamedPipe
+
+    def spy(address, open_mode, pipe_mode, *rest):
+        seen.append(pipe_mode)
+        return original(address, open_mode, pipe_mode, *rest)
+
+    monkeypatch.setattr(_winapi, "CreateNamedPipe", spy)
+    assert "_new_handle" in vars(connection.PipeListener)  # the method we override still exists
+    key_path = tmp_path / "bridge.key"
+    key = load_or_create_key(key_path)
+    listener = BridgeListener(key, pipe_address(key_path), lambda request: True)
+    listener.start()
+    try:
+        assert send_request(REQUEST, key=key, address=pipe_address(key_path)) == {"ok": True}
+    finally:
+        listener.close()
+    assert len(seen) >= 2  # the first instance and the next one accept() prepares
+    assert all(mode & pipe.PIPE_REJECT_REMOTE_CLIENTS for mode in seen)

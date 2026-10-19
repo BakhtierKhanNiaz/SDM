@@ -40,8 +40,10 @@ def referer_header(referrer: str | None, target_url: str) -> str | None:
 
 def check_redirect(current_url: str, next_url: str) -> bool:
     """False when a redirect would go from https down to http (SDM refuses those)."""
-    current = urlsplit(current_url.strip()).scheme.lower()
-    following = urlsplit(next_url.strip()).scheme.lower()
+    # Only the scheme matters, and splitting the whole URL can raise on a malformed address
+    # such as "http://[" (found by fuzzing, M10); validate_url refuses those on the next hop.
+    current = current_url.strip().split(":", 1)[0].lower()
+    following = next_url.strip().split(":", 1)[0].lower()
     return not (current == "https" and following == "http")
 
 

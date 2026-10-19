@@ -8,6 +8,9 @@ while SDM is in 0.x.
 
 ### Added
 
+- M10a, hardening: fuzz tests for every parser of untrusted data; a log file
+  (`%LOCALAPPDATA%\SDM\logs\sdm.log`, rotated, addresses redacted); a crash safety net;
+  Help > Open log folder and About SDM. ADR-0017.
 - M9 done: in the owner's own SDM, a python.org download held to 1 MB/s finished "Completed ·
   verified" with a matching SHA-256, a Windows notification and a working Show in folder.
 - M9b, the window: Tools > Settings (default folder, remember the last folder, connections
@@ -138,6 +141,11 @@ while SDM is in 0.x.
 
 ### Changed
 
+- Security (M10a): IPv4 addresses hidden in NAT64 and 6to4 IPv6 addresses are now checked as
+  IPv4; the browser pipe refuses clients on other computers.
+- Fixed (found by fuzzing, M10a): a browser message with a list as `source`, file names with
+  lone UTF-16 surrogates, and malformed addresses such as `http://[` (in Add URL, the
+  https-to-http check and redirects) caused unexpected errors instead of clean refusals.
 - Fixed (M9 demo): the status bar went blank after the mouse passed over a toolbar button or
   menu item; the status now stays in a permanent label.
 - Extension 0.2.1: capture runs before Chrome's Save As, a download handed back to Chrome is

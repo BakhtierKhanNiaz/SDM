@@ -14,6 +14,8 @@ FALLBACK_NAME = "download"
 
 # Characters Windows forbids in file names, plus ASCII control characters.
 _INVALID_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f\x7f]')
+# Lone UTF-16 surrogates (JSON allows "\ud800") can't be in a Windows file name (fuzzing, M10).
+_SURROGATES = re.compile(r"[\ud800-\udfff]")
 # Bidirectional-text controls: "invoice‮txt.exe" *displays* as "invoiceexe.txt".
 _BIDI_CONTROLS = re.compile("[؜‎‏‪-‮⁦-⁩]")
 
@@ -87,6 +89,7 @@ def sanitize_filename(name: str | None, max_length: int = 200) -> str:
     name = unicodedata.normalize("NFC", name)
     name = _BIDI_CONTROLS.sub("", name)
     name = _INVALID_CHARS.sub("_", name)
+    name = _SURROGATES.sub("_", name)
     # Windows silently drops trailing dots and spaces, which would change the name we chose.
     name = name.strip().rstrip(". ")
     if not name:

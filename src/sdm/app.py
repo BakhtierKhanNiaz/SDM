@@ -8,6 +8,7 @@ interrupted).
 import logging
 import sys
 
+from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from sdm import __version__
@@ -19,10 +20,33 @@ from sdm.bridge.pipe import (
     load_or_create_key,
     pipe_address,
 )
+from sdm.core.logs import install_crash_handlers, setup_logging
 from sdm.storage.database import DownloadStore, StorageError, default_database_path
 from sdm.ui.controller import DownloadController
 from sdm.ui.handoff import HandoffReceiver
-from sdm.ui.main_window import MainWindow, startup_notices
+from sdm.ui.main_window import MainWindow, log_folder, startup_notices
+
+
+class CrashReporter(QObject):
+    """Shows "unexpected error" on the main thread, whichever thread the error happened on."""
+
+    raised = Signal(str)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._shown = 0
+        self.raised.connect(self._show)
+
+    def _show(self, text: str) -> None:
+        if self._shown >= 3:  # never bury the user in dialogs; the log has every error
+            return
+        self._shown += 1
+        QMessageBox.critical(
+            None,
+            "SDM hit an unexpected error",
+            f"{text}\n\nDetails were saved to SDM's log (Help > Open log folder). SDM keeps "
+            "running, but if something looks wrong, restart it.",
+        )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -30,7 +54,10 @@ def main(argv: list[str] | None = None) -> int:
     app = QApplication(sys.argv if argv is None else argv)
     app.setApplicationName("SDM")
     app.setApplicationVersion(__version__)
-    logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
+    log_file = setup_logging(log_folder())
+    reporter = CrashReporter()
+    install_crash_handlers(reporter.raised.emit)  # any thread; the dialog opens on this one
+    logging.getLogger(__name__).info("SDM %s starting (log: %s)", __version__, log_file)
 
     receiver = HandoffReceiver()
     try:

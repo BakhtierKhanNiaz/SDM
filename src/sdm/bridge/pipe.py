@@ -9,6 +9,7 @@ Only JSON bytes cross the pipe (`send_bytes`/`recv_bytes`), never pickled object
 unpickling runs code. Every request is checked again with `parse_request` on the app side.
 """
 
+import _winapi
 import hashlib
 import logging
 import os
@@ -17,9 +18,10 @@ import threading
 from collections.abc import Callable
 from multiprocessing import AuthenticationError
 from multiprocessing.connection import (
+    BUFSIZE,
     Client,
     Connection,
-    Listener,
+    PipeListener,
     answer_challenge,
     deliver_challenge,
 )
@@ -102,6 +104,37 @@ def _create_key(path: Path) -> bytes:
     return key
 
 
+PIPE_REJECT_REMOTE_CLIENTS = 0x00000008  # winbase.h
+
+
+class LocalPipeListener(PipeListener):
+    """Python's named-pipe listener, but refusing clients on other computers (M10).
+
+    A named pipe is reachable over the network (SMB) unless it is created with
+    PIPE_REJECT_REMOTE_CLIENTS; Python doesn't set it. This overrides the one method that
+    creates the pipe, copying Python's own arguments (3.12-3.14) plus that flag.
+    `test_the_pipe_refuses_remote_clients` fails loudly if Python's internals change.
+    """
+
+    def _new_handle(self, first: bool = False) -> int:
+        flags = _winapi.PIPE_ACCESS_DUPLEX | _winapi.FILE_FLAG_OVERLAPPED
+        if first:
+            flags |= _winapi.FILE_FLAG_FIRST_PIPE_INSTANCE
+        return _winapi.CreateNamedPipe(
+            self._address,
+            flags,
+            _winapi.PIPE_TYPE_MESSAGE
+            | _winapi.PIPE_READMODE_MESSAGE
+            | _winapi.PIPE_WAIT
+            | PIPE_REJECT_REMOTE_CLIENTS,
+            _winapi.PIPE_UNLIMITED_INSTANCES,
+            BUFSIZE,
+            BUFSIZE,
+            _winapi.NMPWAIT_WAIT_FOREVER,
+            _winapi.NULL,
+        )
+
+
 RequestHandler = Callable[[DownloadRequest], bool]
 
 
@@ -119,7 +152,7 @@ class BridgeListener:
         try:
             # No authkey here: each connection's handshake runs on its own thread (below), so
             # one silent client can't block the accept loop.
-            self._listener = Listener(address, "AF_PIPE")
+            self._listener = LocalPipeListener(address)
         except PermissionError:  # FILE_FLAG_FIRST_PIPE_INSTANCE: someone already owns it
             raise AlreadyRunning("Another SDM is already running.") from None
         self._slots = threading.BoundedSemaphore(MAX_CONNECTIONS)

@@ -575,7 +575,12 @@ async def _get_following_redirects(
         response.release()
         if not location:
             raise DownloadError("The server sent a redirect without a destination.")
-        following = urljoin(current, location.strip())
+        try:
+            following = urljoin(current, location.strip())
+        except ValueError:  # e.g. "Location: http://[" (found by fuzzing, M10)
+            raise InvalidURLError(
+                "The server redirected to an address SDM refuses: it is malformed."
+            ) from None
         if not check_redirect(current, following):
             raise DownloadError(
                 "The server redirected from a secure (https) address to an insecure (http) one."

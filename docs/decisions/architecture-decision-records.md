@@ -425,3 +425,35 @@ deleted. A changed decision gets a new record that supersedes the old one.
 - **Consequences:** No new dependencies. The window remembers its size and column widths.
   Tests run with the tray simulated (`isSystemTrayAvailable` patched): whether Windows shows
   the notifications is checked by the owner.
+
+## ADR-0017: Hardening: hidden IPv4, local-only pipe, fuzzing, a log file
+
+- **Date:** 2026-10-20 · **Status:** Accepted (M10 plan approved by the project owner)
+- **Context:** Two known gaps were open (security model), the window had nowhere to log, and
+  the parsers of untrusted data had only hand-picked tests.
+- **Decision:**
+  - **Hidden IPv4:** `embedded_ipv4` makes the network policy judge IPv4-mapped
+    (`::ffff:a.b.c.d`), NAT64 (`64:ff9b::/96`) and 6to4 (`2002::/16`) addresses as the IPv4
+    address they lead to.
+  - **Local-only pipe:** `LocalPipeListener` creates every pipe instance with
+    `PIPE_REJECT_REMOTE_CLIENTS`, overriding the one method of Python's `PipeListener` that
+    creates pipes (same arguments as Python 3.12-3.14, plus the flag). A test spies on
+    `CreateNamedPipe` and fails if Python's internals change.
+  - **Fuzz tests** (standard library only, owner's choice): a fixed seed, 3,000 rounds per
+    parser of untrusted data (browser messages and frames, file names, Content-Disposition,
+    URL names, Content-Range, saved parts maps, URLs and Referer, SHA-256, saved settings),
+    checking that nothing raises anything but the parser's own error and that what is
+    accepted is safe. They found five bugs, each fixed with its own regression test
+    (`test_fuzz_findings.py`): a list as `source` (TypeError), lone UTF-16 surrogates in file
+    names (UnicodeEncodeError), `http://[` in `validate_url`, in the https-to-http check and in
+    the redirect `Location` join (ValueError; a hostile redirect failed the download as
+    "Unexpected error: ValueError").
+  - **Log file:** `%LOCALAPPDATA%\SDM\logs\sdm.log`, 1 MB x 4 files, INFO and above;
+    `RedactingFilter` strips query strings, fragments and user names from any http(s) address
+    in messages and tracebacks, behind the existing `redact_url` calls.
+  - **Crash safety net:** `sys.excepthook` and `threading.excepthook` log unexpected errors
+    with details and show a short message (at most three per session) on the main thread.
+  - **Help menu:** Open log folder, About SDM (versions and licences).
+  - **Dependency audit:** `pip-audit` 2.10.1 (run once with `uvx`, not a project dependency)
+    on all 20 locked packages, 2026-10-20: no known vulnerabilities.
+- **Consequences:** No new dependencies.

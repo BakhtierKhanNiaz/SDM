@@ -55,3 +55,29 @@ def test_resolver_blocks_names_that_resolve_to_this_computer():
 
     with pytest.raises(BlockedDestinationError, match="localhost points to this computer"):
         asyncio.run(resolve())
+
+
+@pytest.mark.parametrize(
+    ("ip", "leads_to"),
+    [
+        ("64:ff9b::7f00:1", "this computer"),  # NAT64 wrapping 127.0.0.1
+        ("2002:7f00:1::", "this computer"),  # 6to4 wrapping 127.0.0.1
+        ("64:ff9b::c0a8:101", "local or private"),  # NAT64 wrapping 192.168.1.1
+        ("2002:c0a8:101::1", "local or private"),  # 6to4 wrapping 192.168.1.1
+        ("64:ff9b::a9fe:a9fe", "special"),  # NAT64 wrapping 169.254.169.254
+        ("2002:a9fe:a9fe::", "special"),  # 6to4 wrapping 169.254.169.254
+    ],
+)
+def test_ipv4_hidden_inside_ipv6_is_checked_as_ipv4(ip, leads_to):
+    # Known gap closed in M10: these used to be judged as IPv6 addresses.
+    with pytest.raises(BlockedDestinationError, match=leads_to):
+        NetworkPolicy().check_ip(ip, "example.test")
+
+
+@pytest.mark.parametrize("ip", ["64:ff9b::808:808", "2002:808:808::1"])  # wrapping 8.8.8.8
+def test_public_ipv4_inside_ipv6_is_allowed(ip):
+    NetworkPolicy().check_ip(ip, "example.test")
+
+
+def test_embedded_private_address_follows_the_local_network_option():
+    NetworkPolicy(allow_local_network=True).check_ip("64:ff9b::c0a8:101", "nas.test")

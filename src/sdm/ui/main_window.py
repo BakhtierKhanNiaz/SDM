@@ -1,6 +1,8 @@
 """The main SDM window: a toolbar, the download list and a status bar."""
 
+import os
 import subprocess
+import sys
 from collections import deque
 from dataclasses import replace
 from pathlib import Path
@@ -22,11 +24,13 @@ from PySide6.QtWidgets import (
     QTableView,
 )
 
+from sdm import __version__
 from sdm.bridge.protocol import DownloadRequest
 from sdm.core.categories import CATEGORIES
 from sdm.core.checksums import MISMATCH, MISSING, VERIFIED
 from sdm.core.downloads import BrowserContext, DownloadRecord, DownloadState
 from sdm.core.errors import SDMError
+from sdm.core.paths import app_data_dir
 from sdm.ui.add_url_dialog import AddUrlDialog
 from sdm.ui.controller import DownloadController, finished_file, summarize
 from sdm.ui.download_model import CATEGORY, COLUMNS, NAME, STATUS
@@ -39,6 +43,16 @@ DOWNLOAD_COLUMNS = COLUMNS
 
 def default_download_folder() -> Path:
     return Path.home() / "Downloads"
+
+
+def log_folder() -> Path:
+    return app_data_dir() / "logs"
+
+
+def open_folder(folder: Path) -> None:
+    """Open a folder of SDM's own (the logs) in File Explorer."""
+    folder.mkdir(parents=True, exist_ok=True)
+    os.startfile(folder)  # noqa: S606 - a folder SDM itself owns, never a downloaded file
 
 
 def reveal_in_explorer(path: Path) -> None:
@@ -157,6 +171,11 @@ class MainWindow(QMainWindow):
             downloads_menu.addAction(action)
         tools_menu = self.menuBar().addMenu("&Tools")
         tools_menu.addAction(self.settings_action)
+        help_menu = self.menuBar().addMenu("&Help")
+        self.open_logs_action = help_menu.addAction("Open &log folder")
+        self.open_logs_action.triggered.connect(lambda: open_folder(log_folder()))
+        self.about_action = help_menu.addAction("&About SDM")
+        self.about_action.triggered.connect(self.show_about)
         toolbar = self.addToolBar("Main")
         toolbar.setMovable(False)
         for action in (
@@ -305,6 +324,9 @@ class MainWindow(QMainWindow):
         self.controller.set_preferences(preferences)
         if preferences.default_folder != old_default:
             self._default_folder = self._preferred_folder()
+
+    def show_about(self) -> None:
+        QMessageBox.about(self, "About SDM", about_text())
 
     # ----- finished files -----
 
@@ -598,6 +620,20 @@ class MainWindow(QMainWindow):
             QMessageBox.StandardButton.No,
         )
         return answer == QMessageBox.StandardButton.Yes
+
+
+def about_text() -> str:
+    from PySide6 import __version__ as pyside_version
+
+    python = ".".join(str(part) for part in sys.version_info[:3])
+    return (
+        f"SDM (Smart Download Manager) {__version__}\n"
+        "A personal-use download manager for Windows, written from scratch.\n\n"
+        f"Python {python}, Qt for Python (PySide6) {pyside_version}.\n"
+        "Built with: Python (PSF License), Qt and PySide6 (LGPL-3.0), aiohttp (Apache-2.0) "
+        "and its dependencies (see THIRD-PARTY-NOTICES.txt).\n\n"
+        f"Log folder: {log_folder()}"
+    )
 
 
 def startup_notices(recovered_from: Path | None, interrupted: int) -> list[str]:

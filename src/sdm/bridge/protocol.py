@@ -13,6 +13,7 @@ Version 2 (M8) may add what the browser knew, each field optional and strictly c
 """
 
 import json
+import re
 import struct
 from dataclasses import dataclass
 from typing import BinaryIO
@@ -34,6 +35,7 @@ _REQUIRED_KEYS = frozenset({"version", "type", "url"})
 _OPTIONAL_KEYS = {1: frozenset(), 2: frozenset({"referrer", "filename", "size", "mime", "source"})}
 # A file name must not reach outside the folder or name a stream: no separators, no colon.
 _FORBIDDEN_IN_NAME = frozenset("/\\:")
+_SURROGATE = re.compile(r"[\ud800-\udfff]")
 
 
 class ProtocolError(SDMError):
@@ -142,6 +144,8 @@ def _checked_filename(name: object) -> str:
         raise ProtocolError("The filename field must be a bare file name, not a path.")
     if not name.strip(" ."):
         raise ProtocolError("The filename field must be a real file name.")
+    if _SURROGATE.search(name):  # lone UTF-16 surrogates, which JSON allows (fuzzing, M10)
+        raise ProtocolError("The filename field contains broken characters.")
     return name
 
 
@@ -162,7 +166,8 @@ def _checked_mime(mime: object) -> str:
 
 
 def _checked_source(source: object) -> str:
-    if source not in SOURCES:
+    # isinstance first: `[] in SOURCES` raises TypeError (found by fuzzing, M10).
+    if not isinstance(source, str) or source not in SOURCES:
         raise ProtocolError("The source field must be menu or capture.")
     return str(source)
 

@@ -22,7 +22,10 @@ def validate_url(url: str) -> SplitResult:
     if any(ch.isspace() or ord(ch) < 0x20 or ord(ch) == 0x7F for ch in url):
         raise InvalidURLError("The URL contains spaces or control characters.")
 
-    parts = urlsplit(url)
+    try:
+        parts = urlsplit(url)
+    except ValueError:  # e.g. "http://[" (found by fuzzing, M10)
+        raise InvalidURLError("The URL's server name is malformed.") from None
     scheme = parts.scheme.lower()
     if scheme not in ALLOWED_SCHEMES:
         shown = f"'{scheme}:'" if scheme else "no scheme"

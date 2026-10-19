@@ -1,6 +1,6 @@
 # Security model
 
-Status: **M9.** Rules marked *Implemented* have code and tests; the others are planned for
+Status: **M10.** Rules marked *Implemented* have code and tests; the others are planned for
 the milestone listed.
 
 ## Trust boundaries
@@ -18,13 +18,13 @@ the milestone listed.
 | # | Rule | Status |
 |---|---|---|
 | 1 | **Protocols:** only `http` and `https`, on the first request and every redirect hop. No embedded `user:pass@` credentials. No redirect from `https` down to `http` (M8, ADR-0015). | Implemented (M2, M8) — `sdm.core.urls`, `sdm.core.referrer.check_redirect` |
-| 2 | **Destinations:** ADR-0007. Loopback, link-local, multicast, unspecified and reserved addresses are blocked. Private networks need `--allow-local-network`. IP literals are checked per hop, and hostnames after DNS inside aiohttp's resolver. | Implemented (M2) — `sdm.engine.policy` |
+| 2 | **Destinations:** ADR-0007. Loopback, link-local, multicast, unspecified and reserved addresses are blocked. Private networks need `--allow-local-network`. IP literals are checked per hop, and hostnames after DNS inside aiohttp's resolver. IPv4 hidden in IPv6 (mapped, NAT64, 6to4) is checked as IPv4 (M10). | Implemented (M2, M10) — `sdm.engine.policy`, `test_ipv4_hidden_inside_ipv6_is_checked_as_ipv4` |
 | 3 | **Filenames:** one sanitized Windows component (ADR-0008). Never written outside the chosen folder. Length fits the 260-character path limit. Bidi-control spoofing removed. | Implemented (M2) — `sdm.core.filenames` |
 | 4 | **No overwrite:** existing files are never replaced. A taken name becomes `name (n).ext`. | Implemented (M2) |
 | 5 | **Never execute** downloaded files, and never open them automatically. SDM has no "Open file": only "Show in folder", which selects the file in Explorer (M9). A checksum mismatch warns not to run the file. | Holds: no code opens downloads (`test_the_right_click_menu`) |
-| 6 | **No local HTTP server.** Browser communication goes only through Chrome Native Messaging, restricted to SDM's own extension ID. The host reaches the app over a named pipe that both sides authenticate with a per-user key (`%LOCALAPPDATA%\SDM\bridge.key`); no network port is opened (ADR-0014). | Implemented (M7) — `test_bridge_pipe.py`, `test_bridge_install.py` |
+| 6 | **No local HTTP server.** Browser communication goes only through Chrome Native Messaging, restricted to SDM's own extension ID. The host reaches the app over a named pipe that both sides authenticate with a per-user key (`%LOCALAPPDATA%\SDM\bridge.key`) and that refuses clients on other computers (M10); no network port is opened (ADR-0014). | Implemented (M7) — `test_bridge_pipe.py`, `test_bridge_install.py` |
 | 7 | **Browser messages:** exactly `{version: 1, type: "download", url}` or version 2 with the optional, strictly checked hints of ADR-0015 (a bare file name, never a path), at most 64 KiB, checked in the host and again in the app. No filesystem operations or paths. Generic error replies. JSON only, never pickle. A handoff only fills in the Add URL dialog; the user confirms. | Implemented (M7) — `test_bridge_hostile_messages.py`, `test_bridge_host.py`, `test_window_handoff.py` |
-| 8 | **Secrets:** logs show URLs without credentials or query strings (`redact_url`). Cookies and authorization headers are never logged. | Implemented for URLs (M2); headers when auth arrives |
+| 8 | **Secrets:** logs show URLs without credentials or query strings (`redact_url`), and the log file's `RedactingFilter` strips them from any address that still reaches a message or traceback (M10). Cookies and authorization headers are never logged. | Implemented (M2, M10) — `test_the_log_file_rotates_and_hides_secrets` |
 | 9 | **Privacy:** no browsing-history collection beyond explicit handoffs, and downloads the user chose to capture. Capture is off by default, needs the user to grant `downloads` in Chrome's own prompt, and never touches Incognito. The Referer follows the browser's rule (origin only to other sites, nothing from https to http) and is never logged; the window shows only the page's host. No cookies are read or forwarded. No data sent to third parties. | Holds (M8: `popup.test.js`, `test_referrer.py`) |
 | 10 | **Dependencies:** free/open-source only, license and support checked, versions pinned in `uv.lock`. | Holds (ADR-0001, ADR-0006) |
 | 11 | **Proxies:** proxy environment variables are ignored, because a proxy would hide the real destination from rule 2. | Implemented (M2) |
@@ -40,11 +40,9 @@ resolve the hex form (`test_disguised_spellings_of_this_computer_never_reach_it`
 
 ## Known gaps (to revisit)
 
-- NAT64 (`64:ff9b::/96`) and 6to4 (`2002::/16`) IPv6 addresses that embed a private IPv4
-  address are not unwrapped before checking.
-- The bridge pipe accepts remote (SMB) clients by default; they would need this account's
-  credentials and the bridge key. Any program running as this user can read the key and
-  hand SDM links, but only through the same schema and confirmation dialog (ADR-0014).
+- Any program running as this user can read the bridge key and hand SDM links, but only
+  through the same schema and confirmation dialog (ADR-0014). (Closed in M10: remote pipe
+  clients are refused, and NAT64/6to4 addresses are checked as their IPv4 address.)
 - Captured downloads are requested again by SDM with GET: a download Chrome started with a
   POST form can't be reproduced, and one that needs the site's cookies fails in SDM (the
   owner chose not to forward cookies, ADR-0015).
@@ -56,3 +54,9 @@ resolve the hex form (`test_disguised_spellings_of_this_computer_never_reach_it`
 - Windows Controlled Folder Access is on. A blocked write surfaces in Python as
   `FileNotFoundError` (errno 2), even though the folder exists (observed 2026-10-17). SDM
   translates both that and `PermissionError` into a message that names Controlled Folder Access.
+
+## Dependency audit
+
+- 2026-10-20: `pip-audit` 2.10.1 on every locked package (runtime and development: aiohttp
+  3.14.5, PySide6-Essentials 6.12.0, pytest 9.1.1, ruff 0.17.1 and their dependencies, 20 in
+  all): no known vulnerabilities (ADR-0017). Repeat before each release.

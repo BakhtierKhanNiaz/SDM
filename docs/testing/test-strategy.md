@@ -21,7 +21,7 @@ no windows appear and the tests don't need a desktop.
 |---|---|
 | `tests/unit/` | One module at a time, no network: URLs, filenames, policy, Retry-After, CLI, window, units, download states, transfer meter, history database |
 | `tests/integration/` | The engine and the `DownloadManager` (engine thread, events, cancel, 3-at-once limit, shutdown), and the window and controller end to end (`test_window_downloads.py`: progress, cancel, history after restart, quitting), all against the local mock server |
-| `tests/security/` | Unsafe destinations, hostile redirects and filenames, the CLI refusing this computer, hostile browser messages |
+| `tests/security/` | Unsafe destinations, hostile redirects and filenames, the CLI refusing this computer, hostile browser messages, and seeded fuzz tests of every parser of untrusted data (`test_fuzz.py`, M10) with one regression test per bug they found (`test_fuzz_findings.py`) |
 | `extension/tests/` | The Chrome extension against a fake `chrome` object (`node --test`) |
 
 ## The mock server
