@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QHeaderView,
     QInputDialog,
+    QLabel,
     QMainWindow,
     QMenu,
     QMessageBox,
@@ -172,7 +173,12 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
         toolbar.addWidget(self.category_box)
 
-        controller.summary_changed.connect(self.statusBar().showMessage)
+        # A permanent label, not showMessage(): Qt replaces a status *message* with the (empty)
+        # hint of any toolbar button or menu item the mouse passes over, which left the status
+        # bar blank until the next change (seen in the owner's M9 demo).
+        self.status_label = QLabel()
+        self.statusBar().addWidget(self.status_label, 1)
+        controller.summary_changed.connect(self.status_label.setText)
         controller.download_finished.connect(self._on_finished)
         controller.download_failed.connect(self._on_failed)
         controller.checksum_checked.connect(self._on_checksum)
@@ -186,7 +192,7 @@ class MainWindow(QMainWindow):
         controller.model.rowsRemoved.connect(self._update_actions)
         controller.model.modelReset.connect(self._update_actions)
         self._update_actions()
-        self.statusBar().showMessage(summarize(controller.model.records()))
+        self.status_label.setText(summarize(controller.model.records()))
 
     def _action(self, text: str, slot) -> QAction:
         action = QAction(text, self)

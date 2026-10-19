@@ -40,9 +40,9 @@ session), not that the feature was studied in full.
 | Categories | Tested | M6 | Same categories IDM showed (OBS-001, 002, 005) plus Music, Video, Programs; labels by default, IDM-style subfolders as a setting (off) |
 | Browser-to-desktop handoff (explicit) | Tested | M7 | ADR-0014, FEAT-006: right-click "Download with SDM" on links opens Add URL filled in; starts SDM if needed. Owner's Chrome check passed (roadmap). IDM's browser integration not observed |
 | Automatic browser download capture (with consent) | Tested | M8 | ADR-0015, FEAT-007: opt-in from the toolbar panel (Chrome's permission prompt), minimum size, hand-back to Chrome. Referer and the browser's name forwarded; no cookies. Owner's check passed: a captured python.org download matched its SHA-256 (roadmap). IDM's capture not observed |
-| Speed limiter | Tested | M9 | ADR-0016: one limit shared by all downloads, applied at once. IDM's limiter not observed |
+| Speed limiter | Tested | M9 | ADR-0016: one limit shared by all downloads, applied at once. Owner's demo: 1 MB/s held on python.org (roadmap). IDM's limiter not observed |
 | Connection limits | Tested | M9 | Connections per download 1-8 (Settings); downloads at once 1-8 (Scheduler, M6). IDM's per-site exceptions (OBS-006 text) not observed |
-| Integrity verification (checksums) | Tested | M9 | SHA-256 in Add URL or later; mismatched files kept and flagged. Size-unconfirmed warning since M2 (OBS-005) |
+| Integrity verification (checksums) | Tested | M9 | SHA-256 in Add URL or later; mismatched files kept and flagged; owner's demo verified a python.org download (roadmap). Size-unconfirmed warning since M2 (OBS-005) |
 | Settings dialog | Tested | M9 | General, Connections, Notifications tabs; queue settings in Scheduler. IDM's Options not observed |
 | Notifications | Tested | M9 | Windows notifications (not dialogs, unlike IDM's completion dialog, OBS-001); optional close-to-tray |
 | Windows installer / packaging | Not investigated | M10 | |

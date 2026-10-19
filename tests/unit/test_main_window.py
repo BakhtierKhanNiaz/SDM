@@ -27,7 +27,7 @@ def test_opens_with_an_empty_list(window):
     assert window.isVisible()
     assert "SDM" in window.windowTitle()
     assert window.download_table.model().rowCount() == 0
-    assert window.statusBar().currentMessage() == "No downloads yet"
+    assert window.status_label.text() == "No downloads yet"
 
 
 def test_download_list_has_expected_columns(window):

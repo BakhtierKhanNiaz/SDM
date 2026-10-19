@@ -269,3 +269,16 @@ def test_the_last_folder_is_offered_next_time(qtbot, controller, tmp_path):
     third = MainWindow(controller)
     qtbot.addWidget(third)
     assert third._default_folder == tmp_path
+
+
+def test_the_status_line_survives_hovering_over_buttons(qtbot, window, controller, tmp_path):
+    # Regression (owner's M9 demo): hovering a toolbar button or menu item blanked the status
+    # bar, because Qt replaces a temporary status message with the item's (empty) hint.
+    from PySide6.QtGui import QStatusTipEvent
+
+    completed_entry(controller, tmp_path)
+    controller._emit_summary()
+    assert window.status_label.text() == "Ready · 1 completed"
+    QApplication.sendEvent(window, QStatusTipEvent(""))  # what a hover sends
+    assert window.status_label.text() == "Ready · 1 completed"
+    assert window.status_label.isVisible()

@@ -258,14 +258,14 @@ the partial file.
 | FR-5 | Notifications for finished, verified, mismatch and final failures; can be switched off | `test_notifications_follow_the_downloads`, `test_finishing_and_failing_are_announced_once`, `test_notifications_can_be_switched_off` |
 | FR-6 | Optional close-to-tray; Exit/Quit really quit | `test_closing_hides_to_the_tray_when_chosen`, `test_without_the_option_closing_quits` |
 | FR-7 | Right-click menu; Show in folder only for SDM's own finished file; no Open | `test_the_right_click_menu`, `test_show_in_folder_only_for_sdms_own_finished_file` |
-| FR-8 | Total speed in the status bar; window size, columns and last folder remembered | `test_status_bar_shows_the_total_speed`, `test_the_window_layout_is_remembered`, `test_the_last_folder_is_offered_next_time` |
+| FR-8 | Total speed in the status bar, which stays visible; window size, columns and last folder remembered | `test_status_bar_shows_the_total_speed`, `test_the_status_line_survives_hovering_over_buttons`, `test_the_window_layout_is_remembered`, `test_the_last_folder_is_offered_next_time` |
 
 ### Acceptance criteria
 
 - All tests above pass; ruff is clean.
 - The owner, in their own SDM: python.org's `python-3.14.7-embed-amd64.zip` with a 1 MB/s limit
   takes about 12 s, finishes as "Completed · verified" with the published SHA-256, and a
-  Windows notification appears.
+  Windows notification appears. Done 2026-10-20 (roadmap).
 
 ## Template
 

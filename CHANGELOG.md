@@ -8,6 +8,8 @@ while SDM is in 0.x.
 
 ### Added
 
+- M9 done: in the owner's own SDM, a python.org download held to 1 MB/s finished "Completed ·
+  verified" with a matching SHA-256, a Windows notification and a working Show in folder.
 - M9b, the window: Tools > Settings (default folder, remember the last folder, connections
   per download, speed limit, notifications, keep running in the tray), a SHA-256 box in Add
   URL, a tray icon with Pause all / Resume all / Quit, Windows notifications, a right-click
@@ -136,6 +138,8 @@ while SDM is in 0.x.
 
 ### Changed
 
+- Fixed (M9 demo): the status bar went blank after the mouse passed over a toolbar button or
+  menu item; the status now stays in a permanent label.
 - Extension 0.2.1: capture runs before Chrome's Save As, a download handed back to Chrome is
   never captured again (0.2.0 could make Save As reappear in a loop), and the toolbar panel
   shows the last problem.

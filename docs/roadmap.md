@@ -14,7 +14,7 @@ and its tests have actually run and passed.
 | M6 | Queue management and scheduling | Done (2026-10-19) |
 | M7 | Chrome extension and native messaging bridge | Done (2026-10-19) |
 | M8 | Browser handoff integrated with the download engine | Done (2026-10-20) |
-| M9 | Interface, settings, notifications and usability | Implemented and tested; owner's demo pending |
+| M9 | Interface, settings, notifications and usability | Done (2026-10-20) |
 | M10 | Security, performance, regression testing and Windows packaging | Not started |
 
 ## M0: Environment inspection (done)
@@ -275,7 +275,7 @@ Note: the owner's real SDM history started with this download. The histories of 
 demos were written from Claude's sandboxed shell and are not in the owner's
 `%LOCALAPPDATA%\SDM` (their downloaded files in Downloads are real).
 
-## M9: Interface, settings, notifications and usability
+## M9: Interface, settings, notifications and usability (done)
 
 Done on branch `m9/usability` (ADR-0016, spec FEAT-008):
 
@@ -289,8 +289,15 @@ Checked on 2026-10-20: 628 Python tests and 38 extension tests pass; ruff is cle
 3 MiB download split over several connections was held to 1 MiB/s (about 3 s). Screenshots of
 the window, the menu and the Settings tabs (drawn off-screen with throwaway data) look right.
 
-Remaining before M9 is **Done**:
+Acceptance, met on 2026-10-20 in the owner's own SDM (started from their own PowerShell):
 
-- [ ] Owner's demo in their own SDM: Settings > Connections, limit 1024 KB/s; Add URL with
-  python.org's `python-3.14.7-embed-amd64.zip` and its published SHA-256; it takes about 12 s,
-  ends "Completed · verified", and a Windows notification appears. Show in folder selects it.
+- [x] With Settings > Connections at 1024 KB/s, python.org's `python-3.14.7-embed-amd64.zip`
+  (12.1 MB) downloaded at about 1.0 MB/s and took about 12 s (owner's report). Entered with its
+  published SHA-256, it ended "Completed · verified"; the saved `python-3.14.7-embed-amd64
+  (6).zip` (12,673,227 bytes) matches python.org's SHA-256 on disk.
+- [x] The Windows notification "Download complete and verified" appeared (owner's report).
+- [x] Show in folder opened File Explorer with the file selected, without opening it.
+
+Found in the demo and fixed: the status bar was empty. Qt replaces a status *message* with the
+empty hint of any toolbar button or menu item the mouse passes over; the status now lives in a
+permanent label (`test_the_status_line_survives_hovering_over_buttons`).
