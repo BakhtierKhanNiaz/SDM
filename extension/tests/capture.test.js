@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import { captureMessage, parseMinMegabytes, reasonToSkip } from "../chrome/capture.js";
 
-const OWN_ID = "obfaejgipbklbamklladnpjikofggica";
+const OWN_ID = "abcdefghijklmnopabcdefghijklmnop"; // any valid-looking extension ID
 const item = (fields = {}) => ({
   id: 1,
   url: "https://example.com/files/a.zip",

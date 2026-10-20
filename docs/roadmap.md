@@ -16,6 +16,7 @@ and its tests have actually run and passed.
 | M8 | Browser handoff integrated with the download engine | Done (2026-10-20) |
 | M9 | Interface, settings, notifications and usability | Done (2026-10-20) |
 | M10 | Security, performance, regression testing and Windows packaging | Done (2026-10-20) |
+| M11 | Open-source release on GitHub (Apache-2.0, UI/UX, more browsers) | In progress (M11a done) |
 
 ## M0: Environment inspection (done)
 
@@ -326,7 +327,7 @@ Acceptance, met on 2026-10-20 on the owner's PC:
   own PowerShell (2026-10-20; Claude's sandbox can't see the Inno Setup install).
   `build_release.py` now also finds Inno Setup through its uninstall registry entry, and has
   `--skip-build` (reuse `dist\SDM`) and `--iscc PATH`.
-- [x] Installed per user into `C:\Users\<you>\AppData\Local\Programs\SDM` without
+- [x] Installed per user into `%LOCALAPPDATA%\Programs\SDM` without
   administrator rights. Started from the Start menu: the history was there; Help > About
   showed SDM 0.1.0; python.org's embeddable zip with its SHA-256 ended "Completed · verified"
   (`(7).zip`).
@@ -343,3 +344,19 @@ Acceptance, met on 2026-10-20 on the owner's PC:
 - Note: the installer the owner tested (built before `fa02d46`) doesn't include the
   administrator warning or the host log yet; rebuild with
   `uv run python scripts/build_release.py --installer` to get them.
+
+## M11: Open-source release on GitHub
+
+Approved by the owner on 2026-10-20 (after M10): publish SDM as open source on their own
+GitHub repository under the Apache License 2.0, with a UI/UX update (dark mode and a modern
+look, progress bars and a details panel, a first-run setup assistant), an extension for
+Chrome, Edge, Brave and Firefox (free Edge and Firefox stores plus GitHub zips), automated
+GitHub releases, version 1.0.0, and the commit author email rewritten to the owner's GitHub
+noreply address before the first push (owner to confirm right before).
+
+- M11a: `LICENSE` (the official Apache-2.0 text, SHA-256 `cfc7749b...3d30`) and `NOTICE`;
+  version 1.0.0 with licence metadata in `pyproject.toml` (the "do not upload" marker is
+  gone); a public README, `CONTRIBUTING.md` and `SECURITY.md`; personal paths and the owner's
+  extension ID replaced by neutral examples; "personal use" wording updated (About box,
+  `CLAUDE.md`, a historical note on the brief).
+- M11b (next): UI/UX. M11c: more browsers. M11d: GitHub Actions and publishing.

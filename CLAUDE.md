@@ -1,9 +1,10 @@
 # SDM — guide for Claude Code
 
-SDM (Smart Download Manager) is a personal-use, zero-budget alternative to Internet Download
-Manager (IDM) for Windows, built by behavioral reverse engineering and a clean-room
-implementation. **Read [docs/project-brief.md](docs/project-brief.md) before starting a
-milestone**; it is the full mission, rules and milestone list.
+SDM (Smart Download Manager) is a free, open-source (Apache-2.0, since M11) download manager
+for Windows, built with a zero budget by observing other download managers from the outside
+and implementing everything clean-room. **Read [docs/project-brief.md](docs/project-brief.md)
+before starting a milestone**; it is the original mission, rules and milestone list (M0-M10);
+M11 (the open-source release) is in the [roadmap](docs/roadmap.md).
 
 ## Working with the user
 

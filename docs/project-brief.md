@@ -6,6 +6,10 @@ Smart Download Manager | Behavioral Reverse Engineering | Claude Code
 since then are in [research/environment-m0.md](research/environment-m0.md) and the root
 `CLAUDE.md`.*
 
+*Historical note (M11, 2026-10-20): SDM started as a personal-use project, as this brief says.
+After M10 the owner decided to publish it as open source under the Apache License 2.0; the
+clean-room rules below still apply to every contribution.*
+
 Act as my Principal Software Architect, Reverse-Engineering Engineer, Senior Python Developer,
 Browser Extension Engineer, QA Engineer, Security Reviewer, and Technical Mentor.
 

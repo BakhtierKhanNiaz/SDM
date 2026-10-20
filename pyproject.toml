@@ -1,10 +1,24 @@
 [project]
 name = "sdm"
-version = "0.1.0"
-description = "SDM (Smart Download Manager): a personal-use download manager for Windows."
+version = "1.0.0"
+description = "SDM (Smart Download Manager): a free, open-source download manager for Windows."
 readme = "README.md"
 requires-python = ">=3.12"
-classifiers = ["Private :: Do Not Upload"]
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Conditions-tech" }]
+keywords = ["download manager", "downloader", "segmented downloads", "browser extension"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: Microsoft :: Windows :: Windows 10",
+    "Operating System :: Microsoft :: Windows :: Windows 11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Internet :: WWW/HTTP",
+]
 dependencies = [
     "aiohttp>=3.14.5",
     "pyside6-essentials>=6.12.0",

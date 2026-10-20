@@ -1,88 +1,93 @@
-# SDM — Smart Download Manager
+# SDM: Smart Download Manager
 
-A personal-use download manager for Windows. It's modelled on the observable behavior of
-Internet Download Manager (IDM) and written from scratch (clean-room).
+A free, open-source download manager for Windows. SDM downloads big files over up to 8
+connections at once, pauses and resumes (even after a restart or a crash), queues and
+schedules downloads, checks files against their SHA-256, and takes downloads straight from
+your browser.
 
-> **Status: all ten milestones done (M10: hardening and a Windows installer).** Install it
-> per user, download with up to 8 connections, queue and schedule, check SHA-256, and send
-> links from Chrome. See
-> [docs/roadmap.md](docs/roadmap.md).
+SDM is written from scratch in Python. It is independent and not affiliated with any other
+download manager.
 
-## Requirements
+<!-- Screenshots are added in the UI/UX update (M11b). -->
 
-- Windows 10 or 11
-- Python 3.12 or newer (developed on 3.14)
-- [uv](https://docs.astral.sh/uv/): creates the virtual environment and installs dependencies
-- Git
+## Features
 
-## Install (Windows, no administrator rights)
+- **Fast:** splits large files over up to 8 connections when the server allows it, and keeps
+  splitting as parts finish.
+- **Pause and resume:** across restarts and crashes; SDM checks the server's file hasn't
+  changed before continuing, so versions are never mixed.
+- **Queue and scheduler:** run up to 8 downloads at once, in your order, only between set
+  times if you like; temporary failures retry by themselves.
+- **Browser integration:** right-click any link or player and choose **Download with SDM**, or
+  let SDM take over your downloads automatically (off until you turn it on).
+- **Safe by default:** never runs downloaded files, never overwrites a file, refuses addresses
+  on your own computer and local network unless you allow them, and checks SHA-256 when you
+  give one.
+- **Comfort:** a shared speed limit, categories, Windows notifications, Show in folder, an
+  optional tray icon.
 
-Run `SDM-Setup-<version>.exe` (built with `uv run python scripts/build_release.py
---installer`). Windows SmartScreen may say "Windows protected your PC" because SDM isn't
-code-signed (that costs money): click **More info**, then **Run anyway**. SDM installs into
-`%LOCALAPPDATA%\Programs\SDM` and appears in the Start menu. To use Chrome with the installed
-SDM, open **Help > Set up Chrome integration** and paste the extension's ID
-([extension setup](extension/README.md)). Uninstall from Windows Settings > Apps; your history
-and downloads are kept.
+## Install
 
-## Set up (from source)
+1. Download `SDM-Setup-<version>.exe` from the [latest release](../../releases/latest).
+2. Run it. Windows SmartScreen may say "Windows protected your PC", because SDM isn't
+   code-signed (signing costs money): click **More info**, then **Run anyway**.
+3. SDM installs for your Windows account only (no administrator rights) and appears in the
+   Start menu. Uninstall it from Windows **Settings > Apps**; your history and downloads stay.
 
-```powershell
-cd D:\Projects\SDM
-uv sync
-```
+Requirements: Windows 10 or 11, 64-bit.
 
-`uv sync` creates `.venv\` and installs the exact package versions recorded in `uv.lock`.
-You don't need to activate the virtual environment: prefix commands with `uv run`.
+### Connect your browser
 
-## Run
+Install SDM's extension and register it from SDM: see [extension/README.md](extension/README.md).
 
-```powershell
-uv run python app.py                                   # the window: File > Add URL (Ctrl+N)
-uv run sdm-get https://example.com/file.zip            # download into your Downloads folder
-uv run sdm-get URL --dest D:\Downloads                 # choose the folder
-uv run sdm-get URL --allow-local-network               # allow e.g. a NAS at 192.168.x.x
-```
+Start SDM normally (from the Start menu). If it runs **as administrator**, Windows doesn't let
+the browser reach it, and SDM shows a warning.
 
-`sdm-get` never overwrites a file: if `file.zip` exists, it saves `file (1).zip`. If the
-server doesn't say how big the file is, `sdm-get` still saves it but warns that it can't
-confirm the whole file arrived. For safety, it refuses addresses on this computer and, unless
-you pass `--allow-local-network`, on your local network.
+## Build from source
 
-## Test and lint
+You need Windows 10/11, [uv](https://docs.astral.sh/uv/) and Git. uv installs the right
+Python by itself.
 
 ```powershell
-uv run pytest
-uv run ruff check .
-uv run ruff format --check .
-cd extension; node --test        # the Chrome extension's tests (needs Node.js)
+git clone <this repository's URL>
+cd SDM
+uv sync                                     # creates .venv with the exact locked versions
+uv run python app.py                        # starts SDM
+uv run sdm-get https://example.com/file.zip # a one-off download from the command line
+uv run python scripts/check_all.py          # lint, all tests, extension tests
+uv run python scripts/build_release.py      # dist\SDM; add --installer with Inno Setup 6
 ```
 
-The tests draw windows off-screen, so nothing pops up while they run.
+`sdm-get` never overwrites a file (an existing `file.zip` becomes `file (1).zip`) and refuses
+addresses on this computer, and on your local network unless you pass `--allow-local-network`.
 
-## Project layout
+## How it's built
 
-| Path | Purpose |
+| Path | What it is |
 |---|---|
-| `app.py` | Launcher for running from source |
-| `src/sdm/core/` | Shared building blocks; imports no other SDM package |
-| `src/sdm/engine/` | HTTP download engine (M2+); never imports Qt |
-| `src/sdm/storage/` | SQLite persistence (M3+) |
-| `src/sdm/scheduler/` | Queues and scheduling (M6+) |
-| `src/sdm/bridge/` | Browser native messaging host, pipe and registration (M7) |
-| `extension/chrome/` | The Chrome extension ([set up](extension/README.md)) |
-| `src/sdm/ui/` | PySide6 desktop interface |
-| `src/sdm/cli.py` | The `sdm-get` command |
-| `tests/` | `unit/`, `integration/` (local mock server), `security/` |
-| `scripts/` | Reproducible evaluations, e.g. the HTTP library benchmark |
-| `docs/` | Research, requirements, architecture, testing, decisions |
+| `src/sdm/engine/` | The download engine (asyncio + aiohttp); never imports Qt |
+| `src/sdm/ui/` | The window (PySide6 / Qt) |
+| `src/sdm/storage/`, `src/sdm/scheduler/` | History (SQLite), queue and schedule |
+| `src/sdm/bridge/` | The browser bridge: native messaging host and its local pipe |
+| `extension/` | The browser extension and its tests |
+| `tests/` | Unit, integration (local test server) and security tests, including fuzzing |
+| `packaging/`, `scripts/` | Windows build, installer, performance and check scripts |
+| `docs/` | Architecture, security model, decisions (ADRs), roadmap, research notes |
 
-## Documentation
+Every design decision is recorded in the
+[architecture decision records](docs/decisions/architecture-decision-records.md); the
+[security model](docs/architecture/security-model.md) lists the rules SDM follows and the tests
+that prove them. The project was built milestone by milestone: see the
+[roadmap](docs/roadmap.md) and the [changelog](CHANGELOG.md).
 
-- [Project brief](docs/project-brief.md): the full mission and rules
-- [Roadmap](docs/roadmap.md) and [feature-parity matrix](docs/feature-parity-matrix.md)
-- [System architecture](docs/architecture/system-architecture.md) and
-  [security model](docs/architecture/security-model.md)
-- [Architecture decision records](docs/decisions/architecture-decision-records.md)
-- [Test strategy](docs/testing/test-strategy.md)
-- [Changelog](CHANGELOG.md)
+## Contributing and security
+
+Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). To report a security
+problem, follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
+
+## License
+
+SDM is licensed under the [Apache License 2.0](LICENSE); see also [NOTICE](NOTICE). The
+Windows build bundles Python, Qt/PySide6 (LGPL-3.0), aiohttp and other libraries under their
+own licences, listed in `THIRD-PARTY-NOTICES.txt` next to `SDM.exe`. Names of other products
+belong to their owners.

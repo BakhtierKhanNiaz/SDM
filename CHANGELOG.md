@@ -8,6 +8,8 @@ while SDM is in 0.x.
 
 ### Added
 
+- M11a, open source: Apache License 2.0 (`LICENSE`, `NOTICE`), version 1.0.0, a public
+  README, `CONTRIBUTING.md` and `SECURITY.md`.
 - M10 done: the owner installed SDM 0.1.0 with the per-user installer, verified a download,
   captured one from Chrome through the installed helper, and uninstalled it cleanly.
 - SDM warns at startup when it runs as administrator (Chrome's helper can't reach it then),

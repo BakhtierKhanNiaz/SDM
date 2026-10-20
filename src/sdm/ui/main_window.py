@@ -672,7 +672,8 @@ def about_text() -> str:
     python = ".".join(str(part) for part in sys.version_info[:3])
     return (
         f"SDM (Smart Download Manager) {__version__}\n"
-        "A personal-use download manager for Windows, written from scratch.\n\n"
+        "A free, open-source download manager for Windows, written from scratch.\n"
+        "Licensed under the Apache License 2.0.\n\n"
         f"Python {python}, Qt for Python (PySide6) {pyside_version}.\n"
         "Built with: Python (PSF License), Qt and PySide6 (LGPL-3.0), aiohttp (Apache-2.0) "
         "and its dependencies (see THIRD-PARTY-NOTICES.txt).\n\n"

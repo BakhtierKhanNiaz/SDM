@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
-const OWN_ID = "obfaejgipbklbamklladnpjikofggica";
+const OWN_ID = "abcdefghijklmnopabcdefghijklmnop"; // any valid-looking extension ID
 const calls = [];
 const listeners = {};
 let nativeReply;

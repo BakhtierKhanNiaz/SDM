@@ -5,7 +5,7 @@ Status: **M9, schema version 6.** Code: `sdm/core/downloads.py` (states, record)
 
 ## Where it lives
 
-`%LOCALAPPDATA%\SDM\sdm.db` (for this user: `C:\Users\<you>\AppData\Local\SDM\sdm.db`). That
+`%LOCALAPPDATA%\SDM\sdm.db` (for example `C:\Users\<you>\AppData\Local\SDM\sdm.db`). That
 folder is private to the Windows user and outside Controlled Folder Access's protected folders.
 SQLite runs in WAL mode, so `sdm.db-wal` and `sdm.db-shm` appear next to it while SDM runs.
 

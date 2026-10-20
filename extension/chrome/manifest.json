@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SDM: Download with SDM",
-  "version": "0.2.1",
+  "version": "1.0.0",
   "description": "Adds \"Download with SDM\" to the right-click menu of links and players, and can send your downloads to SDM on this computer (off until you turn it on).",
   "minimum_chrome_version": "116",
   "permissions": [

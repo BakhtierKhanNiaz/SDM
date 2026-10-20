@@ -1,0 +1,12 @@
+SDM (Smart Download Manager)
+Copyright 2026 Conditions-tech
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The Windows build bundles third-party software under their own licences, including
+Python (PSF License), Qt and Qt for Python / PySide6 (LGPL-3.0) and aiohttp (Apache-2.0)
+with its dependencies. Their licence texts are in THIRD-PARTY-NOTICES.txt next to
+SDM.exe in every build.
+
+SDM is an independent project. It is not affiliated with, endorsed by or derived from the
+code of any other download manager; names of other products belong to their owners.
