@@ -680,9 +680,29 @@ def about_text() -> str:
     )
 
 
-def startup_notices(recovered_from: Path | None, interrupted: int) -> list[str]:
+def running_elevated() -> bool:
+    """True when SDM runs "as administrator" (M10)."""
+    try:
+        import ctypes
+
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except (AttributeError, OSError):
+        return False
+
+
+ELEVATED_NOTICE = (
+    "SDM is running as administrator. Chrome can't hand links to it like this (Windows keeps "
+    "normal programs away from administrator ones), and downloads would run with administrator "
+    'rights. Close SDM and start it normally from the Start menu, not with "Run as '
+    'administrator" or from an Administrator window.'
+)
+
+
+def startup_notices(
+    recovered_from: Path | None, interrupted: int, *, elevated: bool = False
+) -> list[str]:
     """Messages to show once at startup."""
-    notices = []
+    notices = [ELEVATED_NOTICE] if elevated else []
     if recovered_from is not None:
         notices.append(
             "SDM's download history was damaged and couldn't be read, so a new, empty history "

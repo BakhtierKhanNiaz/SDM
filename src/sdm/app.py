@@ -24,7 +24,7 @@ from sdm.core.logs import install_crash_handlers, setup_logging
 from sdm.storage.database import DownloadStore, StorageError, default_database_path
 from sdm.ui.controller import DownloadController
 from sdm.ui.handoff import HandoffReceiver
-from sdm.ui.main_window import MainWindow, log_folder, startup_notices
+from sdm.ui.main_window import MainWindow, log_folder, running_elevated, startup_notices
 
 
 class CrashReporter(QObject):
@@ -94,7 +94,10 @@ def main(argv: list[str] | None = None) -> int:
     window.handoff_closed.connect(receiver.done)
     if bridge is not None:
         bridge.start()  # before the notices below, so a waiting host isn't kept waiting
-    for notice in startup_notices(store.recovered_from, interrupted):
+    elevated = running_elevated()
+    if elevated:
+        logging.getLogger(__name__).warning("SDM is running as administrator")
+    for notice in startup_notices(store.recovered_from, interrupted, elevated=elevated):
         QMessageBox.information(window, "SDM", notice)
 
     try:

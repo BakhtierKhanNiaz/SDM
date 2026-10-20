@@ -118,6 +118,7 @@ def _pass_on(request: DownloadRequest, key: bytes, address: str) -> dict[str, ob
     if reply.get("ok") is True:
         return {"ok": True}
     code = reply.get("error")
+    log.warning("SDM declined the request: %s", code if isinstance(code, str) else "no reason")
     return _error(code if isinstance(code, str) and code in ERRORS else "failed")
 
 
@@ -162,10 +163,36 @@ def _allow_sdm_to_come_forward() -> None:
         pass
 
 
+def _log_to_file() -> None:
+    """Also keep warnings in %LOCALAPPDATA%\\SDM\\logs\\bridge-host.log (M10).
+
+    Chrome shows a host's stderr only in its own hidden log, which made handoff problems hard
+    to diagnose. A separate file from the app's sdm.log: two processes must not rotate one file.
+    """
+    from logging.handlers import RotatingFileHandler
+
+    from sdm.core.logs import RedactingFilter
+    from sdm.core.paths import app_data_dir
+
+    try:
+        folder = app_data_dir() / "logs"
+        folder.mkdir(parents=True, exist_ok=True)
+        handler = RotatingFileHandler(
+            folder / "bridge-host.log", maxBytes=256 * 1024, backupCount=1, encoding="utf-8"
+        )
+    except OSError:
+        return
+    handler.setLevel(logging.WARNING)
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    handler.addFilter(RedactingFilter())
+    logging.getLogger().addHandler(handler)
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(
         level=logging.WARNING, format="sdm-bridge: %(levelname)s: %(message)s", stream=sys.stderr
     )
+    _log_to_file()
     if sys.platform == "win32":  # make sure no newline translation touches the frames
         import msvcrt
 

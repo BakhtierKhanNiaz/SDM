@@ -59,3 +59,12 @@ def test_startup_notices():
     assert notices[1].startswith("2 downloads were interrupted when SDM last closed.")
     assert "Resume all" in notices[1]
     assert startup_notices(None, 1)[0].startswith("1 download was interrupted")
+
+
+def test_running_as_administrator_is_explained_first():
+    # Seen in M10: an SDM started as administrator refused Chrome's normal-level helper
+    # with "Access is denied". It now says so at startup.
+    notices = startup_notices(None, 1, elevated=True)
+    assert notices[0].startswith("SDM is running as administrator")
+    assert "Start menu" in notices[0]
+    assert len(notices) == 2
