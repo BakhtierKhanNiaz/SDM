@@ -8,7 +8,14 @@ your browser.
 SDM is written from scratch in Python. It is independent and not affiliated with any other
 download manager.
 
-<!-- Screenshots are added in the UI/UX update (M11b). -->
+![SDM in light mode: the download list with progress bars and the details panel](docs/images/sdm-light.png)
+
+<details>
+<summary>Dark mode (follows Windows, or choose it in Tools > Settings)</summary>
+
+![SDM in dark mode](docs/images/sdm-dark.png)
+
+</details>
 
 ## Features
 

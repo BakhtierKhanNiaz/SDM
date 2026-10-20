@@ -21,6 +21,7 @@ class Preferences:
     last_folder: str = ""
     keep_in_tray: bool = False  # closing the window hides it; SDM keeps running
     notify: bool = True  # a Windows notification when a download finishes or fails
+    theme: str = "system"  # "system" (follow Windows), "light" or "dark" (M11)
 
     @property
     def speed_limit_bytes(self) -> int | None:
@@ -39,6 +40,8 @@ class Preferences:
             values["speed_limit_kib"] = default.speed_limit_kib
         if not 1 <= values["connections"] <= 8:
             values["connections"] = default.connections
+        if values["theme"] not in ("system", "light", "dark"):
+            values["theme"] = default.theme
         for name in ("default_folder", "last_folder"):
             if len(values[name]) > MAX_FOLDER_LENGTH or "\x00" in values[name]:
                 values[name] = ""

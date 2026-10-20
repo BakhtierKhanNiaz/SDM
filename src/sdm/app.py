@@ -25,6 +25,7 @@ from sdm.storage.database import DownloadStore, StorageError, default_database_p
 from sdm.ui.controller import DownloadController
 from sdm.ui.handoff import HandoffReceiver
 from sdm.ui.main_window import MainWindow, log_folder, running_elevated, startup_notices
+from sdm.ui.theme import apply_theme, follow_windows
 
 
 class CrashReporter(QObject):
@@ -82,6 +83,8 @@ def main(argv: list[str] | None = None) -> int:
     interrupted = store.mark_interrupted_on_startup()
 
     controller = DownloadController(store)
+    apply_theme(app, controller.preferences.theme)  # M11: light/dark, following Windows
+    follow_windows(app)
     controller.start()
     app.aboutToQuit.connect(controller.shutdown)  # a second safety net besides closeEvent
 

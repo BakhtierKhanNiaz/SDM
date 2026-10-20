@@ -11,6 +11,7 @@ from PySide6.QtCore import QByteArray, QPoint, QSortFilterProxyModel, Qt, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QGuiApplication, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QComboBox,
     QDialog,
     QHeaderView,
@@ -19,6 +20,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMenu,
     QMessageBox,
+    QSplitter,
     QStyle,
     QSystemTrayIcon,
     QTableView,
@@ -33,9 +35,11 @@ from sdm.core.errors import SDMError
 from sdm.core.paths import app_data_dir
 from sdm.ui.add_url_dialog import AddUrlDialog
 from sdm.ui.controller import DownloadController, finished_file, summarize
-from sdm.ui.download_model import CATEGORY, COLUMNS, NAME, STATUS
+from sdm.ui.download_model import CATEGORY, COLUMNS, NAME, PROGRESS, STATUS
 from sdm.ui.scheduler_dialog import SchedulerDialog
 from sdm.ui.settings_dialog import SettingsDialog
+from sdm.ui.theme import apply_theme
+from sdm.ui.widgets import DetailsPanel, ProgressDelegate
 
 # Kept for existing imports: the columns of the download list, left to right.
 DOWNLOAD_COLUMNS = COLUMNS
@@ -62,7 +66,7 @@ def reveal_in_explorer(path: Path) -> None:
     subprocess.Popen(f'explorer.exe /select,"{path}"')  # noqa: S602, S603 - fixed program
 
 
-_LAYOUT_KEYS = ("ui.geometry", "ui.header")
+_LAYOUT_KEYS = ("ui.geometry", "ui.header", "ui.splitter")
 
 
 class MainWindow(QMainWindow):
@@ -103,7 +107,20 @@ class MainWindow(QMainWindow):
         header = self.download_table.horizontalHeader()
         header.setSectionResizeMode(NAME, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(STATUS, QHeaderView.ResizeMode.ResizeToContents)
-        self.setCentralWidget(self.download_table)
+        self.download_table.setColumnWidth(PROGRESS, 150)  # room for the bar and its %
+        self.download_table.setItemDelegateForColumn(PROGRESS, ProgressDelegate(self))
+        self.download_table.verticalHeader().setDefaultSectionSize(30)
+        self.download_table.setShowGrid(False)
+        self.details = DetailsPanel(self)
+        self.details.show_in_folder.connect(self.show_in_folder_selected)
+        self.details.copy_address.connect(self.copy_address_selected)
+        self.splitter = QSplitter(Qt.Orientation.Vertical, self)
+        self.splitter.addWidget(self.download_table)
+        self.splitter.addWidget(self.details)
+        self.splitter.setStretchFactor(0, 3)
+        self.splitter.setStretchFactor(1, 1)
+        self.splitter.setChildrenCollapsible(True)
+        self.setCentralWidget(self.splitter)
 
         self.add_action = self._action("&Add URL…", self.open_add_dialog)
         self.add_action.setShortcut(QKeySequence.StandardKey.New)
@@ -212,7 +229,10 @@ class MainWindow(QMainWindow):
         self.tray = self._make_tray(icon) if QSystemTrayIcon.isSystemTrayAvailable() else None
         self._restore_layout()
         self.download_table.selectionModel().selectionChanged.connect(self._update_actions)
+        self.download_table.selectionModel().selectionChanged.connect(self._update_details)
         controller.model.dataChanged.connect(self._update_actions)
+        controller.model.dataChanged.connect(self._update_details)
+        controller.model.modelReset.connect(self._update_details)
         controller.model.rowsInserted.connect(self._update_actions)
         controller.model.rowsRemoved.connect(self._update_actions)
         controller.model.modelReset.connect(self._update_actions)
@@ -327,7 +347,10 @@ class MainWindow(QMainWindow):
 
     def apply_preferences(self, preferences) -> None:
         old_default = self.controller.preferences.default_folder
+        old_theme = self.controller.preferences.theme
         self.controller.set_preferences(preferences)
+        if preferences.theme != old_theme and QApplication.instance() is not None:
+            apply_theme(QApplication.instance(), preferences.theme)
         if preferences.default_folder != old_default:
             self._default_folder = self._preferred_folder()
 
@@ -504,7 +527,9 @@ class MainWindow(QMainWindow):
     # ----- layout -----
 
     def _restore_layout(self) -> None:
-        geometry, header = (self.controller.store.get_setting(k) for k in _LAYOUT_KEYS)
+        geometry, header, splitter = (self.controller.store.get_setting(k) for k in _LAYOUT_KEYS)
+        if splitter:
+            self.splitter.restoreState(QByteArray.fromBase64(splitter.encode("ascii")))
         if geometry:
             self.restoreGeometry(QByteArray.fromBase64(geometry.encode("ascii")))
         if header:
@@ -517,6 +542,22 @@ class MainWindow(QMainWindow):
         header = self.download_table.horizontalHeader().saveState().toBase64().data()
         self.controller.store.set_setting(_LAYOUT_KEYS[0], geometry)
         self.controller.store.set_setting(_LAYOUT_KEYS[1], header.decode("ascii"))
+        splitter = self.splitter.saveState().toBase64().data().decode("ascii")
+        self.controller.store.set_setting(_LAYOUT_KEYS[2], splitter)
+
+    def _update_details(self, *_args: object) -> None:
+        record = self.selected_record()
+        if record is None:
+            self.details.show_record(None)
+            return
+        speed, time_left, connections = self.controller.model.live(record.id)
+        self.details.show_record(
+            record,
+            speed=speed,
+            time_left=time_left,
+            connections=connections,
+            finished_file_ok=finished_file(record) is not None,
+        )
 
     def selected_record(self) -> DownloadRecord | None:
         rows = self.download_table.selectionModel().selectedRows()

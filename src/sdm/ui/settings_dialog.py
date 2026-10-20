@@ -6,6 +6,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
@@ -21,6 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from sdm.ui.preferences import MAX_SPEED_LIMIT_KIB, Preferences
+from sdm.ui.theme import MODE_LABELS, MODES
 
 
 class SettingsDialog(QDialog):
@@ -42,10 +44,15 @@ class SettingsDialog(QDialog):
         folder_row.addWidget(browse)
         self.remember_check = QCheckBox("Offer the folder I used last time in Add URL")
         self.remember_check.setChecked(preferences.remember_last_folder)
+        self.theme_box = QComboBox()
+        for mode in MODES:
+            self.theme_box.addItem(MODE_LABELS[mode], mode)
+        self.theme_box.setCurrentIndex(max(0, self.theme_box.findData(preferences.theme)))
         general = QWidget()
         general_form = QFormLayout(general)
         general_form.addRow("Default download folder:", folder_row)
         general_form.addRow(self.remember_check)
+        general_form.addRow("Appearance:", self.theme_box)
 
         # Connections
         self.connections_spin = QSpinBox()
@@ -116,6 +123,7 @@ class SettingsDialog(QDialog):
             speed_limit_kib=self.limit_spin.value() if self.limit_check.isChecked() else 0,
             notify=self.notify_check.isChecked(),
             keep_in_tray=self.tray_check.isChecked(),
+            theme=self.theme_box.currentData(),
         )
 
     def accept(self) -> None:

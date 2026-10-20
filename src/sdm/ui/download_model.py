@@ -66,6 +66,8 @@ class DownloadTableModel(QAbstractTableModel):
             return cell_text(row.record, index.column(), row.speed, row.time_left, row.connections)
         if role == Qt.ItemDataRole.ToolTipRole:
             return _tooltip(row.record, index.column())
+        if role == PROGRESS_ROLE and index.column() == PROGRESS:
+            return progress_percent(row.record)
         if role == Qt.ItemDataRole.TextAlignmentRole and index.column() in (
             SIZE,
             PROGRESS,
@@ -127,6 +129,14 @@ class DownloadTableModel(QAbstractTableModel):
         position = self._position(download_id)
         return None if position is None else self._rows[position].record
 
+    def live(self, download_id: int) -> tuple[float | None, float | None, int]:
+        """(speed, time left, connections) of a running download, for the details panel."""
+        position = self._position(download_id)
+        if position is None:
+            return None, None, 1
+        row = self._rows[position]
+        return row.speed, row.time_left, row.connections
+
     def record_at(self, row: int) -> DownloadRecord:
         return self._rows[row].record
 
@@ -157,6 +167,18 @@ CHECKSUM_TIPS = {
     ),
     MISSING: "The finished file wasn't found in its folder, so it couldn't be checked.",
 }
+
+
+PROGRESS_ROLE = Qt.ItemDataRole.UserRole + 1  # 0-100 for the progress bar, None if unknown
+
+
+def progress_percent(record: DownloadRecord) -> int | None:
+    """How far a download is, 0-100, or None when the size isn't known."""
+    if record.state == DownloadState.COMPLETED:
+        return 100
+    if not record.total_bytes:
+        return None
+    return min(100, record.received_bytes * 100 // record.total_bytes)
 
 
 def cell_text(
