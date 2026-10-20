@@ -3,8 +3,9 @@
 A personal-use download manager for Windows. It's modelled on the observable behavior of
 Internet Download Manager (IDM) and written from scratch (clean-room).
 
-> **Status: M9, settings and comfort.** Limit the speed, check files against their SHA-256,
-> get notified, and find files with Show in folder (Tools > Settings). See
+> **Status: all ten milestones done (M10: hardening and a Windows installer).** Install it
+> per user, download with up to 8 connections, queue and schedule, check SHA-256, and send
+> links from Chrome. See
 > [docs/roadmap.md](docs/roadmap.md).
 
 ## Requirements

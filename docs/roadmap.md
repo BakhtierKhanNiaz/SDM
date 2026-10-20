@@ -15,7 +15,7 @@ and its tests have actually run and passed.
 | M7 | Chrome extension and native messaging bridge | Done (2026-10-19) |
 | M8 | Browser handoff integrated with the download engine | Done (2026-10-20) |
 | M9 | Interface, settings, notifications and usability | Done (2026-10-20) |
-| M10 | Security, performance, regression testing and Windows packaging | In progress (M10a, M10b done) |
+| M10 | Security, performance, regression testing and Windows packaging | Done (2026-10-20) |
 
 ## M0: Environment inspection (done)
 
@@ -302,7 +302,7 @@ Found in the demo and fixed: the status bar was empty. Qt replaces a status *mes
 empty hint of any toolbar button or menu item the mouse passes over; the status now lives in a
 permanent label (`test_the_status_line_survives_hovering_over_buttons`).
 
-## M10: Security, performance, regression testing and Windows packaging
+## M10: Security, performance, regression testing and Windows packaging (done)
 
 On branch `m10/hardening` (ADR-0017):
 
@@ -320,13 +320,26 @@ On branch `m10/hardening` (ADR-0017):
   refused a bad message, SDM.exe started and logged version 0.1.0, the host handed a link
   to it, and with SDM closed the host started SDM.exe itself.
 
-Remaining before M10 is **Done**:
+Acceptance, met on 2026-10-20 on the owner's PC:
 
 - [x] The owner installed Inno Setup 6 and built `dist\SDM-Setup-0.1.0.exe` (30.2 MB) in their
   own PowerShell (2026-10-20; Claude's sandbox can't see the Inno Setup install).
   `build_release.py` now also finds Inno Setup through its uninstall registry entry, and has
   `--skip-build` (reuse `dist\SDM`) and `--iscc PATH`.
-- [ ] The owner installs SDM with it, starts it from the Start menu (history still there),
-  downloads python.org's embeddable zip with its SHA-256 (Completed · verified), sets up
-  Chrome integration from Help and captures one download, then uninstalls (Start-menu entry
-  and registration gone; history and downloads kept).
+- [x] Installed per user into `C:\Users\<you>\AppData\Local\Programs\SDM` without
+  administrator rights. Started from the Start menu: the history was there; Help > About
+  showed SDM 0.1.0; python.org's embeddable zip with its SHA-256 ended "Completed · verified"
+  (`(7).zip`).
+- [x] Help > Set up Chrome integration registered the installed `sdm-bridge-host.exe`. The
+  first capture failed ("SDM couldn't take the link"; Chrome kept the file, once): that SDM
+  was running as administrator, and Windows refused Chrome's normal-level helper ("Access is
+  denied", reproduced by running the installed host by hand). An SDM started normally (by the
+  helper) accepted the link, and a normal left-click on python.org's zip then opened the
+  installed SDM's "Captured from Chrome: python-3.14.7-embed-amd64.zip · 12.1 MB ·
+  application/zip · from a page on www.python.org" dialog. SDM now warns at startup when it
+  runs as administrator, and the host logs to `bridge-host.log` (`fa02d46`).
+- [x] Uninstalled from Settings > Apps: the Start-menu entry and the Chrome registration were
+  removed (`reg query` found no key); the history (`%LOCALAPPDATA%\SDM\sdm.db`) was kept.
+- Note: the installer the owner tested (built before `fa02d46`) doesn't include the
+  administrator warning or the host log yet; rebuild with
+  `uv run python scripts/build_release.py --installer` to get them.

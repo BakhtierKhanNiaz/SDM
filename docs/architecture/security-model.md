@@ -40,6 +40,8 @@ resolve the hex form (`test_disguised_spellings_of_this_computer_never_reach_it`
 
 ## Known gaps (to revisit)
 
+- SDM started as administrator can't receive Chrome handoffs: Windows keeps the normal-level
+  helper away from an elevated pipe. SDM warns at startup instead of failing silently (M10).
 - Any program running as this user can read the bridge key and hand SDM links, but only
   through the same schema and confirmation dialog (ADR-0014). (Closed in M10: remote pipe
   clients are refused, and NAT64/6to4 addresses are checked as their IPv4 address.)

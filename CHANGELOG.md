@@ -8,6 +8,10 @@ while SDM is in 0.x.
 
 ### Added
 
+- M10 done: the owner installed SDM 0.1.0 with the per-user installer, verified a download,
+  captured one from Chrome through the installed helper, and uninstalled it cleanly.
+- SDM warns at startup when it runs as administrator (Chrome's helper can't reach it then),
+  and the browser helper writes its warnings to `%LOCALAPPDATA%\SDM\logs\bridge-host.log`.
 - M10c, packaging: `scripts/build_release.py` builds `dist\SDM` with PyInstaller (SDM.exe,
   sdm-bridge-host.exe, THIRD-PARTY-NOTICES.txt) and, with `--installer`, a per-user Inno
   Setup installer (`packaging\sdm.iss`). Help > Set up / Remove Chrome integration registers

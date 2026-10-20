@@ -45,7 +45,7 @@ session), not that the feature was studied in full.
 | Integrity verification (checksums) | Tested | M9 | SHA-256 in Add URL or later; mismatched files kept and flagged; owner's demo verified a python.org download (roadmap). Size-unconfirmed warning since M2 (OBS-005) |
 | Settings dialog | Tested | M9 | General, Connections, Notifications tabs; queue settings in Scheduler. IDM's Options not observed |
 | Notifications | Tested | M9 | Windows notifications (not dialogs, unlike IDM's completion dialog, OBS-001); optional close-to-tray |
-| Windows installer / packaging | Not investigated | M10 | |
+| Windows installer / packaging | Tested | M10 | ADR-0018: PyInstaller build and a per-user Inno Setup installer; the owner installed, used (verified download, Chrome capture) and uninstalled it (roadmap). Not code-signed ($0) |
 
 Target milestones are a first guess from the roadmap. They can move once features are
 investigated.
