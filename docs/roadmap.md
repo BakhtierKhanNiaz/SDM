@@ -17,6 +17,7 @@ and its tests have actually run and passed.
 | M9 | Interface, settings, notifications and usability | Done (2026-10-20) |
 | M10 | Security, performance, regression testing and Windows packaging | Done (2026-10-20) |
 | M11 | Open-source release on GitHub (Apache-2.0, UI/UX, more browsers) | In progress (M11a-c done) |
+| M12 | Media: video/audio converter (ffmpeg) and optional yt-dlp add-on | Planned (after M11d) |
 
 ## M0: Environment inspection (done)
 
@@ -369,3 +370,22 @@ noreply address before the first push (owner to confirm right before).
   each loaded the extension with the fixed ID and reached SDM's helper. Brave and Firefox
   aren't installed here: their parts are tested with fakes only.
 - M11d (next): GitHub Actions, the email rewrite (owner confirms first), publishing.
+
+## M12: Media converter and optional video-site add-on (planned)
+
+Approved by the owner on 2026-10-25 (option B), to start after M11d on branch `m12/media`.
+
+- **Converter (core feature):** convert a local file with ffmpeg, for example video to MP3
+  audio, or MKV/WEBM to MP4. ffmpeg runs as a separate program; SDM never runs downloaded files
+  and converts only files the user picks.
+- **Video-site downloads (optional add-on, off by default):** the user turns on yt-dlp
+  themselves; SDM does not ship it. Choices: 720p, 1080p, 4K (2160p) or audio only (MP3/M4A).
+  1080p and 4K arrive as separate video and audio streams that ffmpeg merges. SDM shows a
+  notice that the user is responsible for each site's terms.
+- **Rule change:** the brief's "respect website terms" rule gets a note that site-specific
+  downloads happen only through the user-enabled add-on; DRM, paywalls, logins and access
+  controls stay off limits (no DRM-protected content, no cookie or account extraction).
+- **Before code:** check yt-dlp (Unlicense) and ffmpeg (LGPL/GPL builds) licences and
+  Windows support, and record an ADR. URLs from the add-on still count as untrusted input.
+- **Tests:** synthetic media files and a fake yt-dlp executable; never real video sites.
+- **Known limit:** no GPU here, so 4K conversion runs on the CPU and will be slow.
