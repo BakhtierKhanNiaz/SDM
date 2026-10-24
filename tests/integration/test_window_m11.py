@@ -153,3 +153,31 @@ def test_the_split_between_list_and_details_is_remembered(qtbot, make_controller
     qtbot.addWidget(second)
     second.show()
     assert second.splitter.sizes() == sizes
+
+
+def test_changing_the_theme_with_the_assistant_open(tmp_path):
+    """Regression (M11): re-setting Qt's style while the welcome assistant (a QWizard with
+    widgets) was open crashed SDM with an access violation. Run in its own process, so a crash
+    fails this test instead of ending the whole test run."""
+    import subprocess
+    import sys
+
+    code = (
+        "import os; os.environ['QT_QPA_PLATFORM'] = 'offscreen'\n"
+        "from pathlib import Path\n"
+        "from PySide6.QtWidgets import QApplication\n"
+        "from sdm.ui.preferences import Preferences\n"
+        "from sdm.ui.setup_wizard import SetupWizard\n"
+        "from sdm.ui.theme import apply_theme\n"
+        "app = QApplication([])\n"
+        "apply_theme(app, 'light')\n"
+        "wizard = SetupWizard(Preferences(), installed={'chrome'}, default_folder=Path('.'))\n"
+        "wizard.open(); app.processEvents()\n"
+        "for mode in ('dark', 'light', 'system', 'dark'):\n"
+        "    apply_theme(app, mode); app.processEvents()\n"
+        "print('survived')\n"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,  # noqa: S603
+                            timeout=60, cwd=tmp_path)  # fmt: skip
+    assert result.returncode == 0, result.stderr[-500:]
+    assert result.stdout.strip() == "survived"

@@ -93,6 +93,8 @@ def main(argv: list[str] | None = None) -> int:
     app.setQuitOnLastWindowClosed(False)
     window.quit_confirmed.connect(app.quit)
     window.show()
+    if not controller.preferences.setup_done:  # first start: the welcome assistant (M11)
+        window.open_setup_wizard()
     receiver.received.connect(window.receive_handoff)
     window.handoff_closed.connect(receiver.done)
     if bridge is not None:

@@ -49,26 +49,69 @@ def test_a_source_checkout_still_uses_the_launcher(tmp_path, hosts_key, monkeypa
     assert manifest["path"] == str(tmp_path / LAUNCHER_NAME)
 
 
-def test_help_menu_sets_up_chrome(qtbot, make_controller, tmp_path, monkeypatch):
+def make_window(qtbot, make_controller, tmp_path):
+    from sdm.ui.main_window import MainWindow
+
+    window = MainWindow(make_controller(start=False), default_folder=tmp_path)
+    qtbot.addWidget(window)
+    return window
+
+
+def test_the_setup_assistant_saves_choices_and_connects_browsers(
+    qtbot, make_controller, tmp_path, monkeypatch
+):
+    from PySide6.QtWidgets import QDialog
+
+    from sdm.bridge import browsers
     from sdm.bridge import install as install_module
-    from sdm.ui.main_window import MainWindow
 
-    calls = []
-    monkeypatch.setattr(install_module, "install", lambda extension_id: calls.append(extension_id))
-    window = MainWindow(make_controller(start=False), default_folder=tmp_path)
-    qtbot.addWidget(window)
-    title, message, ok = window.register_chrome(EXTENSION_ID)
-    assert ok and calls == [EXTENSION_ID] and "Quit Chrome completely" in message
-    assert window.chrome_setup_action.text() == "Set up &Chrome integration…"
+    monkeypatch.setattr(browsers, "installed_browsers",
+                        lambda: [browsers.BY_KEY["chrome"], browsers.BY_KEY["edge"]])  # fmt: skip
+    registered = []
+
+    def fake_register(chosen):
+        registered.extend(browser.name for browser in chosen)
+        return registered
+
+    monkeypatch.setattr(install_module, "register_browsers", fake_register)
+    window = make_window(qtbot, make_controller, tmp_path)
+    assert window.setup_action.text() == "&Setup assistant…"
+    wizard = window.open_setup_wizard()
+    # Installed browsers are ticked; the others can't be.
+    assert wizard.browser_checks["chrome"].isChecked() and wizard.browser_checks["edge"].isChecked()
+    assert not wizard.browser_checks["firefox"].isEnabled()
+    wizard.browser_checks["edge"].setChecked(False)
+    folder = tmp_path / "downloads"
+    folder.mkdir()
+    wizard.folder_edit.setText(str(folder))
+    wizard.theme_box.setCurrentIndex(wizard.theme_box.findData("dark"))
+    names = window.finish_setup(wizard, QDialog.DialogCode.Accepted)
+    assert names == ["Google Chrome"] and registered == ["Google Chrome"]
+    preferences = window.controller.preferences
+    assert (preferences.default_folder, preferences.theme, preferences.setup_done) == (
+        str(folder), "dark", True)  # fmt: skip
+    assert window.status_label.text() == "Connected to: Google Chrome"
+    from PySide6.QtWidgets import QApplication
+
+    from sdm.ui.theme import apply_theme
+
+    apply_theme(QApplication.instance(), "light")  # don't leave other tests in dark mode
 
 
-def test_help_menu_reports_a_bad_extension_id(qtbot, make_controller, tmp_path, hosts_key):
-    from sdm.ui.main_window import MainWindow
+def test_cancelling_the_assistant_isnt_asked_again(qtbot, make_controller, tmp_path):
+    from PySide6.QtWidgets import QDialog
 
-    window = MainWindow(make_controller(start=False), default_folder=tmp_path)
-    qtbot.addWidget(window)
-    title, message, ok = window.register_chrome("not-an-id")
-    assert not ok and "32 letters" in message
+    window = make_window(qtbot, make_controller, tmp_path)
+    wizard = window.open_setup_wizard()
+    assert window.finish_setup(wizard, QDialog.DialogCode.Rejected) == []
+    assert window.controller.preferences.setup_done is True
+
+
+def test_extension_links_point_at_the_release_until_the_stores_list_it():
+    from sdm.core import links
+
+    assert links.extension_page("chrome") == links.RELEASES_URL
+    assert links.extension_page("edge") == (links.EDGE_STORE_URL or links.RELEASES_URL)
 
 
 def test_third_party_notices_cover_every_library_in_the_build():
@@ -92,3 +135,14 @@ def test_build_files_agree():
     from sdm.bridge.host import launch_sdm  # the host starts "sdm.exe" next to itself
 
     assert launch_sdm.__doc__ and "sdm.exe" in launch_sdm.__doc__
+
+
+def test_installer_cleans_up_every_browser():
+    from sdm.bridge.browsers import BROWSERS
+    from sdm.bridge.install import FIREFOX_MANIFEST_NAME, HOST_NAME
+
+    iss = (ROOT / "packaging" / "sdm.iss").read_text(encoding="utf-8")
+    for browser in BROWSERS:
+        line = f'Subkey: "{browser.hosts_key}\\{HOST_NAME}"; Flags: uninsdeletekey dontcreatekey'
+        assert line in iss, browser.name
+    assert FIREFOX_MANIFEST_NAME in iss

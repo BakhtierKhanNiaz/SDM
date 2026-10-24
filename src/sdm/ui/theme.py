@@ -61,7 +61,12 @@ def apply_theme(app: QApplication, mode: str) -> bool:
     mode = mode if mode in MODES else "system"
     dark = is_dark(mode, app)
     colors = colors_for(dark)
-    app.setStyle("Fusion")
+    if not app.property("sdm_fusion"):
+        # Only once: setStyle() destroys the previous style object, and an open QWizard keeps
+        # using it, which crashed SDM when the theme changed during the welcome assistant
+        # (test_changing_the_theme_with_the_assistant_open). Later changes only swap colours.
+        app.setStyle("Fusion")
+        app.setProperty("sdm_fusion", True)
     app.setFont(QFont("Segoe UI", 10))
     palette = QPalette()
     for role, key in (

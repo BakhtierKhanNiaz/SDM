@@ -51,11 +51,16 @@ Name: "{autodesktop}\SDM"; Filename: "{app}\SDM.exe"; Tasks: desktopicon
 Filename: "{app}\SDM.exe"; Description: "Start SDM now"; Flags: nowait postinstall skipifsilent
 
 [Registry]
-; Created by SDM (Help > Set up Chrome integration), never by the installer ("dontcreatekey");
-; removed on uninstall so Chrome isn't left pointing at a deleted program.
+; Created by SDM (the welcome assistant, Help > Setup assistant), never by the installer
+; ("dontcreatekey"); removed on uninstall so no browser is left pointing at a deleted program.
+; One line per browser in src/sdm/bridge/browsers.py (test_installer_cleans_up_every_browser).
 Root: HKCU; Subkey: "Software\Google\Chrome\NativeMessagingHosts\com.sdm.bridge"; Flags: uninsdeletekey dontcreatekey
+Root: HKCU; Subkey: "Software\Microsoft\Edge\NativeMessagingHosts\com.sdm.bridge"; Flags: uninsdeletekey dontcreatekey
+Root: HKCU; Subkey: "Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\com.sdm.bridge"; Flags: uninsdeletekey dontcreatekey
+Root: HKCU; Subkey: "Software\Mozilla\NativeMessagingHosts\com.sdm.bridge"; Flags: uninsdeletekey dontcreatekey
 
 [UninstallDelete]
 Type: files; Name: "{localappdata}\SDM\bridge\com.sdm.bridge.json"
+Type: files; Name: "{localappdata}\SDM\bridge\com.sdm.bridge.firefox.json"
 Type: files; Name: "{localappdata}\SDM\bridge\sdm-bridge-host.bat"
 Type: dirifempty; Name: "{localappdata}\SDM\bridge"

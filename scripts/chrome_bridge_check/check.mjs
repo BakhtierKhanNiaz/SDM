@@ -63,12 +63,19 @@ try {
   }
   if (!worker) throw new Error("the extension's service worker didn't start");
   const { result } = await send("Target.attachToTarget", { targetId: worker.targetId, flatten: true });
-  const evaluated = await send("Runtime.evaluate", {
-    expression: `chrome.runtime.sendNativeMessage("com.sdm.bridge", ${JSON.stringify(REFUSED)})` +
-      `.then(r => "REPLY " + JSON.stringify(r), e => "ERROR " + e.message)`,
-    awaitPromise: true,
-  }, result.sessionId);
-  outcome = evaluated.result?.result?.value ?? JSON.stringify(evaluated);
+  // Right after loading, the worker may run before the extension APIs are set up ("chrome is
+  // not defined"): ask again for a few seconds.
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const evaluated = await send("Runtime.evaluate", {
+      expression: `typeof chrome === "undefined" || !chrome.runtime ? "NOT READY" : ` +
+        `chrome.runtime.sendNativeMessage("com.sdm.bridge", ${JSON.stringify(REFUSED)})` +
+        `.then(r => "REPLY " + JSON.stringify(r), e => "ERROR " + e.message)`,
+      awaitPromise: true,
+    }, result.sessionId);
+    outcome = evaluated.result?.result?.value ?? JSON.stringify(evaluated);
+    if (outcome !== "NOT READY") break;
+    await sleep(250);
+  }
 } catch (error) {
   outcome = `FAILED: ${error.message}`;
 } finally {
@@ -79,6 +86,6 @@ try {
 console.log(outcome);
 const ok = outcome === 'REPLY {"ok":false,"error":"bad_request"}';
 console.log(ok
-  ? "OK: Chrome found SDM's host, and the host ran and refused the test link."
+  ? "OK: the browser found SDM's host, and the host ran and refused the test link."
   : "NOT OK: see the line above (\"host not found\" means the registration is missing).");
 process.exit(ok ? 0 : 1);

@@ -36,7 +36,13 @@ function watchDownloads() {
   // chrome.downloads exists only while the permission is granted. Registering at the top level
   // lets Chrome wake this worker for new downloads; onAdded covers turning capture on later.
   if (chrome.downloads && !watching) {
-    chrome.downloads.onDeterminingFilename.addListener(onDeterminingFilename);
+    if (chrome.downloads.onDeterminingFilename) {
+      chrome.downloads.onDeterminingFilename.addListener(onDeterminingFilename);
+    } else {
+      // Firefox has no "before Save As" hook (M11): capture when the download is created.
+      // Firefox may show its own Save As window first; right-click works as everywhere.
+      chrome.downloads.onCreated.addListener(onDownloadCreated);
+    }
     watching = true;
   }
 }
@@ -76,7 +82,15 @@ export function onDeterminingFilename(item, suggest) {
   return true; // "I will call suggest() later"
 }
 
-async function capture(item, answer) {
+// Firefox: the download already exists when we hear of it, and a small file may even have
+// finished by the time it is stopped; then Firefox keeps it and SDM isn't asked.
+export function onDownloadCreated(item) {
+  return capture(item, () => {}, { mayHaveFinished: true }).catch((error) =>
+    console.warn(`SDM: capture failed: ${String(error?.message ?? error)}`),
+  );
+}
+
+async function capture(item, answer, { mayHaveFinished = false } = {}) {
   if (takeHandedBack(item.url)) return;
   if (!(await chrome.permissions.contains({ permissions: ["downloads"] }))) return;
   const settings = await loadSettings();
@@ -87,6 +101,10 @@ async function capture(item, answer) {
   // Stop Chrome's copy before SDM starts, so the file is never downloaded twice.
   await chrome.downloads.cancel(item.id);
   answer();
+  if (mayHaveFinished) {
+    const [after] = await chrome.downloads.search({ id: item.id });
+    if (after && after.state === "complete") return;
+  }
   await chrome.downloads.erase({ id: item.id });
 
   showStatus({ ok: true, text: "" });

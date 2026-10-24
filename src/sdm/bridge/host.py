@@ -44,6 +44,15 @@ _ORIGIN = re.compile(r"chrome-extension://[a-p]{32}/")
 FROM_BROWSER_FLAG = "--from-browser"  # tells a second SDM started by us to exit quietly
 
 
+def started_by_browser(args: list[str]) -> bool:
+    """A Chromium extension origin first, or Firefox's (manifest path, SDM's add-on ID)."""
+    from sdm.bridge.browsers import FIREFOX_EXTENSION_ID
+
+    if args and _ORIGIN.fullmatch(args[0]):
+        return True
+    return len(args) >= 2 and args[0].lower().endswith(".json") and args[1] == FIREFOX_EXTENSION_ID
+
+
 def run(
     args: list[str],
     stdin: BinaryIO,
@@ -72,10 +81,11 @@ def handle(
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
 ) -> dict[str, object]:
-    # Chrome passes the calling extension's origin first. Chrome already checks it against
-    # allowed_origins; checking its shape here also refuses a host started some other way.
-    if not args or not _ORIGIN.fullmatch(args[0]):
-        log.warning("Refused: not started by a Chrome extension.")
+    # Chromium browsers pass the calling extension's origin first; Firefox passes the host
+    # manifest's path and then the add-on ID (M11). The browser has already checked the caller
+    # against the manifest; checking the shape here also refuses a host started some other way.
+    if not started_by_browser(args):
+        log.warning("Refused: not started by SDM's browser extension.")
         return _error("bad_origin")
     try:
         request = parse_request(read_message(stdin))

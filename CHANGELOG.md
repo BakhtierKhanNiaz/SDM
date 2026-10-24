@@ -8,6 +8,11 @@ while SDM is in 0.x.
 
 ### Added
 
+- M11c: the extension works in Chrome, Edge, Brave and Firefox, with a fixed extension ID, so
+  SDM registers itself for every browser without typing anything; extension packages for
+  GitHub, Edge Add-ons and Firefox Add-ons (`scripts/build_extensions.py`).
+- M11b: light and dark themes (following Windows), progress bars, a details panel and a
+  welcome assistant (download folder, appearance, browsers).
 - M11a, open source: Apache License 2.0 (`LICENSE`, `NOTICE`), version 1.0.0, a public
   README, `CONTRIBUTING.md` and `SECURITY.md`.
 - M10 done: the owner installed SDM 0.1.0 with the per-user installer, verified a download,
@@ -153,6 +158,10 @@ while SDM is in 0.x.
 
 ### Changed
 
+- Help > Set up Chrome integration became Help > Setup assistant; Help > Remove browser
+  integration disconnects every browser.
+- Fixed (M11b, found by a test): changing the theme while the welcome assistant was open
+  crashed SDM.
 - Fixed (M10b, found by measuring): starting a split download wrote its whole partial file as
   zeros first (Python's truncate() on Windows), on the thread all connections share; a 1 GiB
   file stalled every connection for seconds. Pre-sizing now writes nothing.

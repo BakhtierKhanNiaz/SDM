@@ -22,6 +22,7 @@ class Preferences:
     keep_in_tray: bool = False  # closing the window hides it; SDM keeps running
     notify: bool = True  # a Windows notification when a download finishes or fails
     theme: str = "system"  # "system" (follow Windows), "light" or "dark" (M11)
+    setup_done: bool = False  # the welcome assistant has run (M11)
 
     @property
     def speed_limit_bytes(self) -> int | None:

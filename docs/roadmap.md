@@ -16,7 +16,7 @@ and its tests have actually run and passed.
 | M8 | Browser handoff integrated with the download engine | Done (2026-10-20) |
 | M9 | Interface, settings, notifications and usability | Done (2026-10-20) |
 | M10 | Security, performance, regression testing and Windows packaging | Done (2026-10-20) |
-| M11 | Open-source release on GitHub (Apache-2.0, UI/UX, more browsers) | In progress (M11a done) |
+| M11 | Open-source release on GitHub (Apache-2.0, UI/UX, more browsers) | In progress (M11a-c done) |
 
 ## M0: Environment inspection (done)
 
@@ -359,4 +359,13 @@ noreply address before the first push (owner to confirm right before).
   gone); a public README, `CONTRIBUTING.md` and `SECURITY.md`; personal paths and the owner's
   extension ID replaced by neutral examples; "personal use" wording updated (About box,
   `CLAUDE.md`, a historical note on the brief).
-- M11b (next): UI/UX. M11c: more browsers. M11d: GitHub Actions and publishing.
+- M11b (`c2c6e21` and this commit): light/dark themes following Windows, progress bars, a
+  details panel, and a welcome assistant (folder, appearance, browsers). A test found that
+  changing the theme with the assistant open crashed Qt; the style is now set only once.
+- M11c: Edge, Brave and Firefox besides Chrome (ADR-0019): a fixed Chromium extension ID,
+  per-browser registration with no typing, Firefox's own manifest, host arguments and
+  capture path, `scripts/build_extensions.py` (Chromium, Edge store and Firefox zips), and
+  the uninstaller cleaning up every browser. Checked: a throwaway headless Chrome and Edge
+  each loaded the extension with the fixed ID and reached SDM's helper. Brave and Firefox
+  aren't installed here: their parts are tested with fakes only.
+- M11d (next): GitHub Actions, the email rewrite (owner confirms first), publishing.

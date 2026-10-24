@@ -38,6 +38,7 @@ from sdm.ui.controller import DownloadController, finished_file, summarize
 from sdm.ui.download_model import CATEGORY, COLUMNS, NAME, PROGRESS, STATUS
 from sdm.ui.scheduler_dialog import SchedulerDialog
 from sdm.ui.settings_dialog import SettingsDialog
+from sdm.ui.setup_wizard import SetupWizard
 from sdm.ui.theme import apply_theme
 from sdm.ui.widgets import DetailsPanel, ProgressDelegate
 
@@ -83,6 +84,7 @@ class MainWindow(QMainWindow):
         self._default_folder = default_folder or self._preferred_folder()
         self._quitting = False  # File > Exit or Quit: really close, even with the tray option
         self._told_about_tray = False
+        self.setup_wizard: SetupWizard | None = None
         self.notifications: list[tuple[str, str]] = []  # (title, text), newest last
         self._handoffs: deque[DownloadRequest] = deque()  # browser links waiting for a dialog
         self.handoff_dialog: AddUrlDialog | None = None
@@ -192,10 +194,10 @@ class MainWindow(QMainWindow):
         self.open_logs_action = help_menu.addAction("Open &log folder")
         self.open_logs_action.triggered.connect(lambda: open_folder(log_folder()))
         help_menu.addSeparator()
-        self.chrome_setup_action = help_menu.addAction("Set up &Chrome integration…")
-        self.chrome_setup_action.triggered.connect(self.ask_chrome_setup)
-        self.chrome_remove_action = help_menu.addAction("&Remove Chrome integration")
-        self.chrome_remove_action.triggered.connect(self.remove_chrome)
+        self.setup_action = help_menu.addAction("&Setup assistant…")
+        self.setup_action.triggered.connect(self.open_setup_wizard)
+        self.browsers_remove_action = help_menu.addAction("&Remove browser integration")
+        self.browsers_remove_action.triggered.connect(self.remove_browsers)
         help_menu.addSeparator()
         self.about_action = help_menu.addAction("&About SDM")
         self.about_action.triggered.connect(self.show_about)
@@ -359,40 +361,51 @@ class MainWindow(QMainWindow):
 
     # ----- Chrome integration (M10: the installed SDM registers its own host) -----
 
-    def ask_chrome_setup(self) -> None:
-        text, ok = QInputDialog.getText(
-            self,
-            "Set up Chrome integration",
-            "Paste the ID that chrome://extensions shows for SDM's extension (32 letters a-p):",
+    def open_setup_wizard(self) -> SetupWizard:
+        """The welcome assistant (M11), non-blocking; returns it so tests can drive it."""
+        from sdm.bridge.browsers import installed_browsers
+
+        wizard = SetupWizard(
+            self.controller.preferences,
+            installed={browser.key for browser in installed_browsers()},
+            default_folder=self._default_folder,
+            parent=self,
         )
-        if ok:
-            title, message, success = self.register_chrome(text.strip())
-            box = QMessageBox.information if success else QMessageBox.warning
-            box(self, title, message)
+        wizard.finished.connect(lambda result, w=wizard: self.finish_setup(w, result))
+        self.setup_wizard = wizard
+        wizard.open()
+        return wizard
 
-    def register_chrome(self, extension_id: str) -> tuple[str, str, bool]:
-        """Register SDM's native messaging host for one extension: (title, message, ok)."""
-        from sdm.bridge.install import InstallError, install
+    def finish_setup(self, wizard: SetupWizard, result: int) -> list[str]:
+        """Save the choices and register SDM for the ticked browsers; returns their names."""
+        from sdm.bridge.install import InstallError, register_browsers
 
+        self.setup_wizard = None
+        if result != QDialog.DialogCode.Accepted:
+            # Asked once: Help > Setup assistant brings it back.
+            self.controller.set_preferences(replace(self.controller.preferences, setup_done=True))
+            return []
+        self.apply_preferences(wizard.preferences())
+        self._default_folder = self._preferred_folder()
+        chosen = wizard.chosen_browsers()
+        if not chosen:
+            return []
         try:
-            install(extension_id)
+            names = register_browsers(chosen)
         except (InstallError, OSError) as exc:
-            return "Chrome integration not set up", str(exc), False
-        return (
-            "Chrome integration set up",
-            "Quit Chrome completely (every window, and its tray icon) and open it again. Then "
-            "right-click a link and choose Download with SDM.",
-            True,
-        )
+            QMessageBox.warning(self, "Browsers not connected", str(exc))
+            return []
+        self.status_label.setText(f"Connected to: {', '.join(names)}")
+        return names
 
-    def remove_chrome(self) -> None:
-        from sdm.bridge.install import uninstall
+    def remove_browsers(self) -> None:
+        from sdm.bridge.install import uninstall, unregister_browsers
 
-        removed = uninstall()
+        removed = unregister_browsers() | uninstall()
         QMessageBox.information(
             self,
-            "Chrome integration",
-            "Chrome integration was removed." if removed else "Chrome integration wasn't set up.",
+            "Browser integration",
+            "SDM was disconnected from your browsers." if removed else "No browser was connected.",
         )
 
     # ----- finished files -----

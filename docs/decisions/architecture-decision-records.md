@@ -488,3 +488,45 @@ deleted. A changed decision gets a new record that supersedes the old one.
 - **Consequences:** The installed SDM and a source checkout share `%LOCALAPPDATA%\SDM` and the
   single-instance pipe, so only one runs at a time. Build: `uv run python
   scripts/build_release.py --installer`.
+
+## ADR-0019: The open-source look, a welcome assistant, and every major browser
+
+- **Date:** 2026-10-25 · **Status:** Accepted (M11 plan approved by the project owner)
+- **Context:** For a public release, people must be able to install SDM and connect a browser
+  without PowerShell, in Chrome, Edge, Brave or Firefox, at $0.
+- **Decision:**
+  - **Look:** Qt's Fusion style with light and dark palettes (`sdm.ui.theme`); "system" follows
+    Windows and switches with it. Text colours are checked against WCAG AA (4.5:1) in tests.
+    The style is set **once**: setting it again destroyed the style object an open QWizard
+    still used, and SDM crashed with an access violation when the theme changed in the welcome
+    assistant (found by a test; reproduced with any widget in a wizard page; regression test
+    `test_changing_the_theme_with_the_assistant_open`). Later changes swap colours only.
+  - **List and details:** a progress bar in the Progress column; a details panel shows the
+    selected download, with the address minus its query string (Copy address copies it whole).
+  - **Welcome assistant** (`sdm.ui.setup_wizard`), on first start and from Help: download
+    folder, appearance, and browsers. It detects installed browsers (Windows' App Paths) and
+    registers SDM for the ticked ones; cancelling is remembered, so it doesn't nag.
+  - **Fixed Chromium ID:** a public `key` in the extension's manifest fixes its ID to
+    `klbnhggmneoiamogpgbkajkdklfacohb` wherever it's unpacked (verified by loading it in Chrome
+    and Edge). The key pair was generated with Git's OpenSSL; the private key was deleted,
+    since SDM's extension is never packed as a signed `.crx`. Registration needs no typing.
+  - **Registration per browser** (`sdm.bridge.browsers`, `register_browsers`), from each
+    browser's documentation: Chrome `Software\Google\Chrome\NativeMessagingHosts`; Edge
+    `Software\Microsoft\Edge\NativeMessagingHosts` (Edge also falls back to Chromium's and
+    Chrome's keys); Firefox `Software\Mozilla\NativeMessagingHosts` with its own manifest
+    (`allowed_extensions`: `sdm@sdm-download-manager`). Brave documents no location and doesn't
+    fall back to Chrome's key; SDM registers under `Software\BraveSoftware\Brave-Browser\...`,
+    the key Chromium-based browsers derive from their registry path (**not yet confirmed** on a
+    PC with Brave). The uninstaller removes all four keys.
+  - **Firefox:** the host accepts Firefox's way of starting it (the manifest's path, then the
+    add-on ID) besides a Chromium origin. Firefox has no `downloads.onDeterminingFilename`
+    (MDN documents only onChanged, onCreated, onErased), so capture there runs on `onCreated`:
+    Firefox's own Save As may appear first. Its package joins the background modules into one
+    classic script (Firefox runs background scripts, not service workers) and declares no data
+    collection. Firefox only installs signed add-ons, so Firefox users need the Firefox Add-ons
+    listing (free); not tested on a real Firefox here (not installed).
+  - **Distribution** (owner's choice, $0): GitHub Releases zips for Chromium browsers; free
+    listings on Microsoft Edge Add-ons and Firefox Add-ons (the owner creates the accounts and
+    submits; their store IDs and URLs then go into `browsers.py` and `sdm.core.links`).
+- **Consequences:** Developer-mode installs show Chrome's "developer mode extensions" notice.
+  `PROJECT_URL` in `sdm.core.links` must be set to the real repository before release.

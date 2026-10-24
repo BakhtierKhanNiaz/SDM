@@ -50,7 +50,8 @@ uv run ruff format .        # format
 uv add <pkg>                # runtime dependency; `uv add --dev <pkg>` for dev tools
 uv run python scripts/build_release.py [--installer]   # dist\SDM (+ installer, needs Inno Setup)
 cd extension; node --test   # Chrome extension tests (Node 24, no packages)
-uv run python -m sdm.bridge.install --extension-id ID   # registry change: ask first
+uv run python -m sdm.bridge.install --browsers   # register for every browser: ask first
+uv run python scripts/build_extensions.py       # dist\extension\: Chromium, Edge, Firefox zips
 ```
 
 ## Layout and boundaries
