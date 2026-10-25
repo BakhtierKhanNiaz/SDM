@@ -421,8 +421,13 @@ yt-dlp does the video downloading; M12a converter, M12b video add-on, then relea
 - M12b (done): `sdm.media.ytdlp` and `VideoRunner`, which runs yt-dlp and reports with the
   engine's own events, so a video is an ordinary list entry (queue, pause, resume, cancel,
   history, notifications). Settings > Media turns it on after the terms notice; Add URL gets
-  "Download as". History schema 7 (`video`). 23 new tests with a fake yt-dlp. Left: a check
-  with the real yt-dlp (the owner's, on a page they may download).
+  "Download as". History schema 7 (`video`). 23 new tests with a fake yt-dlp. Then, with the
+  real yt-dlp 2026.10.21 and ffmpeg (winget, Claude's sandbox) against a test server on
+  127.0.0.1: every option SDM passes was accepted; a page with a `<video>` came out as 1080p
+  MP4 and MP3, a direct link as 720p (ffprobe). That run found two rough edges, now fixed: a
+  failed download left an empty `.sdm-video-<id>` folder, and a 404 showed yt-dlp's internal
+  wording. `test_video_real_ytdlp.py` repeats it where both tools are installed. Left: the
+  owner's check on a real video page they may download.
 - M12c (next): docs, release 1.1.0, the owner's test.
 
 - **Converter (core feature):** convert a local file with ffmpeg, for example video to MP3

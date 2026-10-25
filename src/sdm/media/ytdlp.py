@@ -194,15 +194,32 @@ _EXPLAINED = (
 )  # fmt: skip
 
 
+_HTTP_ERROR = re.compile(r"HTTP Error (\d{3})")
+_EXTRACTOR_PREFIX = re.compile(r"^\[[^\]]+\] [^:\s]+: ")  # "[generic] abc: "
+_CAUSE = re.compile(r"\s*\(caused by .*\)\s*$")
+
+
 def explain_failure(log: list[str]) -> str:
-    """Why yt-dlp failed, in plain words where SDM recognises the case, else its last error."""
+    """Why yt-dlp failed, in plain words where SDM recognises the case, else its last error
+    without yt-dlp's internal details.
+
+    Seen with yt-dlp 2026.10.21 on a missing page: "ERROR: [generic] missing: Unable to
+    download webpage: HTTP Error 404: File not found (caused by <HTTPError 404: ...>)".
+    """
     errors = [line.removeprefix("ERROR:").strip() for line in log if line.startswith("ERROR:")]
     text = "\n".join(errors or log)
     for needle, explanation in _EXPLAINED:
         if needle in text:
             return explanation
+    if match := _HTTP_ERROR.search(text):
+        code = match.group(1)
+        if code in ("404", "410"):
+            return f"The page wasn't found (HTTP {code})."
+        if code in ("401", "403"):
+            return f"The site refused access (HTTP {code})."
+        return f"The site answered with an error (HTTP {code})."
     if errors:
-        return errors[-1]
+        return _CAUSE.sub("", _EXTRACTOR_PREFIX.sub("", errors[-1]))
     return log[-1] if log else ""
 
 

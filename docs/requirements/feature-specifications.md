@@ -310,14 +310,19 @@ the partial file.
 | FR-3 | The page's host passes the network policy before yt-dlp starts | `test_a_page_on_this_computer_is_blocked_before_yt_dlp_starts` |
 | FR-4 | One finished file in the folder (merged video, or MP3/M4A), never overwriting; the work folder is removed | `test_a_video_page_downloads_into_one_file`, `test_audio_only_becomes_an_mp3`, `test_a_second_copy_gets_a_numbered_name`, `test_the_finished_file_is_the_merged_one` |
 | FR-5 | Pause keeps yt-dlp's partial files and resume continues them; Cancel (running or paused) deletes them; closing SDM pauses | `test_pause_keeps_the_partial_files_and_resume_continues`, `test_cancel_stops_yt_dlp_and_deletes_its_files`, `test_cancelling_a_paused_video_deletes_its_files`, `test_closing_sdm_pauses_a_running_video` |
-| FR-6 | Failures in plain words (unsupported page, quality, DRM, login, missing ffmpeg) | `test_failures_in_plain_words`, `test_an_unsupported_page_fails_with_a_plain_reason` |
+| FR-6 | Failures in plain words (unsupported page, quality, DRM, login, missing ffmpeg, HTTP errors); a failure that left nothing leaves no work folder | `test_failures_in_plain_words`, `test_an_unsupported_page_fails_with_a_plain_reason`, `test_a_missing_page_is_explained_and_leaves_nothing` |
 | FR-7 | The history keeps the quality (schema 7) | `test_upgrading_the_history_to_version_7_keeps_entries` |
 
 ### Acceptance criteria
 
 - All tests above pass (with a fake yt-dlp); ruff is clean.
-- The owner, with the real yt-dlp and ffmpeg: a video page they're allowed to download comes
-  out as a playable 1080p MP4 and as an MP3. Not yet done.
+- Real yt-dlp 2026.10.21 and ffmpeg 9.0.2 (winget, in Claude's sandbox, 2026-10-25), against a
+  test server on 127.0.0.1 only (`test_video_real_ytdlp.py`, skipped where they aren't
+  installed): an HTML page with a `<video>` came out as 1080p MP4 (H.264 + AAC) and as MP3, a
+  direct `.mp4` link as 720p MP4, each the only file left in the folder; a missing page said
+  "The page wasn't found (HTTP 404)." and left nothing. Done.
+- The owner, on a real video page they may download: a playable 1080p MP4 and an MP3. Not
+  yet done.
 
 ## Template
 

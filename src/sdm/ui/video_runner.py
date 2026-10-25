@@ -231,8 +231,14 @@ class VideoRunner(QObject):
         self._fail(download_id, f"yt-dlp couldn't be started. {INSTALL_HINT}")
 
     def _fail(self, download_id: int, message: str) -> None:
-        # The work folder stays: a retry continues from yt-dlp's partial files.
-        self._jobs.pop(download_id, None)
+        # The work folder stays, so a retry continues from yt-dlp's partial files; an empty
+        # one (nothing arrived, e.g. a missing page) is only clutter in the folder.
+        job = self._jobs.pop(download_id, None)
+        if job is not None:
+            try:
+                job.work.rmdir()  # only succeeds while it is empty
+            except OSError:
+                pass
         self._policies.pop(download_id, None)
         self._deliver(Failed(download_id, message[:MAX_MESSAGE_LENGTH]))
 

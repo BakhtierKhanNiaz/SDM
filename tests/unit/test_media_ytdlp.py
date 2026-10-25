@@ -65,8 +65,20 @@ def test_failures_in_plain_words():
     assert "DRM" in explain_failure(["ERROR: [x] abc: This video is DRM protected"])
     assert "login" in explain_failure(["ERROR: [y] abc: Sign in to confirm your age."])
     assert "ffmpeg" in explain_failure(["ERROR: ffmpeg is not installed; can't merge"])
-    assert explain_failure(["WARNING: slow", "ERROR: HTTP Error 404: Not Found"]) == (
-        "HTTP Error 404: Not Found"
+    # yt-dlp 2026.10.21's own words for a missing page (seen with SDM's local test server)
+    missing = (
+        "ERROR: [generic] missing: Unable to download webpage: HTTP Error 404: File not found "
+        "(caused by <HTTPError 404: File not found>)"
+    )
+    assert explain_failure(["WARNING: slow", missing]) == "The page wasn't found (HTTP 404)."
+    assert explain_failure(["ERROR: HTTP Error 403: Forbidden"]).startswith("The site refused")
+    assert explain_failure(["ERROR: HTTP Error 500: Oops"]).endswith("(HTTP 500).")
+    # anything else: the last error, without yt-dlp's prefix and internal cause
+    assert (
+        explain_failure(
+            ["ERROR: [generic] abc: Unable to extract title (caused by <Internal thing>)"]
+        )
+        == "Unable to extract title"
     )
     assert explain_failure([]) == ""
 
