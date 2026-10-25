@@ -17,7 +17,7 @@ and its tests have actually run and passed.
 | M9 | Interface, settings, notifications and usability | Done (2026-10-20) |
 | M10 | Security, performance, regression testing and Windows packaging | Done (2026-10-20) |
 | M11 | Open-source release on GitHub (Apache-2.0, UI/UX, more browsers) | Done (2026-10-25; two owner checks open) |
-| M12 | Media: video/audio converter (ffmpeg) and optional yt-dlp add-on | In progress (M12a done) |
+| M12 | Media: video/audio converter (ffmpeg) and optional yt-dlp add-on | In progress (M12a-b done) |
 
 ## M0: Environment inspection (done)
 
@@ -418,7 +418,12 @@ yt-dlp does the video downloading; M12a converter, M12b video add-on, then relea
   converted correctly (ffprobe), and the bar moved during a 30 s 720p conversion. The first
   real run showed ffmpeg's unhelpful "Error opening output files: Invalid argument" for a
   silent video; SDM now says "This file has no sound…". Left: the owner's check in their SDM.
-- M12b (next): the optional video-page add-on with yt-dlp.
+- M12b (done): `sdm.media.ytdlp` and `VideoRunner`, which runs yt-dlp and reports with the
+  engine's own events, so a video is an ordinary list entry (queue, pause, resume, cancel,
+  history, notifications). Settings > Media turns it on after the terms notice; Add URL gets
+  "Download as". History schema 7 (`video`). 23 new tests with a fake yt-dlp. Left: a check
+  with the real yt-dlp (the owner's, on a page they may download).
+- M12c (next): docs, release 1.1.0, the owner's test.
 
 - **Converter (core feature):** convert a local file with ffmpeg, for example video to MP3
   audio, or MKV/WEBM to MP4. ffmpeg runs as a separate program; SDM never runs downloaded files

@@ -109,6 +109,10 @@ _MIGRATIONS = [
     ALTER TABLE downloads ADD COLUMN expected_sha256 TEXT;
     ALTER TABLE downloads ADD COLUMN checksum_state TEXT;
     """,
+    # Version 7 (M12b): a video page downloaded with yt-dlp, and the quality chosen.
+    """
+    ALTER TABLE downloads ADD COLUMN video TEXT;
+    """,
 ]
 SCHEMA_VERSION = len(_MIGRATIONS)
 _DONE = {"forced": 0, "retry_at": None}  # leaving the queue for good
@@ -223,10 +227,12 @@ class DownloadStore:
         category: str = "General",
         context: BrowserContext | None = None,
         expected_sha256: str | None = None,
+        video: str | None = None,
     ) -> DownloadRecord:
         """A new entry at the end of the queue; `start=False` adds it paused (M6).
 
         `context` keeps what the browser said about it (M8), so a resume sends the same Referer.
+        `video` is the quality key of a video-page download (M12b), else None.
         """
         now = _now()
         context = context or BrowserContext()
@@ -238,7 +244,7 @@ class DownloadStore:
             cursor = self._conn.execute(
                 "INSERT INTO downloads (url, folder, allow_local_network, state, created_at,"
                 " updated_at, queue_position, category, referrer, suggested_name,"
-                " expected_sha256) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " expected_sha256, video) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     url,
                     folder,
@@ -251,6 +257,7 @@ class DownloadStore:
                     context.referrer,
                     context.suggested_name,
                     expected_sha256,
+                    video,
                 ),
             )
         record = self.get(cursor.lastrowid)
@@ -432,4 +439,5 @@ def _record(row: sqlite3.Row) -> DownloadRecord:
         suggested_name=row["suggested_name"],
         expected_sha256=row["expected_sha256"],
         checksum_state=row["checksum_state"],
+        video=row["video"],
     )

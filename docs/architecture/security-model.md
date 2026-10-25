@@ -33,7 +33,7 @@ the milestone listed.
 | 15 | **Paths from the database** are used only inside the entry's folder: partial files must be `.sdmpart` files directly in it (M4), and Show in folder and checksum checks use only the finished file directly in it (M9, `finished_file`), so a tampered database can't point SDM elsewhere. | Implemented (M4, M9) — `test_partial_path_outside_the_download_folder_is_ignored`, `test_show_in_folder_only_for_sdms_own_finished_file` |
 | 16 | **Segmented integrity:** parts come only from `206` replies with the exact requested `Content-Range` and the same version tags, at the final URL through the same redirect checks and policy. Doubt means one connection; a saved parts map that doesn't cover the file exactly is ignored (ADR-0012). | Implemented (M5) — `test_segmented.py`, `test_segments.py` |
 | 13 | **Engine thread:** the window never runs network code, and only the main thread writes the database (ADR-0009). Every download submitted to the manager still goes through rule 2's policy. | Implemented (M3a) — `test_default_policy_blocks_this_computer` |
-| 17 | **Media tools (M12, ADR-0020):** ffmpeg (and yt-dlp, M12b) are programs the user installed, started with a fixed argument list and no shell. Files go in as `file:<absolute path>` so a name can't act as an option or protocol; `-nostdin -n` never overwrites; output is always a new file, and partial output is deleted on failure or Cancel. The source is only read. SDM ships neither tool. | Implemented (M12a) — `test_media_ffmpeg.py`, `test_convert.py` |
+| 17 | **Media tools (M12, ADR-0020):** ffmpeg (and yt-dlp, M12b) are programs the user installed, started with a fixed argument list and no shell. Files go in as `file:<absolute path>` so a name can't act as an option or protocol; `-nostdin -n` never overwrites; output is always a new file, and partial output is deleted on failure or Cancel. The source is only read. SDM ships neither tool. yt-dlp (M12b, off by default) runs with `--ignore-config`, `--no-playlist`, no cookies and no `--exec`, the address last after `--`, into `<folder>\.sdm-video-<id>`; only that exact folder is ever deleted; the host must pass the network policy first. | Implemented (M12a, M12b) — `test_media_ffmpeg.py`, `test_convert.py`, `test_media_ytdlp.py`, `test_video.py` |
 
 Disguised spellings of loopback (`127.1`, `2130706433`, `0x7f000001`, `127.000.000.001`)
 never reach the target: aiohttp rejects non-canonical IPv4 forms, and Windows DNS can't
@@ -49,6 +49,12 @@ resolve the hex form (`test_disguised_spellings_of_this_computer_never_reach_it`
 - Captured downloads are requested again by SDM with GET: a download Chrome started with a
   POST form can't be reproduced, and one that needs the site's cookies fails in SDM (the
   owner chose not to forward cookies, ADR-0015).
+- Video pages (M12b, optional, off by default): SDM checks the page's host against the network
+  policy before yt-dlp starts, but yt-dlp's own later requests (redirects, stream servers)
+  aren't checked by SDM, and yt-dlp's code decides what it fetches. Mitigations: off until the
+  user accepts a notice, `--ignore-config`, no cookies or logins, a fixed argument list with
+  the address after `--`, files only in SDM's own work folder (ADR-0020). SDM's speed limit
+  doesn't apply to yt-dlp.
 - A server that sends no `Content-Length` and closes early is indistinguishable from a
   complete download (inherent to HTTP). Integrity checks (M9) can help when a checksum is known.
 

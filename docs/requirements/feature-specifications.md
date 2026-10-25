@@ -293,6 +293,32 @@ the partial file.
   a second copy numbered, a silent video explained; checked with ffprobe. Done.
 - The owner, in their own SDM: a downloaded video becomes a playable MP3 and MP4. Not yet done.
 
+## FEAT-010: Video pages with yt-dlp, optional (M12b)
+
+- **Purpose:** Download a video page in a chosen quality, like a file: in the list, with
+  pause, resume, cancel and the history.
+- **Based on:** The owner's request (M12, option B). Rules: ADR-0020. IDM's video features
+  were not observed.
+- **User workflow:** Settings > Media: tick "Enable video-page downloads" and accept the
+  notice (once). Add URL: paste the page's address, choose "Download as: Video page: 1080p"
+  (or 720p, 4K, MP3, M4A), Download.
+
+| ID | Requirement | Tests |
+|---|---|---|
+| FR-1 | Off by default; turning it on shows the terms notice once; without it, video downloads fail with a reason | `test_turning_the_add_on_on_shows_the_notice`, `test_the_notice_isnt_shown_again_once_accepted`, `test_add_url_offers_video_pages_only_when_turned_on`, `test_turned_off_or_missing_yt_dlp_is_explained` |
+| FR-2 | A locked-down command line: `--ignore-config` first, no cookies, logins or `--exec`, the address after `--` | `test_the_command_line_is_locked_down`, `test_a_video_page_downloads_into_one_file` |
+| FR-3 | The page's host passes the network policy before yt-dlp starts | `test_a_page_on_this_computer_is_blocked_before_yt_dlp_starts` |
+| FR-4 | One finished file in the folder (merged video, or MP3/M4A), never overwriting; the work folder is removed | `test_a_video_page_downloads_into_one_file`, `test_audio_only_becomes_an_mp3`, `test_a_second_copy_gets_a_numbered_name`, `test_the_finished_file_is_the_merged_one` |
+| FR-5 | Pause keeps yt-dlp's partial files and resume continues them; Cancel (running or paused) deletes them; closing SDM pauses | `test_pause_keeps_the_partial_files_and_resume_continues`, `test_cancel_stops_yt_dlp_and_deletes_its_files`, `test_cancelling_a_paused_video_deletes_its_files`, `test_closing_sdm_pauses_a_running_video` |
+| FR-6 | Failures in plain words (unsupported page, quality, DRM, login, missing ffmpeg) | `test_failures_in_plain_words`, `test_an_unsupported_page_fails_with_a_plain_reason` |
+| FR-7 | The history keeps the quality (schema 7) | `test_upgrading_the_history_to_version_7_keeps_entries` |
+
+### Acceptance criteria
+
+- All tests above pass (with a fake yt-dlp); ruff is clean.
+- The owner, with the real yt-dlp and ffmpeg: a video page they're allowed to download comes
+  out as a playable 1080p MP4 and as an MP3. Not yet done.
+
 ## Template
 
 ```markdown

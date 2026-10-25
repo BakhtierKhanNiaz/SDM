@@ -17,11 +17,12 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from PySide6.QtCore import QCoreApplication, QObject, QTimer, Signal
+from PySide6.QtCore import QCoreApplication, QObject, Qt, QTimer, Signal
 
 from sdm.core.categories import GENERAL, category_for
 from sdm.core.checksums import CHECKING, MISMATCH, MISSING, VERIFIED, normalize_sha256, sha256_of
 from sdm.core.downloads import BrowserContext, DownloadRecord, DownloadState
+from sdm.core.errors import SDMError
 from sdm.core.filenames import filename_from_url
 from sdm.core.progress import TransferMeter
 from sdm.core.units import format_speed
@@ -41,12 +42,16 @@ from sdm.engine.manager import (
 )
 from sdm.engine.models import DownloadSettings
 from sdm.engine.policy import NetworkPolicy
+from sdm.media.ffmpeg import find_ffmpeg
+from sdm.media.ytdlp import INSTALL_HINT as YTDLP_INSTALL_HINT
+from sdm.media.ytdlp import QUALITIES, find_ytdlp, work_folder
 from sdm.scheduler.persist import load_queue_settings, save_queue_settings
 from sdm.scheduler.queue import QueueEntry, QueueSettings, plan_queue, reorder, retry_delay
 from sdm.storage.database import DownloadStore
 from sdm.ui.download_model import DownloadTableModel
 from sdm.ui.engine_adapter import EngineAdapter
 from sdm.ui.preferences import Preferences, load_preferences, save_preferences
+from sdm.ui.video_runner import VideoRunner, remove_work_folder
 
 log = logging.getLogger(__name__)
 
@@ -131,6 +136,9 @@ class DownloadController(QObject):
         self._last_saved: dict[int, float] = {}
         self._running = False
         self._last_summary = 0.0
+        # Video pages (M12b) run in yt-dlp but report like the engine (VideoRunner).
+        self._videos = VideoRunner(self)
+        self._videos.event.connect(self._on_event, Qt.ConnectionType.QueuedConnection)
 
     # ----- lifecycle -----
 
@@ -150,9 +158,11 @@ class DownloadController(QObject):
         self._timer.stop()
         self._hasher.shutdown(wait=False, cancel_futures=True)
         self._requeue.clear()  # quitting pauses for real: nothing starts on its own later (M4)
+        self._videos.shutdown()  # stops yt-dlp and sends Paused for each video
         self._manager.shutdown()  # waits until every download has stopped
-        QCoreApplication.processEvents()  # deliver the events the engine sent while stopping
+        QCoreApplication.processEvents()  # deliver the events sent while stopping
         self._adapter.event_received.disconnect(self._on_event)
+        self._videos.event.disconnect(self._on_event)
         for record in self.model.records():  # anything whose final event never arrived
             if record.state.is_active:
                 self._save_latest(record.id)
@@ -169,17 +179,23 @@ class DownloadController(QObject):
         start: bool = True,
         context: BrowserContext | None = None,
         expected_sha256: str | None = None,
+        video: str | None = None,
     ) -> DownloadRecord:
         """Add a download to the end of the queue (paused if `start` is False).
 
-        `context` is what the browser said about the link (M8). Raises InvalidURLError for an
-        unusable URL.
+        `context` is what the browser said about the link (M8). `video` is a quality key from
+        sdm.media.ytdlp.QUALITIES for a video page (M12b). Raises InvalidURLError for an
+        unusable URL, SDMError for an unknown quality.
         """
         url = url.strip()
         validate_url(url)
         expected_sha256 = normalize_sha256(expected_sha256)  # raises InvalidChecksumError
         hinted = context.suggested_name if context else None
         category = category_for(hinted or filename_from_url(url))
+        if video is not None:
+            if video not in QUALITIES:
+                raise SDMError(f"Unknown video quality: {video}")
+            category = "Music" if video in ("mp3", "m4a") else "Video"
         folder = Path(folder)
         if self.queue_settings.category_subfolders and category != GENERAL:
             folder = folder / category  # IDM-style subfolder (setting, off by default)
@@ -191,6 +207,7 @@ class DownloadController(QObject):
             category=category,
             context=context,
             expected_sha256=expected_sha256,
+            video=video,
         )
         self.model.upsert(record)
         self._emit_summary()
@@ -204,7 +221,7 @@ class DownloadController(QObject):
             return
         if download_id in self._dispatched:
             self._requeue.discard(download_id)  # the user's pause is a real pause
-            self._manager.pause(download_id)
+            self._worker(download_id).pause(download_id)
         elif record.state == DownloadState.QUEUED:
             self.store.set_forced(download_id, False)
             self._move(download_id, self.store.mark_paused)
@@ -337,7 +354,7 @@ class DownloadController(QObject):
         for download_id in plan.pause:
             if download_id in self._dispatched and download_id not in self._requeue:
                 self._requeue.add(download_id)
-                self._manager.pause(download_id)
+                self._worker(download_id).pause(download_id)
 
     def _dispatch(self, download_id: int) -> None:
         record = self.store.get(download_id)
@@ -350,6 +367,9 @@ class DownloadController(QObject):
             except OSError:
                 pass  # the engine reports a missing or blocked folder clearly
         self._dispatched.add(download_id)
+        if record.video:
+            self._start_video(record)
+            return
         self._manager.submit(
             record.id,
             record.url,
@@ -357,6 +377,35 @@ class DownloadController(QObject):
             self._policy_for(record),
             resume_from=record.partial(),
             context=record.context(),
+        )
+
+    def _worker(self, download_id: int):
+        """Who runs a dispatched download: yt-dlp (video pages) or the engine."""
+        record = self.store.get(download_id)
+        return self._videos if record is not None and record.video else self._manager
+
+    def _ytdlp_command(self) -> list[str] | None:
+        """How to run yt-dlp (tests replace this with a fake)."""
+        found = find_ytdlp(self.preferences.ytdlp_path)
+        return [str(found)] if found else None
+
+    def _start_video(self, record: DownloadRecord) -> None:
+        command = self._ytdlp_command()
+        if not self.preferences.video_enabled:
+            problem = "Video-page downloads are turned off (Tools > Settings > Media)."
+        elif command is None:
+            problem = f"yt-dlp wasn't found. {YTDLP_INSTALL_HINT}"
+        else:
+            problem = None
+        if problem or command is None:
+            self._videos.event.emit(Started(record.id))
+            self._videos.event.emit(Failed(record.id, problem or ""))
+            return
+        self._videos.start(
+            record,
+            command=command,
+            ffmpeg=find_ffmpeg(self.preferences.ffmpeg_path),
+            policy=self._policy_for(record),
         )
 
     def resume_all(self) -> int:
@@ -376,7 +425,7 @@ class DownloadController(QObject):
         if record is None:
             return
         if download_id in self._dispatched:
-            self._manager.cancel(download_id)  # a Cancelled event follows
+            self._worker(download_id).cancel(download_id)  # a Cancelled event follows
         elif record.state.is_active or record.state.can_resume:  # waiting, paused, failed...
             self._delete_partial(record)
             self._move(download_id, self.store.mark_cancelled)
@@ -479,6 +528,9 @@ class DownloadController(QObject):
             self.store.set_progress(download_id, received)
 
     def _delete_partial(self, record: DownloadRecord) -> None:
+        if record.video:  # yt-dlp's partial files live in the video's own work folder
+            remove_work_folder(work_folder(Path(record.folder), record.id), Path(record.folder))
+            return
         partial = record.partial()
         # The path comes from the database: only ever delete SDM's own file in that folder.
         if partial and is_own_part_file(partial.part_path, Path(record.folder)):

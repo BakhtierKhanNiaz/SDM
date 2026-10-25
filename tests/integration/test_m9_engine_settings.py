@@ -199,6 +199,6 @@ def test_upgrading_to_version_6_keeps_entries(tmp_path):
         (record,) = store.list_all()
         assert record.referrer == "https://example.com/"
         assert (record.expected_sha256, record.checksum_state) == (None, None)
-        assert database.SCHEMA_VERSION == 6
+        assert database.SCHEMA_VERSION >= 6  # later milestones add versions (M12b: 7)
     finally:
         store.close()

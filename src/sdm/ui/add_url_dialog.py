@@ -1,4 +1,5 @@
-"""The "Add URL" dialog: address, download folder, and the local-network option."""
+"""The "Add URL" dialog: address, download folder, the local-network option, and (M12b, once
+turned on) whether the address is a video page for yt-dlp."""
 
 from collections.abc import Callable
 from datetime import datetime
@@ -8,6 +9,7 @@ from urllib.parse import urlsplit
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
@@ -26,6 +28,7 @@ from sdm.core.downloads import BrowserContext, DownloadRecord
 from sdm.core.errors import InvalidURLError
 from sdm.core.units import format_size
 from sdm.core.urls import validate_url
+from sdm.media.ytdlp import QUALITIES
 
 PreviousDownloads = Callable[[str], list[DownloadRecord]]
 
@@ -36,6 +39,7 @@ class AddUrlDialog(QDialog):
         *,
         default_folder: Path,
         previous_downloads: PreviousDownloads,
+        video_enabled: bool = False,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -43,9 +47,16 @@ class AddUrlDialog(QDialog):
         self.setMinimumWidth(560)
         self._previous_downloads = previous_downloads
         self._browser_request: DownloadRequest | None = None
+        self._video_enabled = video_enabled
 
         self.url_edit = QLineEdit()
         self.url_edit.setPlaceholderText("https://example.com/file.zip")
+        # M12b: a video page through yt-dlp, only once the add-on is on (Settings > Media).
+        self.kind_box = QComboBox()
+        self.kind_box.addItem("File (a direct link)", None)
+        for quality in QUALITIES.values():
+            self.kind_box.addItem(f"Video page: {quality.label}", quality.key)
+        self.kind_box.currentIndexChanged.connect(self._kind_changed)
         self.folder_edit = QLineEdit(str(default_folder))
         browse = QPushButton("Browse…")
         browse.clicked.connect(self._browse)
@@ -87,6 +98,10 @@ class AddUrlDialog(QDialog):
 
         form = QFormLayout()
         form.addRow("Address:", self.url_edit)
+        if video_enabled:
+            form.addRow("Download as:", self.kind_box)
+        else:
+            self.kind_box.hide()
         form.addRow("Save to:", folder_row)
         form.addRow("SHA-256:", self.sha256_edit)
         layout = QVBoxLayout(self)
@@ -121,6 +136,20 @@ class AddUrlDialog(QDialog):
             return normalize_sha256(self.sha256_edit.text())
         except InvalidChecksumError:
             return None
+
+    @property
+    def video(self) -> str | None:
+        """The chosen video quality key, or None for an ordinary file download."""
+        return self.kind_box.currentData() if self._video_enabled else None
+
+    def _kind_changed(self) -> None:
+        video = self.kind_box.currentData() is not None
+        self.sha256_edit.setEnabled(not video)  # a video's file is made by yt-dlp: no checksum
+        if video:
+            self.sha256_edit.clear()
+        self.url_edit.setPlaceholderText(
+            "https://video.example.com/watch?v=…" if video else "https://example.com/file.zip"
+        )
 
     @property
     def start_now(self) -> bool:

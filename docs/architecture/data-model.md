@@ -1,6 +1,6 @@
 # Data model
 
-Status: **M9, schema version 6.** Code: `sdm/core/downloads.py` (states, record) and
+Status: **M12b, schema version 7.** Code: `sdm/core/downloads.py` (states, record) and
 `sdm/storage/database.py` (SQLite). Decisions: ADR-0010.
 
 ## Where it lives
@@ -37,6 +37,7 @@ SQLite runs in WAL mode, so `sdm.db-wal` and `sdm.db-shm` appear next to it whil
 | `suggested_name` | text, null | The browser's bare file name, used when the server gives none (M8) |
 | `expected_sha256` | text, null | The SHA-256 the user gave, 64 lowercase hex digits (M9) |
 | `checksum_state` | text, null | `checking`, `verified`, `mismatch` or `missing` (M9) |
+| `video` | text, null | A video page downloaded with yt-dlp, and the quality: `720p`, `1080p`, `2160p`, `mp3` or `m4a` (M12b). Its partial files live in `<folder>\.sdm-video-<id>`, deleted on Cancel or Remove and after it finishes |
 
 Index: `downloads_by_url` (for the "you downloaded this before" check).
 
@@ -69,7 +70,7 @@ queued ──▶ downloading ──▶ completed
 - Table `settings` (key, value): `queue.limit`, `queue.schedule` (JSON),
   `categories.subfolders` (M6); `prefs.*` (SDM's Settings) and `ui.geometry`, `ui.header`
   (window layout, base64) (M9). Bad values fall back to the defaults.
-- `PRAGMA user_version` holds the schema version (6 now; version 6 added `expected_sha256`
+- `PRAGMA user_version` holds the schema version (7 now; version 7 added `video`; version 6 added `expected_sha256`
   and `checksum_state`; version 5 added `referrer` and
   `suggested_name`; version 4 added the queue columns
   and the settings table; version 3 added `segments`; version 2 rebuilt the table to

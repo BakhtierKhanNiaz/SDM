@@ -118,6 +118,7 @@ class DownloadRecord:
     suggested_name: str | None = None  # the browser's file name, used if the server gives none
     expected_sha256: str | None = None  # what the publisher says the file's SHA-256 is (M9)
     checksum_state: str | None = None  # checking, verified, mismatch or missing (M9)
+    video: str | None = None  # a video page for yt-dlp, and the quality key (M12b)
 
     def context(self) -> BrowserContext | None:
         """The browser's hints for this download, if it came from the browser."""

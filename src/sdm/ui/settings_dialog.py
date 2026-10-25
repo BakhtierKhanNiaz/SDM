@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QSpinBox,
     QTabWidget,
@@ -22,6 +23,8 @@ from PySide6.QtWidgets import (
 )
 
 from sdm.media.ffmpeg import INSTALL_HINT, find_ffmpeg
+from sdm.media.ytdlp import INSTALL_HINT as YTDLP_HINT
+from sdm.media.ytdlp import TERMS_NOTICE, find_ytdlp
 from sdm.ui.preferences import MAX_SPEED_LIMIT_KIB, Preferences
 from sdm.ui.theme import MODE_LABELS, MODES
 
@@ -109,10 +112,33 @@ class SettingsDialog(QDialog):
         self.ffmpeg_status.setWordWrap(True)
         self.ffmpeg_edit.textChanged.connect(self._update_ffmpeg_status)
         self._update_ffmpeg_status()
+        self.video_check = QCheckBox("Enable video-page downloads (720p, 1080p, 4K or audio)")
+        self.video_check.setChecked(preferences.video_enabled)
+        self.video_check.toggled.connect(self._video_toggled)
+        self.ytdlp_edit = QLineEdit(preferences.ytdlp_path)
+        self.ytdlp_edit.setPlaceholderText("Found automatically")
+        browse_ytdlp = QPushButton("Browse…")
+        browse_ytdlp.clicked.connect(self._browse_ytdlp)
+        ytdlp_row = QHBoxLayout()
+        ytdlp_row.addWidget(self.ytdlp_edit)
+        ytdlp_row.addWidget(browse_ytdlp)
+        self.ytdlp_status = QLabel()
+        self.ytdlp_status.setWordWrap(True)
+        self.ytdlp_edit.textChanged.connect(self._update_ytdlp_status)
+        self._update_ytdlp_status()
+        video_note = QLabel(
+            "Off until you turn it on. Then Add URL can download a video page with yt-dlp. "
+            "You're responsible for each site's terms; SDM never signs in or uses cookies."
+        )
+        video_note.setWordWrap(True)
         media = QWidget()
         media_form = QFormLayout(media)
         media_form.addRow("ffmpeg (for Convert):", ffmpeg_row)
         media_form.addRow(self.ffmpeg_status)
+        media_form.addRow(self.video_check)
+        media_form.addRow("yt-dlp (for video pages):", ytdlp_row)
+        media_form.addRow(self.ytdlp_status)
+        media_form.addRow(video_note)
 
         self.tabs = QTabWidget()
         self.tabs.addTab(general, "General")
@@ -144,6 +170,8 @@ class SettingsDialog(QDialog):
             keep_in_tray=self.tray_check.isChecked(),
             theme=self.theme_box.currentData(),
             ffmpeg_path=self.ffmpeg_edit.text().strip(),
+            video_enabled=self.video_check.isChecked(),
+            ytdlp_path=self.ytdlp_edit.text().strip(),
         )
 
     def accept(self) -> None:
@@ -153,13 +181,38 @@ class SettingsDialog(QDialog):
             self.error_label.setText(f"The folder doesn't exist: {folder}")
             self.error_label.show()
             return
-        ffmpeg = self.ffmpeg_edit.text().strip()
-        if ffmpeg and not Path(ffmpeg).is_file():
-            self.tabs.setCurrentIndex(3)
-            self.error_label.setText(f"There's no program at: {ffmpeg}")
-            self.error_label.show()
-            return
+        for edit in (self.ffmpeg_edit, self.ytdlp_edit):
+            program = edit.text().strip()
+            if program and not Path(program).is_file():
+                self.tabs.setCurrentIndex(3)
+                self.error_label.setText(f"There's no program at: {program}")
+                self.error_label.show()
+                return
         super().accept()
+
+    def _video_toggled(self, on: bool) -> None:
+        if on and not self._original.video_enabled and not self.confirm_video_terms():
+            self.video_check.setChecked(False)
+
+    def confirm_video_terms(self) -> bool:
+        """The notice shown when the add-on is turned on (tests replace it)."""
+        answer = QMessageBox.question(
+            self,
+            "Video-page downloads",
+            f"{TERMS_NOTICE}\n\nTurn on video-page downloads?",
+        )
+        return answer == QMessageBox.StandardButton.Yes
+
+    def _update_ytdlp_status(self) -> None:
+        found = find_ytdlp(self.ytdlp_edit.text().strip())
+        self.ytdlp_status.setText(
+            f"Using {found}" if found else f"yt-dlp wasn't found. {YTDLP_HINT}, then restart SDM."
+        )
+
+    def _browse_ytdlp(self) -> None:
+        chosen, _ = QFileDialog.getOpenFileName(self, "yt-dlp", "", "yt-dlp (yt-dlp.exe)")
+        if chosen:
+            self.ytdlp_edit.setText(str(Path(chosen)))
 
     def _update_ffmpeg_status(self) -> None:
         found = find_ffmpeg(self.ffmpeg_edit.text().strip())

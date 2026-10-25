@@ -8,6 +8,10 @@ while SDM is in 0.x.
 
 ### Added
 
+- M12b: optional **video-page downloads** with yt-dlp (off until turned on in Settings > Media,
+  after a notice): Add URL can download a page as 720p, 1080p or 4K MP4, or as MP3/M4A audio.
+  They appear in the list with pause, resume and cancel. yt-dlp is installed separately
+  (`winget install yt-dlp.yt-dlp`). History schema version 7. ADR-0020.
 - M12a: **Convert** a file to MP3, M4A or MP4 with ffmpeg (Tools > Convert file…, or
   Convert… on a finished download): a new file next to the original, with progress and
   Cancel. ffmpeg is installed separately (`winget install Gyan.FFmpeg`) and found

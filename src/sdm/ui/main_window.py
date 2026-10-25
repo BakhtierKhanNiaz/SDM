@@ -266,6 +266,7 @@ class MainWindow(QMainWindow):
         dialog = AddUrlDialog(
             default_folder=self._default_folder,
             previous_downloads=self.controller.previous_downloads,
+            video_enabled=self.controller.preferences.video_enabled,
             parent=self,
         )
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -275,6 +276,7 @@ class MainWindow(QMainWindow):
                 dialog.allow_local_network,
                 start=dialog.start_now,
                 expected_sha256=dialog.expected_sha256,
+                video=dialog.video,
             )
 
     def receive_handoff(self, request: DownloadRequest | str) -> None:
@@ -326,6 +328,7 @@ class MainWindow(QMainWindow):
         start: bool = True,
         context: BrowserContext | None = None,
         expected_sha256: str | None = None,
+        video: str | None = None,
     ) -> None:
         try:
             self.controller.add(
@@ -335,6 +338,7 @@ class MainWindow(QMainWindow):
                 start=start,
                 context=context,
                 expected_sha256=expected_sha256,
+                video=video,
             )
         except SDMError as exc:
             QMessageBox.warning(self, "Can't add this download", str(exc))
