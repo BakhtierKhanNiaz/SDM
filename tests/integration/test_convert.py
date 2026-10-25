@@ -65,7 +65,10 @@ def test_a_failure_shows_ffmpegs_reason_and_deletes_the_partial_file(
     qtbot.waitUntil(lambda: not dialog.running, timeout=15000)
     assert dialog.result is None
     assert not (tmp_path / "song.mp3").exists()
-    assert "matches no streams" in dialog.status_label.text()
+    assert dialog.status_label.text() == (
+        "ffmpeg couldn't convert the file: "
+        "This file has no sound, so it can't become an audio file."
+    )
     assert dialog.convert_button.isEnabled()
 
 

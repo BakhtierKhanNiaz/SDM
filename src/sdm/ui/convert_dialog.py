@@ -201,7 +201,7 @@ class ConvertDialog(QDialog):
             self.show_button.show()
             return
         self._remove_partial()
-        reason = self.progress.last_error[:MAX_ERROR_LENGTH] or f"exit code {exit_code}"
+        reason = self.progress.failure_reason[:MAX_ERROR_LENGTH] or f"exit code {exit_code}"
         self._ready_again(f"ffmpeg couldn't convert the file: {reason}")
 
     def _error(self, error: QProcess.ProcessError) -> None:

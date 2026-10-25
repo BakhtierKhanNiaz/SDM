@@ -49,7 +49,7 @@ session), not that the feature was studied in full.
 | Browsers: Chrome, Edge, Brave, Firefox | Tested | M11 | ADR-0019: fixed Chromium ID, per-browser registration from the welcome assistant, Firefox package (`test_browsers.py`, `background.firefox.test.js`). Headless Chrome and Edge reached SDM's helper; Brave and Firefox tested with fakes only (not installed). IDM's browser support not observed |
 | Themes, progress bars, details panel | Tested | M11 | ADR-0019: light/dark following Windows, WCAG AA contrast checked (`test_window_m11.py`). IDM's look not compared (SDM's own design) |
 | First-run welcome assistant | Tested | M11 | ADR-0019: folder, appearance, browsers; remembered when cancelled (`test_packaging.py`). The owner's run of it not yet recorded |
-| Convert video/audio (ffmpeg) | Tested | M12 | ADR-0020, FEAT-009: MP3, M4A, MP4 next to the source, with progress and Cancel; tested with a fake ffmpeg (`test_convert.py`). The owner's check with the real ffmpeg is still to do. IDM's converter not observed |
+| Convert video/audio (ffmpeg) | Tested | M12 | ADR-0020, FEAT-009: MP3, M4A, MP4 next to the source, with progress and Cancel; tested with a fake ffmpeg (`test_convert.py`) and the real ffmpeg 9.0.2 (`test_convert_real_ffmpeg.py`, checked with ffprobe). The owner's check in their SDM is still to do. IDM's converter not observed |
 | Public releases (GitHub Actions) | Tested | M11 | `.github/workflows`: checks on every push; a version tag publishes installer, portable zip, Chromium zip and SHA-256 sums (1.0.0-1.0.2 published). No in-app update check |
 
 Target milestones are a first guess from the roadmap. They can move once features are

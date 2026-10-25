@@ -32,8 +32,10 @@ print("  Duration: 00:00:10.00, start: 0.000000, bitrate: 128 kb/s", file=sys.st
 mode = os.environ.get("FAKE_FFMPEG_MODE", "ok")
 with open(target, "wb") as out:
     out.write(b"partial")
-if mode == "fail":
-    print("Stream map '0:a:0' matches no streams.", file=sys.stderr, flush=True)
+if mode == "fail":  # real ffmpeg 9.0.2's words for a video without sound
+    print("Stream map '' matches no streams.", file=sys.stderr)
+    print("Failed to set value '0:a:0' for option 'map': Invalid argument", file=sys.stderr)
+    print("Error opening output files: Invalid argument", file=sys.stderr, flush=True)
     sys.exit(1)
 for seconds in (2.5, 5):
     print(f"out_time_us={int(seconds * 1_000_000)}\nprogress=continue", flush=True)

@@ -116,14 +116,39 @@ def parse_duration(line: str) -> float | None:
     return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
 
 
+_UNKNOWN_ENCODER = re.compile(r"Unknown encoder '([^']+)'")
+
+
+def explain_failure(log: list[str]) -> str:
+    """Why ffmpeg failed, in plain words where SDM recognises the case, else its last line.
+
+    Seen with ffmpeg 9.0.2 on a video without sound: "Stream map '' matches no streams.",
+    then "Failed to set value '0:a:0' for option 'map': Invalid argument".
+    """
+    text = "\n".join(log)
+    if "matches no streams" in text:
+        if "'0:a:0'" in text:
+            return "This file has no sound, so it can't become an audio file."
+        if "'0:v:0'" in text:
+            return "This file has no video, so it can't become an MP4 video. Choose MP3 or M4A."
+    if match := _UNKNOWN_ENCODER.search(text):
+        return (
+            f"This ffmpeg doesn't include the {match.group(1)} encoder. Install the full "
+            f"build: winget install Gyan.FFmpeg"
+        )
+    return log[-1] if log else ""
+
+
 class ConversionProgress:
     """Reads ffmpeg's output: the duration from its log, the position from -progress."""
+
+    MAX_LOG_LINES = 30
 
     def __init__(self) -> None:
         self.duration: float | None = None
         self.position = 0.0
         self.finished = False
-        self.last_error = ""
+        self.log: list[str] = []  # ffmpeg's last log lines, to explain a failure
 
     def log_line(self, line: str) -> None:
         """A line of ffmpeg's log (standard error)."""
@@ -131,7 +156,11 @@ class ConversionProgress:
         if self.duration is None:
             self.duration = parse_duration(line)
         if line:
-            self.last_error = line  # ffmpeg's last words explain a failure
+            self.log = [*self.log[-(self.MAX_LOG_LINES - 1) :], line]
+
+    @property
+    def failure_reason(self) -> str:
+        return explain_failure(self.log)
 
     def progress_line(self, line: str) -> None:
         """A key=value line of -progress (standard output)."""

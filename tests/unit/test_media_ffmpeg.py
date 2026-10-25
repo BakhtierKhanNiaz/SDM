@@ -6,6 +6,7 @@ from sdm.media.ffmpeg import (
     FORMATS,
     ConversionProgress,
     converted_path,
+    explain_failure,
     ffmpeg_arguments,
     find_ffmpeg,
     parse_duration,
@@ -61,12 +62,39 @@ def test_progress_from_ffmpegs_output():
     assert progress.percent == 100 and progress.finished
 
 
-def test_the_last_log_line_explains_a_failure():
+def test_the_last_log_line_explains_an_unknown_failure():
     progress = ConversionProgress()
     progress.log_line("Input #0, matroska,webm, from 'x':")
-    progress.log_line("Stream map '0:a:0' matches no streams.")
+    progress.log_line("x.webm: Invalid data found when processing input")
     progress.log_line("")
-    assert progress.last_error == "Stream map '0:a:0' matches no streams."
+    assert progress.failure_reason == "x.webm: Invalid data found when processing input"
+    assert ConversionProgress().failure_reason == ""
+
+
+# ffmpeg 9.0.2's own words (seen 2026-10-25) when the file lacks the stream SDM maps.
+NO_STREAM = [
+    "Stream map '' matches no streams.",
+    "To ignore this, add a trailing '?' to the map.",
+    "Failed to set value '{map}' for option 'map': Invalid argument",
+    "Error opening output files: Invalid argument",
+]
+
+
+def test_known_failures_are_explained_in_plain_words():
+    no_sound = explain_failure([line.format(map="0:a:0") for line in NO_STREAM])
+    assert no_sound == "This file has no sound, so it can't become an audio file."
+    no_video = explain_failure([line.format(map="0:v:0") for line in NO_STREAM])
+    assert no_video.startswith("This file has no video")
+    encoder = explain_failure(["Unknown encoder 'libx264'"])
+    assert "libx264" in encoder and "winget install Gyan.FFmpeg" in encoder
+
+
+def test_the_log_keeps_only_the_last_lines():
+    progress = ConversionProgress()
+    for number in range(100):
+        progress.log_line(f"line {number}")
+    assert len(progress.log) == ConversionProgress.MAX_LOG_LINES
+    assert progress.log[-1] == "line 99"
 
 
 def _exe(path: Path) -> Path:

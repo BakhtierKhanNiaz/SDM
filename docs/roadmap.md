@@ -413,8 +413,11 @@ Detailed plan approved 2026-10-25: the user installs ffmpeg and yt-dlp (SDM find
 yt-dlp does the video downloading; M12a converter, M12b video add-on, then release 1.1.0.
 
 - M12a (done): ADR-0020; `sdm.media.ffmpeg`, the Convert window, Settings > Media, Convert… on
-  finished downloads; 17 new tests with a fake ffmpeg. Left: the owner's check with the real
-  ffmpeg.
+  finished downloads; tests with a fake ffmpeg, plus `test_convert_real_ffmpeg.py`, which uses
+  the real one when installed. With ffmpeg 9.0.2 (winget, in Claude's sandbox) every format
+  converted correctly (ffprobe), and the bar moved during a 30 s 720p conversion. The first
+  real run showed ffmpeg's unhelpful "Error opening output files: Invalid argument" for a
+  silent video; SDM now says "This file has no sound…". Left: the owner's check in their SDM.
 - M12b (next): the optional video-page add-on with yt-dlp.
 
 - **Converter (core feature):** convert a local file with ffmpeg, for example video to MP3

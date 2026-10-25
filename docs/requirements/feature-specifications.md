@@ -281,14 +281,17 @@ the partial file.
 | FR-2 | A fixed command line: `file:` paths, `-nostdin -n`, no shell | `test_the_command_line_is_fixed_and_never_overwrites`, `test_converting_makes_a_new_file_and_keeps_the_original` |
 | FR-3 | The result is a new file next to the source, numbered if taken; the source is unchanged | `test_the_result_is_a_new_file_next_to_the_source`, `test_a_second_conversion_gets_a_numbered_name` |
 | FR-4 | Progress from ffmpeg's duration and `-progress` lines | `test_progress_from_ffmpegs_output` |
-| FR-5 | Failure shows ffmpeg's reason; failure and Cancel delete the partial file | `test_a_failure_shows_ffmpegs_reason_and_deletes_the_partial_file`, `test_cancel_stops_ffmpeg_and_deletes_the_partial_file`, `test_a_program_that_cant_start_is_reported` |
+| FR-5 | Failure is explained (no sound, no video, missing encoder, else ffmpeg's last line); failure and Cancel delete the partial file | `test_known_failures_are_explained_in_plain_words`, `test_a_failure_shows_ffmpegs_reason_and_deletes_the_partial_file`, `test_cancel_stops_ffmpeg_and_deletes_the_partial_file`, `test_a_program_that_cant_start_is_reported`, `test_a_video_without_sound_is_explained` |
+| FR-7 | With the real ffmpeg (skipped where it isn't installed): MP3, M4A and MP4 have the right codecs and length; the bar moves | `test_convert_real_ffmpeg.py` |
 | FR-6 | Convert… only for SDM's own finished files | `test_convert_is_offered_for_finished_files` |
 
 ### Acceptance criteria
 
-- All tests above pass (with a fake ffmpeg); ruff is clean.
-- The owner, with the real ffmpeg (`winget install Gyan.FFmpeg`): a downloaded video becomes
-  a playable MP3 and MP4 next to it. Not yet done.
+- All tests above pass; ruff is clean.
+- Real ffmpeg 9.0.2 (gyan.dev, installed with winget in Claude's sandbox, 2026-10-25):
+  synthetic VP9/Opus WebM → MP3, M4A and MP4 (H.264 640×360 + AAC, 6.00 s each), FLAC → MP3,
+  a second copy numbered, a silent video explained; checked with ffprobe. Done.
+- The owner, in their own SDM: a downloaded video becomes a playable MP3 and MP4. Not yet done.
 
 ## Template
 
