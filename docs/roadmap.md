@@ -384,6 +384,9 @@ noreply address before the first push (owner to confirm right before).
   first so it shows only the owner's GitHub name). The owner's first try found that a click on
   a download still opened Chrome's Save As, since capture was off until switched on; at their
   request 1.0.1 turns capture on from installation (ADR-0015, amended).
+- Installing 1.0.1 over 1.0.0 left `sdm-1.0.0.dist-info` beside `sdm-1.0.1.dist-info`, so
+  About said 1.0.0 (owner's report). 1.0.2: the installer clears `{app}\_internal` first;
+  tested with a throwaway Inno Setup installer over a fake old install.
 
 ## M12: Media converter and optional video-site add-on (planned)
 

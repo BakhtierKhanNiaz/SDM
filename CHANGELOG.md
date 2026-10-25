@@ -6,6 +6,14 @@ while SDM is in 0.x.
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-10-25
+
+### Fixed
+
+- After installing an update over an older SDM, Help > About showed the old version: the
+  installer kept the previous version's program files. It now removes them first (your
+  downloads and settings are kept). Found by the owner when installing 1.0.1 over 1.0.0.
+
 ## [1.0.1] - 2026-10-25
 
 ### Changed

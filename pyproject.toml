@@ -1,6 +1,6 @@
 [project]
 name = "sdm"
-version = "1.0.1"
+version = "1.0.2"
 description = "SDM (Smart Download Manager): a free, open-source download manager for Windows."
 readme = "README.md"
 requires-python = ">=3.12"
