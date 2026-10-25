@@ -160,6 +160,9 @@ def test_an_update_replaces_the_old_program_files():
     iss = (ROOT / "packaging" / "sdm.iss").read_text(encoding="utf-8")
     section = iss.split("[InstallDelete]", 1)[1].split("\n[", 1)[0]
     entries = [line for line in section.splitlines() if line.strip() and not line.startswith(";")]
-    # only the bundled program files: never the app folder itself or the user's data
-    assert entries == ['Type: filesandordirs; Name: "{app}\\_internal"']
+    # only the bundled program files and extension (M13): never the app folder or user data
+    assert entries == [
+        'Type: filesandordirs; Name: "{app}\\_internal"',
+        'Type: filesandordirs; Name: "{app}\\extension"',
+    ]
     assert iss.index("[InstallDelete]") < iss.index("[Files]")

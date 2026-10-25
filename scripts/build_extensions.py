@@ -12,6 +12,7 @@
 
 import json
 import re
+import shutil
 import sys
 import zipfile
 from pathlib import Path
@@ -75,6 +76,20 @@ def build() -> list[Path]:
     write_zip(edge, {key: value for key, value in manifest.items() if key != "key"})
     write_zip(firefox, firefox_manifest(manifest), {"background.js": classic_background()})
     return [chromium, edge, firefox]
+
+
+def write_folder(target: Path) -> Path:
+    """The Chromium extension, unpacked, for SDM's installer (M13): SDM.exe's folder gets
+    "extension", which the welcome assistant shows browsers for "Load unpacked". Its old
+    files go first, so a file removed from the extension doesn't stay behind."""
+    if target.exists():
+        shutil.rmtree(target)
+    target.mkdir(parents=True)
+    shutil.copy2(SOURCE / "manifest.json", target / "manifest.json")
+    for name in FILES:
+        (target / name).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(SOURCE / name, target / name)
+    return target
 
 
 if __name__ == "__main__":

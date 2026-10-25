@@ -95,7 +95,11 @@ def build(installer: bool, *, skip_build: bool = False, iscc: Path | None = None
             check=True, cwd=ROOT,
         )  # fmt: skip
         (APP / "THIRD-PARTY-NOTICES.txt").write_text(notices(), encoding="utf-8")
-        print(f"Built {APP} (SDM {version})")
+        # M13: the browser extension, unpacked, for the welcome assistant's "Add to Chrome".
+        from build_extensions import write_folder
+
+        write_folder(APP / "extension")
+        print(f"Built {APP} (SDM {version}, with the browser extension)")
     if not installer:
         return 0
     iscc = iscc or find_iscc()

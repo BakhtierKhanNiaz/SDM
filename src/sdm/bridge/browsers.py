@@ -12,8 +12,11 @@ Sources (checked 2026-10-20):
   Software\\BraveSoftware\\Brave-Browser: to confirm on a PC with Brave.
 """
 
+import subprocess
+import sys
 import winreg
 from dataclasses import dataclass
+from pathlib import Path
 
 # The Chromium extension's ID is fixed by the public "key" in extension/chrome/manifest.json,
 # wherever it is unpacked (checked by loading it in Chrome: test_the_fixed_extension_id).
@@ -65,3 +68,43 @@ def is_installed(browser: Browser) -> bool:
 
 def installed_browsers() -> list[Browser]:
     return [browser for browser in BROWSERS if is_installed(browser)]
+
+
+# M13: each Chromium browser's own extensions page, where "Load unpacked" is.
+EXTENSIONS_PAGE = {
+    "chrome": "chrome://extensions",
+    "edge": "edge://extensions",
+    "brave": "brave://extensions",
+}
+
+
+def program_path(browser: Browser) -> Path | None:
+    """The browser's program, from Windows' "App Paths" (its default value)."""
+    for root in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+        try:
+            with winreg.OpenKey(root, _APP_PATHS + browser.exe) as key:
+                value, _ = winreg.QueryValueEx(key, "")
+        except OSError:
+            continue
+        path = Path(str(value).strip('"'))
+        if path.is_file():
+            return path
+    return None
+
+
+def extension_folder() -> Path:
+    """The unpacked extension that comes with SDM (M13): next to SDM.exe in the installed
+    program, extension/chrome in the project folder."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent / "extension"
+    return Path(__file__).resolve().parents[3] / "extension" / "chrome"
+
+
+def open_extensions_page(browser: Browser, launch=subprocess.Popen) -> bool:
+    """Start the browser on its extensions page; False if SDM can't (Firefox, not found)."""
+    page = EXTENSIONS_PAGE.get(browser.key)
+    program = program_path(browser) if page else None
+    if program is None:
+        return False
+    launch([str(program), page])  # a fixed page; the program comes from Windows' registry
+    return True

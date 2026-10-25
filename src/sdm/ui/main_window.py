@@ -215,7 +215,9 @@ class MainWindow(QMainWindow):
         self.open_logs_action.triggered.connect(lambda: open_folder(log_folder()))
         help_menu.addSeparator()
         self.setup_action = help_menu.addAction("&Setup assistant…")
-        self.setup_action.triggered.connect(self.open_setup_wizard)
+        self.setup_action.triggered.connect(lambda: self.open_setup_wizard())
+        self.extension_action = help_menu.addAction("Add the &browser extension…")
+        self.extension_action.triggered.connect(lambda: self.open_setup_wizard(browsers=True))
         self.browsers_remove_action = help_menu.addAction("&Remove browser integration")
         self.browsers_remove_action.triggered.connect(self.remove_browsers)
         help_menu.addSeparator()
@@ -435,8 +437,9 @@ class MainWindow(QMainWindow):
 
     # ----- Chrome integration (M10: the installed SDM registers its own host) -----
 
-    def open_setup_wizard(self) -> SetupWizard:
-        """The welcome assistant (M11), non-blocking; returns it so tests can drive it."""
+    def open_setup_wizard(self, *, browsers: bool = False) -> SetupWizard:
+        """The welcome assistant (M11), non-blocking; returns it so tests can drive it.
+        `browsers` starts on its last page (Help > Add the browser extension, M13)."""
         from sdm.bridge.browsers import installed_browsers
 
         wizard = SetupWizard(
@@ -445,6 +448,8 @@ class MainWindow(QMainWindow):
             default_folder=self._default_folder,
             parent=self,
         )
+        if browsers:
+            wizard.setStartId(wizard.pageIds()[-1])
         wizard.finished.connect(lambda result, w=wizard: self.finish_setup(w, result))
         self.setup_wizard = wizard
         wizard.open()
