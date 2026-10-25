@@ -133,6 +133,52 @@ def test_icons_follow_the_dark_look(window):
     assert window.controller.model.dark is False
 
 
+def test_add_url_offers_the_quality_as_buttons(qtbot, tmp_path):
+    from sdm.ui.add_url_dialog import AddUrlDialog
+
+    dialog = AddUrlDialog(default_folder=tmp_path, previous_downloads=lambda u: [],
+                          video_enabled=True)  # fmt: skip
+    qtbot.addWidget(dialog)
+    dialog.show()
+    assert dialog.kind_box.isHidden()  # the buttons choose
+    assert [b.text() for b in dialog.kind_buttons.values()] == [
+        "File", "720p", "1080p", "4K", "MP3", "M4A"]  # fmt: skip
+    assert dialog.kind_buttons[None].isChecked() and dialog.video is None
+    dialog.kind_buttons["2160p"].click()
+    assert dialog.video == "2160p" and not dialog.sha256_edit.isEnabled()
+    dialog.choose_video("mp3")  # from the browser: the buttons follow
+    assert dialog.kind_buttons["mp3"].isChecked()
+    dialog.kind_buttons[None].click()
+    assert dialog.video is None and dialog.sha256_edit.isEnabled()
+
+
+def test_without_the_add_on_there_are_no_quality_buttons(qtbot, tmp_path):
+    from sdm.ui.add_url_dialog import AddUrlDialog
+
+    dialog = AddUrlDialog(default_folder=tmp_path, previous_downloads=lambda u: [])
+    qtbot.addWidget(dialog)
+    dialog.show()
+    assert all(not button.isVisible() for button in dialog.kind_buttons.values())
+
+
+def test_rarely_used_options_are_folded_away(qtbot, tmp_path):
+    from sdm.ui.add_url_dialog import AddUrlDialog
+
+    dialog = AddUrlDialog(default_folder=tmp_path, previous_downloads=lambda u: [])
+    qtbot.addWidget(dialog)
+    dialog.show()
+    assert not dialog.sha256_edit.isVisible() and not dialog.local_network_check.isVisible()
+    assert dialog.start_check.isVisible()
+    dialog.more_button.click()
+    assert dialog.sha256_edit.isVisible() and dialog.local_network_check.isVisible()
+    dialog.more_button.click()
+    # a bad checksum, typed earlier, opens the folded part again so the user sees why
+    dialog.url_edit.setText("https://example.com/a.zip")
+    dialog.sha256_edit.setText("not a checksum")
+    dialog.accept()
+    assert dialog.sha256_edit.isVisible() and not dialog.error_label.isHidden()
+
+
 def test_the_sidebar_width_is_remembered(qtbot, make_controller, tmp_path):
     controller = make_controller(start=False)
     first = MainWindow(controller, default_folder=tmp_path)

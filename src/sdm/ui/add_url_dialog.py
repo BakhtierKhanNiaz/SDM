@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -18,6 +19,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -31,6 +33,15 @@ from sdm.core.urls import validate_url
 from sdm.media.ytdlp import QUALITIES
 
 PreviousDownloads = Callable[[str], list[DownloadRecord]]
+# M13: what "Download as" offers, as buttons (None: an ordinary file).
+KIND_BUTTONS = (
+    (None, "File"),
+    ("720p", "720p"),
+    ("1080p", "1080p"),
+    ("2160p", "4K"),
+    ("mp3", "MP3"),
+    ("m4a", "M4A"),
+)
 
 
 class AddUrlDialog(QDialog):
@@ -92,23 +103,66 @@ class AddUrlDialog(QDialog):
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Download")
+        self.download_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        self.download_button.setText("Download")
+        self.download_button.setObjectName("primary")  # the accent-coloured button (M13)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
 
+        # M13: a cleaner card. The address first and large; the kind of download as buttons;
+        # the SHA-256 and the local-network option folded away under "More options".
+        self.url_edit.setObjectName("bigAddress")
+        self.url_edit.setMinimumHeight(34)
+        self.kind_box.hide()  # the buttons below choose; the box keeps the choice
+        self.kind_buttons: dict[str | None, QPushButton] = {}
+        kind_row = QHBoxLayout()
+        kind_row.setSpacing(6)
+        group = QButtonGroup(self)
+        for key, text in KIND_BUTTONS:
+            button = QPushButton(text)
+            button.setCheckable(True)
+            button.setObjectName("choice")
+            button.clicked.connect(lambda _=False, k=key: self._choose_kind(k))
+            group.addButton(button)
+            kind_row.addWidget(button)
+            self.kind_buttons[key] = button
+        kind_row.addStretch()
+        self.kind_buttons[None].setChecked(True)
+        self.kind_box.currentIndexChanged.connect(self._sync_kind_buttons)
+
+        self.more_button = QToolButton()
+        self.more_button.setText("More options")
+        self.more_button.setCheckable(True)
+        self.more_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.more_button.setArrowType(Qt.ArrowType.RightArrow)
+        self.more_button.toggled.connect(self._show_more)
+        self.more = QWidget()
+        more_form = QFormLayout(self.more)
+        more_form.setContentsMargins(0, 0, 0, 0)
+        more_form.addRow("SHA-256:", self.sha256_edit)
+        more_form.addRow(self.local_network_check)
+        self.more.hide()
+
+        title = QLabel("Download from an address")
+        title.setObjectName("dialogTitle")
         form = QFormLayout()
+        form.setVerticalSpacing(10)
         form.addRow("Address:", self.url_edit)
         if video_enabled:
-            form.addRow("Download as:", self.kind_box)
+            form.addRow("Download as:", kind_row)
         else:
-            self.kind_box.hide()
+            for button in self.kind_buttons.values():
+                button.hide()
         form.addRow("Save to:", folder_row)
-        form.addRow("SHA-256:", self.sha256_edit)
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(18, 16, 18, 14)
+        layout.setSpacing(10)
+        layout.addWidget(title)
         layout.addLayout(form)
         layout.addWidget(self.browser_label)
         layout.addWidget(self.start_check)
-        layout.addWidget(self.local_network_check)
+        layout.addWidget(self.more_button)
+        layout.addWidget(self.more)
         layout.addWidget(self.warning_label)
         layout.addWidget(self.error_label)
         layout.addWidget(buttons)
@@ -141,6 +195,19 @@ class AddUrlDialog(QDialog):
     def video(self) -> str | None:
         """The chosen video quality key, or None for an ordinary file download."""
         return self.kind_box.currentData() if self._video_enabled else None
+
+    def _choose_kind(self, key: str | None) -> None:
+        self.kind_box.setCurrentIndex(max(0, self.kind_box.findData(key)))
+
+    def _sync_kind_buttons(self) -> None:
+        button = self.kind_buttons.get(self.kind_box.currentData())
+        if button is not None:
+            button.setChecked(True)
+
+    def _show_more(self, shown: bool) -> None:
+        self.more.setVisible(shown)
+        self.more_button.setArrowType(Qt.ArrowType.DownArrow if shown else Qt.ArrowType.RightArrow)
+        self.adjustSize()
 
     def _kind_changed(self) -> None:
         video = self.kind_box.currentData() is not None
@@ -205,6 +272,7 @@ class AddUrlDialog(QDialog):
         try:
             normalize_sha256(self.sha256_edit.text())
         except InvalidChecksumError as exc:
+            self.more_button.setChecked(True)  # the problem is in the folded part: show it
             self._show_error(str(exc))
             return
         super().accept()

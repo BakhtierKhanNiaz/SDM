@@ -14,12 +14,12 @@ MODE_LABELS = {"system": "Same as Windows", "light": "Light", "dark": "Dark"}
 _LIGHT = {
     "window": "#f5f6f8", "base": "#ffffff", "alt": "#f7f8fa", "text": "#1f2328",
     "muted": "#5b636e", "accent": "#1f6feb", "accent_text": "#ffffff", "grid": "#e1e4e8",
-    "header": "#eef0f3", "hover": "#e6eaf0", "button": "#ffffff",
+    "header": "#eef0f3", "hover": "#e6eaf0", "button": "#ffffff", "accent_hover": "#1a5fd0",
 }  # fmt: skip
 _DARK = {
     "window": "#1c1f24", "base": "#22262c", "alt": "#272b32", "text": "#e6e8eb",
     "muted": "#9aa3ad", "accent": "#4c8dff", "accent_text": "#0d1117", "grid": "#343a42",
-    "header": "#2a2f36", "hover": "#2f353d", "button": "#2a2f36",
+    "header": "#2a2f36", "hover": "#2f353d", "button": "#2a2f36", "accent_hover": "#6ea2ff",
 }  # fmt: skip
 
 _STYLE = """
@@ -46,6 +46,18 @@ QSplitter::handle {{ background: {grid}; }}
 QFrame#details {{ background: {base}; border-top: 1px solid {grid}; }}
 QLabel#detailsTitle {{ font-size: 11pt; font-weight: 600; }}
 QLabel[muted="true"] {{ color: {muted}; }}
+QLabel#dialogTitle {{ font-size: 13pt; font-weight: 600; }}
+QLineEdit#bigAddress {{ font-size: 11pt; padding: 4px 8px; border: 1px solid {grid};
+                        border-radius: 6px; background: {base}; }}
+QLineEdit#bigAddress:focus {{ border: 1px solid {accent}; }}
+QPushButton#primary {{ background: {accent}; color: {accent_text}; border: none;
+                       border-radius: 6px; padding: 6px 18px; font-weight: 600; }}
+QPushButton#primary:hover {{ background: {accent_hover}; }}
+QPushButton#choice {{ border: 1px solid {grid}; border-radius: 6px; padding: 5px 12px;
+                      background: {button}; color: {text}; }}
+QPushButton#choice:hover {{ background: {hover}; }}
+QPushButton#choice:checked {{ background: {accent}; color: {accent_text};
+                              border: 1px solid {accent}; font-weight: 600; }}
 QProgressBar {{ border: 1px solid {grid}; border-radius: 4px; background: {alt};
                 text-align: center; color: {text}; }}
 QProgressBar::chunk {{ background: {accent}; border-radius: 3px; }}
