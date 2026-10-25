@@ -6,7 +6,6 @@ const OWN_ID = "abcdefghijklmnopabcdefghijklmnop"; // any valid-looking extensio
 const calls = [];
 const listeners = {};
 let nativeReply;
-let granted;
 let stored;
 let restartFails;
 
@@ -32,10 +31,6 @@ globalThis.chrome = {
     setBadgeText: ({ text }) => calls.push(["badge", text]),
     setTitle: ({ title }) => calls.push(["title", title]),
   },
-  permissions: {
-    onAdded: { addListener: (fn) => (listeners.permissionAdded = fn) },
-    contains: async ({ permissions }) => permissions.every((p) => granted.has(p)),
-  },
   downloads: {
     onDeterminingFilename: { addListener: (fn) => (listeners.determining = fn) },
     cancel: async (id) => calls.push(["cancel", id]),
@@ -55,8 +50,7 @@ await import("../chrome/background.js");
 beforeEach(() => {
   calls.length = 0;
   nativeReply = () => Promise.resolve({ ok: true });
-  granted = new Set(["downloads", "storage"]);
-  stored = {};
+  stored = {}; // as after installing: nothing saved, so capture is on
   restartFails = false;
 });
 
@@ -135,7 +129,7 @@ async function determine(item) {
   return answers;
 }
 
-test("with capture on, Chrome's copy is stopped before it asks where to save", async () => {
+test("right after installing, Chrome's copy is stopped before it asks where to save", async () => {
   const answers = await determine(download({ filename: "C:\\Users\\me\\Downloads\\a.zip" }));
   assert.equal(answers, 1); // Chrome is always answered, exactly once
   const kinds = calls.map((c) => c[0]);
@@ -148,8 +142,8 @@ test("with capture on, Chrome's copy is stopped before it asks where to save", a
   assert.deepEqual(last("badge"), ["badge", ""]);
 });
 
-test("with capture off nothing is touched, but Chrome is still answered", async () => {
-  granted = new Set();
+test("with the panel's switch off nothing is touched, but Chrome is still answered", async () => {
+  stored = { sdmCapture: { enabled: false, minMegabytes: 0 } };
   assert.equal(await determine(download()), 1);
   assert.deepEqual(calls, [["suggest"]]);
 });

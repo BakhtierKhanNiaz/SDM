@@ -1,13 +1,14 @@
 # SDM's browser extension
 
-Adds **Download with SDM** to the right-click menu of links and of video and audio players,
-and can send your downloads to SDM automatically (off until you turn it on). It works in
-**Google Chrome, Microsoft Edge, Brave** and other Chromium browsers, and in **Mozilla Firefox**.
+Sends your downloads to SDM: click a download and SDM's dialog opens instead of the browser's
+Save As. It also adds **Download with SDM** to the right-click menu of links and of video and
+audio players. It works in **Google Chrome, Microsoft Edge, Brave** and other Chromium
+browsers, and in **Mozilla Firefox**.
 
-It always has two permissions: `contextMenus` (the menu item) and `nativeMessaging` (to reach
-SDM on this computer). Only if you turn on automatic capture does it get `downloads` (and
-`storage`, for the minimum size), and the browser asks you first. It never reads pages or
-cookies. How it works and why: ADR-0014, ADR-0015 and ADR-0019 in
+Its permissions, all asked for at install: `downloads` ("Manage your downloads", to send
+downloads to SDM), `storage` (its two settings), `contextMenus` (the menu item) and
+`nativeMessaging` (to reach SDM on this computer). It never reads pages or cookies and has no
+access to any website. How it works and why: ADR-0014, ADR-0015 and ADR-0019 in
 [docs/decisions](../docs/decisions/architecture-decision-records.md).
 
 ## Set up
@@ -29,14 +30,16 @@ cookies. How it works and why: ADR-0014, ADR-0015 and ADR-0019 in
 Start SDM normally (from the Start menu). If SDM runs **as administrator**, Windows doesn't let
 the browser reach it, and SDM warns you.
 
-## Automatic capture (optional)
+## Sending downloads to SDM
 
-Click SDM's toolbar icon (pin it from the puzzle-piece menu if you don't see it) and tick
-**Send my downloads to SDM**; the browser asks whether SDM may "Manage your downloads".
+This is on as soon as the extension is installed: it stops the browser's own copy of each new
+download and SDM asks you to confirm it. To turn it off (or on again), click SDM's toolbar
+icon (pin it from the puzzle-piece menu if you don't see it) and untick (or tick) **Send my
+downloads to SDM**; right-click still works while it's off.
 
-From then on, the extension stops the browser's own copy of each new download and SDM asks you
-to confirm it. Private (incognito) windows, `blob:` downloads and files below the minimum size
-stay in the browser. If SDM can't take a download, the browser downloads it as usual, once.
+Private (incognito) windows, `blob:` downloads and files below the minimum size (set in the
+same panel) stay in the browser. If SDM can't take a download, the browser downloads it as
+usual, once.
 
 - **Chromium browsers** capture before their "Save As" window appears.
 - **Firefox** has no hook before its "Save As" window, so with "Always ask where to save files"

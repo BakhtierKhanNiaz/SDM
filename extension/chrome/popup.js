@@ -1,22 +1,28 @@
-// The toolbar panel: turning capture on asks Chrome for the optional "downloads" permission
-// (Chrome shows its own "Manage your downloads" prompt); turning it off gives it back.
-// "storage" is requested at the same time, only to remember the minimum size.
+// The toolbar panel: the switch that turns automatic capture off and on again (on from
+// installation, 1.0.1), and the minimum size. Both are kept in chrome.storage.local.
 
 import { DEFAULT_SETTINGS, parseMinMegabytes, SETTINGS_KEY } from "./capture.js";
 
-const CAPTURE = { permissions: ["downloads"] };
-
-export function captureEnabled(api) {
-  return api.permissions.contains(CAPTURE);
+export async function loadSettings(api) {
+  if (!api.storage?.local) return { ...DEFAULT_SETTINGS };
+  const stored = await api.storage.local.get(SETTINGS_KEY);
+  return { ...DEFAULT_SETTINGS, ...(stored?.[SETTINGS_KEY] ?? {}) };
 }
 
-// Must run inside the click handler: Chrome only shows permission prompts for a user action.
-export function enableCapture(api) {
-  return api.permissions.request({ permissions: ["downloads", "storage"] });
+// Changes some settings and keeps the others.
+async function saveSettings(api, changes) {
+  if (!api.storage?.local) return false;
+  const settings = { ...(await loadSettings(api)), ...changes };
+  await api.storage.local.set({ [SETTINGS_KEY]: settings });
+  return true;
 }
 
-export function disableCapture(api) {
-  return api.permissions.remove(CAPTURE);
+export async function captureEnabled(api) {
+  return (await loadSettings(api)).enabled !== false;
+}
+
+export function setCaptureEnabled(api, enabled) {
+  return saveSettings(api, { enabled: Boolean(enabled) });
 }
 
 // The last result the toolbar icon reports ("SDM: ..." after a problem), or "" when all is well.
@@ -26,17 +32,14 @@ export async function lastResult(api) {
 }
 
 export async function loadMinMegabytes(api) {
-  if (!api.storage?.local) return DEFAULT_SETTINGS.minMegabytes;
-  const stored = await api.storage.local.get(SETTINGS_KEY);
-  return stored?.[SETTINGS_KEY]?.minMegabytes ?? DEFAULT_SETTINGS.minMegabytes;
+  return (await loadSettings(api)).minMegabytes;
 }
 
 // Returns false (and saves nothing) for anything but a whole number of megabytes.
 export async function saveMinMegabytes(api, text) {
   const value = parseMinMegabytes(text);
-  if (value === null || !api.storage?.local) return false;
-  await api.storage.local.set({ [SETTINGS_KEY]: { minMegabytes: value } });
-  return true;
+  if (value === null) return false;
+  return saveSettings(api, { minMegabytes: value });
 }
 
 async function setUp() {
@@ -49,13 +52,9 @@ async function setUp() {
     min.value = String(await loadMinMegabytes(chrome));
   };
   box.addEventListener("change", async () => {
-    if (box.checked) {
-      const granted = await enableCapture(chrome);
-      status.textContent = granted ? "Downloads now go to SDM." : "Chrome didn't allow it.";
-    } else {
-      await disableCapture(chrome);
-      status.textContent = "Downloads stay in Chrome.";
-    }
+    const saved = await setCaptureEnabled(chrome, box.checked);
+    if (!saved) status.textContent = "Couldn't save the setting.";
+    else status.textContent = box.checked ? "Downloads now go to SDM." : "Downloads stay in the browser.";
     await refresh();
   });
   min.addEventListener("change", async () => {

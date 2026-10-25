@@ -25,12 +25,13 @@
     <input type="checkbox" id="capture">
     <span>Send my downloads to SDM</span>
   </label>
-  <p>When this is on, downloads Chrome starts go to SDM instead, and SDM asks you to confirm
-    each one. Chrome asks first whether SDM may manage your downloads. Incognito windows are
-    never affected. If SDM can't take a download, Chrome downloads it as usual.</p>
+  <p>On: downloads your browser starts go to SDM instead, and SDM asks you to confirm each one.
+    Off: downloads stay in the browser; right-click a link and choose Download with SDM.
+    Private windows are never affected. If SDM can't take a download, the browser downloads it
+    as usual.</p>
   <div class="row">
     <label for="min">Leave files smaller than</label>
-    <input type="number" id="min" min="0" max="100000" step="1" value="0"> MB to Chrome
+    <input type="number" id="min" min="0" max="100000" step="1" value="0"> MB to the browser
   </div>
   <div id="status" role="status"></div>
   <script type="module" src="popup.js"></script>

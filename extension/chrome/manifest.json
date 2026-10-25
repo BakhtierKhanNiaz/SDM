@@ -1,15 +1,13 @@
 {
   "manifest_version": 3,
   "name": "SDM: Download with SDM",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAx7E/2Sk2xalmQLM9JXWvtBf3Ql/Hx4XptS/9KeH2GbllD0dIy7nkdeXCoGJWAeDoHeWWcTD27zO4uetxf1LK4ESD0/Cb6pPUrcU+eY9dfVrBjR4KpZ1uwWhx5/KAIGaTylIEhyTKbi8KslDjwIJ/wHGe73CEgYL5zx68OsSeSIBMhRYruOKFYrFwwk+eBSeo52NvsLV8KLf5aQJWI18zXNgV14P4eWybJzjlixtilTCle2iHqRu52Po3wUtEO73+5CwS1Lq+Q6pwU8qfNkBgH31DlfmdsuA9XMMsbpSjiVjJXWCTXLnhANGJxL+Ms6glqln+9ckziSlWTUXvH2TPbwIDAQAB",
-  "description": "Adds \"Download with SDM\" to the right-click menu of links and players, and can send your downloads to SDM on this computer (off until you turn it on).",
+  "description": "Sends your downloads to SDM on this computer (you can turn this off), and adds \"Download with SDM\" to the right-click menu of links and players.",
   "minimum_chrome_version": "116",
   "permissions": [
     "contextMenus",
-    "nativeMessaging"
-  ],
-  "optional_permissions": [
+    "nativeMessaging",
     "downloads",
     "storage"
   ],

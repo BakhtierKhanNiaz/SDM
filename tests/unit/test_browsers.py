@@ -155,8 +155,11 @@ def test_the_extension_packages(tmp_path):
     assert not re.search(r"^\s*import\s", background, re.MULTILINE)  # one classic script
     assert 'from "./' not in background
     assert "export " not in background
-    for permissions in (chromium_manifest["permissions"], firefox_manifest["permissions"]):
-        assert sorted(permissions) == ["contextMenus", "nativeMessaging"]
+    for manifest in (chromium_manifest, firefox_manifest):
+        # capture is on from installation (1.0.1), so downloads is asked for at install
+        expected = ["contextMenus", "downloads", "nativeMessaging", "storage"]
+        assert sorted(manifest["permissions"]) == expected
+        assert "optional_permissions" not in manifest
 
 
 def test_the_fixed_extension_id_matches_the_manifest_key():

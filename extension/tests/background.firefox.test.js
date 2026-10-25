@@ -19,10 +19,6 @@ globalThis.chrome = {
   },
   contextMenus: { onClicked: { addListener: () => {} }, removeAll: () => {}, create: () => {} },
   action: { setBadgeText: () => {}, setTitle: () => {}, getTitle: async () => "SDM" },
-  permissions: {
-    onAdded: { addListener: () => {} },
-    contains: async () => true,
-  },
   downloads: {
     // no onDeterminingFilename, as in Firefox
     onCreated: { addListener: (fn) => (listeners.created = fn) },

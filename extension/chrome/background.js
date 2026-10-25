@@ -1,6 +1,6 @@
-// SDM's service worker: the right-click item on links and players, and (only if the user turned
-// it on in the toolbar panel, which grants the "downloads" permission) automatic capture.
-// It never reads pages and has no access to any website's content or cookies.
+// SDM's service worker: the right-click item on links and players, and automatic capture (on
+// from installation; the toolbar panel turns it off). It never reads pages and has no access
+// to any website's content or cookies.
 
 import { captureMessage, DEFAULT_SETTINGS, reasonToSkip, SETTINGS_KEY } from "./capture.js";
 import {
@@ -31,23 +31,14 @@ chrome.contextMenus.onClicked.addListener((info) => {
 
 // ----- automatic capture -----
 
-let watching = false;
-function watchDownloads() {
-  // chrome.downloads exists only while the permission is granted. Registering at the top level
-  // lets Chrome wake this worker for new downloads; onAdded covers turning capture on later.
-  if (chrome.downloads && !watching) {
-    if (chrome.downloads.onDeterminingFilename) {
-      chrome.downloads.onDeterminingFilename.addListener(onDeterminingFilename);
-    } else {
-      // Firefox has no "before Save As" hook (M11): capture when the download is created.
-      // Firefox may show its own Save As window first; right-click works as everywhere.
-      chrome.downloads.onCreated.addListener(onDownloadCreated);
-    }
-    watching = true;
-  }
+// Registering at the top level lets Chrome wake this worker for new downloads.
+if (chrome.downloads?.onDeterminingFilename) {
+  chrome.downloads.onDeterminingFilename.addListener(onDeterminingFilename);
+} else if (chrome.downloads) {
+  // Firefox has no "before Save As" hook (M11): capture when the download is created.
+  // Firefox may show its own Save As window first; right-click works as everywhere.
+  chrome.downloads.onCreated.addListener(onDownloadCreated);
 }
-watchDownloads();
-chrome.permissions.onAdded.addListener(watchDownloads);
 
 // Addresses this extension just gave back to Chrome. Their restart is never captured again:
 // Chrome doesn't mark it with byExtensionId early enough to rely on (seen 2026-10-19: one
@@ -92,7 +83,6 @@ export function onDownloadCreated(item) {
 
 async function capture(item, answer, { mayHaveFinished = false } = {}) {
   if (takeHandedBack(item.url)) return;
-  if (!(await chrome.permissions.contains({ permissions: ["downloads"] }))) return;
   const settings = await loadSettings();
   if (reasonToSkip(item, { ...settings, ownId: chrome.runtime.id }) !== null) return;
   const message = captureMessage(item);

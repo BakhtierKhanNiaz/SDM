@@ -109,12 +109,13 @@ test("Chrome's errors say whether the bridge is installed", () => {
   assert.match(describeFailure(new Error("Native host has exited.")).text, /Couldn't reach/);
 });
 
-test("the extension asks for two permissions, and downloads only when turned on", () => {
+test("the extension asks for four permissions at install and no access to websites", () => {
   const manifest = JSON.parse(readFileSync(new URL("../chrome/manifest.json", import.meta.url)));
   assert.equal(manifest.manifest_version, 3);
-  assert.deepEqual([...manifest.permissions].sort(), ["contextMenus", "nativeMessaging"]);
-  assert.deepEqual([...manifest.optional_permissions].sort(), ["downloads", "storage"]);
-  for (const risky of ["host_permissions", "optional_host_permissions", "content_scripts",
+  assert.deepEqual([...manifest.permissions].sort(),
+    ["contextMenus", "downloads", "nativeMessaging", "storage"]);
+  for (const risky of ["host_permissions", "optional_host_permissions", "optional_permissions",
+    "content_scripts",
     "externally_connectable", "web_accessible_resources"]) {
     assert.equal(manifest[risky], undefined, `${risky} must not be declared`);
   }

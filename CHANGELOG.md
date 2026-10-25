@@ -6,6 +6,17 @@ while SDM is in 0.x.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-25
+
+### Changed
+
+- The browser extension sends downloads to SDM from the moment it is installed: clicking a
+  download opens SDM's dialog instead of the browser's Save As. It now asks for the
+  "Manage your downloads" permission at install; the switch in its toolbar panel turns
+  capture off (downloads then stay in the browser) and on again. Owner's choice; ADR-0015.
+
+## [1.0.0] - 2026-10-25
+
 ### Added
 
 - M11d: GitHub Actions checks on every push and pull request, and a release workflow that

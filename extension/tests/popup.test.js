@@ -4,33 +4,16 @@ import { test } from "node:test";
 
 import {
   captureEnabled,
-  disableCapture,
-  enableCapture,
   lastResult,
   loadMinMegabytes,
   saveMinMegabytes,
+  setCaptureEnabled,
 } from "../chrome/popup.js";
 
-function fakeChrome({ allow = true, withStorage = true } = {}) {
-  const granted = new Set();
+function fakeChrome({ withStorage = true } = {}) {
   const store = {};
-  const requests = [];
   return {
-    requests,
     store,
-    permissions: {
-      contains: async ({ permissions }) => permissions.every((p) => granted.has(p)),
-      request: async ({ permissions }) => {
-        requests.push(["request", permissions]);
-        if (allow) permissions.forEach((p) => granted.add(p));
-        return allow;
-      },
-      remove: async ({ permissions }) => {
-        requests.push(["remove", permissions]);
-        permissions.forEach((p) => granted.delete(p));
-        return true;
-      },
-    },
     storage: withStorage
       ? {
           local: {
@@ -42,31 +25,27 @@ function fakeChrome({ allow = true, withStorage = true } = {}) {
   };
 }
 
-test("capture is off until the user turns it on", async () => {
-  const api = fakeChrome();
-  assert.equal(await captureEnabled(api), false);
-  assert.equal(api.requests.length, 0); // nothing is asked for on its own
+test("capture is on from installation", async () => {
+  assert.equal(await captureEnabled(fakeChrome()), true);
+  assert.equal(await captureEnabled(fakeChrome({ withStorage: false })), true);
 });
 
-test("turning it on asks Chrome for downloads (and storage for the minimum size)", async () => {
+test("the switch turns capture off and on again, and it is remembered", async () => {
   const api = fakeChrome();
-  assert.equal(await enableCapture(api), true);
-  assert.deepEqual(api.requests, [["request", ["downloads", "storage"]]]);
+  assert.equal(await setCaptureEnabled(api, false), true);
+  assert.equal(await captureEnabled(api), false);
+  assert.equal(api.store.sdmCapture.enabled, false);
+  await setCaptureEnabled(api, true);
   assert.equal(await captureEnabled(api), true);
 });
 
-test("if the user says no in Chrome's prompt, capture stays off", async () => {
-  const api = fakeChrome({ allow: false });
-  assert.equal(await enableCapture(api), false);
-  assert.equal(await captureEnabled(api), false);
-});
-
-test("turning it off gives the downloads permission back", async () => {
+test("the switch and the minimum size don't overwrite each other", async () => {
   const api = fakeChrome();
-  await enableCapture(api);
-  await disableCapture(api);
-  assert.deepEqual(api.requests.at(-1), ["remove", ["downloads"]]);
-  assert.equal(await captureEnabled(api), false);
+  await setCaptureEnabled(api, false);
+  await saveMinMegabytes(api, "25");
+  assert.deepEqual(api.store.sdmCapture, { enabled: false, minMegabytes: 25 });
+  await setCaptureEnabled(api, true);
+  assert.deepEqual(api.store.sdmCapture, { enabled: true, minMegabytes: 25 });
 });
 
 test("the minimum size is saved only when it is a whole number of megabytes", async () => {

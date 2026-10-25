@@ -362,7 +362,14 @@ deleted. A changed decision gets a new record that supersedes the old one.
     sent back to Chrome by hand.
   - **Capture is opt-in:** off by default. The toolbar panel's switch asks for the optional
     `downloads` permission (Chrome shows "Manage your downloads"), plus `storage` for the
-    minimum size; the permission *is* the switch, and turning it off removes it. Capture runs
+    minimum size; the permission *is* the switch, and turning it off removes it.
+    **Changed in 1.0.1 (owner's decision, 2026-10-25):** capture is on from installation.
+    `downloads` and `storage` are required permissions, so the store's install prompt shows
+    "Manage your downloads" and installing the extension is the consent; the extension's
+    description says it sends downloads to SDM. The panel's switch is now a stored setting
+    (`enabled`, default on) that turns capture off and on; the permission stays. Why: the
+    owner's users expect a click on a download to open SDM, as with other download managers,
+    and the opt-in switch was easy to miss. Everything else below is unchanged. Capture runs
     in `downloads.onDeterminingFilename`, which Chrome calls *before* its own Save As window
     and waits on: skip the download if it is incognito, not http(s) (blob:, data:), smaller
     than the minimum when the size is known, or one this extension handed back; otherwise

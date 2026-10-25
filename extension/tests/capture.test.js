@@ -21,6 +21,11 @@ test("an ordinary download is captured", () => {
   assert.equal(reasonToSkip(item(), { ownId: OWN_ID }), null);
 });
 
+test("with the panel's switch off, nothing is captured", () => {
+  assert.equal(reasonToSkip(item(), { enabled: false, ownId: OWN_ID }), "capture is off");
+  assert.equal(reasonToSkip(item(), { enabled: true, ownId: OWN_ID }), null);
+});
+
 test("downloads SDM's extension handed back to Chrome are never captured again", () => {
   assert.match(reasonToSkip(item({ byExtensionId: OWN_ID }), { ownId: OWN_ID }), /handed back/);
   // another extension's download is still a normal download

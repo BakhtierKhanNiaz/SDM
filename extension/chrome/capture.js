@@ -1,18 +1,19 @@
 // Automatic capture (M8): which of Chrome's downloads go to SDM, and what SDM is told.
 // Pure logic, no chrome.* calls, so `node --test` can check every rule.
 //
-// Capture only runs while the user has granted the optional "downloads" permission from the
-// toolbar panel; that grant *is* the on switch, so there is no hidden setting to drift.
+// Capture is on from installation (1.0.1, the owner's choice: the "downloads" permission is
+// asked for at install); the toolbar panel's switch turns it off and on again ("enabled").
 
 import { messageFor, webUrl } from "./handoff.js";
 
 export const SETTINGS_KEY = "sdmCapture";
-export const DEFAULT_SETTINGS = { minMegabytes: 0 };
+export const DEFAULT_SETTINGS = { enabled: true, minMegabytes: 0 };
 export const MAX_MIN_MEGABYTES = 100000;
 
 // Why a download is left to Chrome, or null when SDM should take it.
 // `item` is a chrome.downloads.DownloadItem; `ownId` is this extension's ID.
-export function reasonToSkip(item, { minMegabytes = 0, ownId } = {}) {
+export function reasonToSkip(item, { enabled = true, minMegabytes = 0, ownId } = {}) {
+  if (enabled === false) return "capture is off";
   if (item === null || typeof item !== "object") return "not a download";
   if (item.byExtensionId && item.byExtensionId === ownId) {
     return "handed back to Chrome by SDM's extension"; // never capture our own fallback

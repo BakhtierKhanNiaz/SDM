@@ -25,8 +25,9 @@ download manager.
   changed before continuing, so versions are never mixed.
 - **Queue and scheduler:** run up to 8 downloads at once, in your order, only between set
   times if you like; temporary failures retry by themselves.
-- **Browser integration:** right-click any link or player and choose **Download with SDM**, or
-  let SDM take over your downloads automatically (off until you turn it on).
+- **Browser integration:** once the extension is installed, clicking a download opens SDM
+  instead of the browser's Save As (a switch in the extension turns this off), and you can
+  right-click any link or player and choose **Download with SDM**.
 - **Safe by default:** never runs downloaded files, never overwrites a file, refuses addresses
   on your own computer and local network unless you allow them, and checks SHA-256 when you
   give one.
