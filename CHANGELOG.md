@@ -6,6 +6,9 @@ while SDM is in 0.x.
 
 ## [Unreleased]
 
+- M12 (media) marked done; the owner's install check of 1.1.0 and "Download this video" in a
+  real browser are still to be recorded (roadmap).
+
 ## [1.1.0] - 2026-10-26
 
 ### Added

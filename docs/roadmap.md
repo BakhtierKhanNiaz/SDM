@@ -17,7 +17,7 @@ and its tests have actually run and passed.
 | M9 | Interface, settings, notifications and usability | Done (2026-10-20) |
 | M10 | Security, performance, regression testing and Windows packaging | Done (2026-10-20) |
 | M11 | Open-source release on GitHub (Apache-2.0, UI/UX, more browsers) | Done (2026-10-25; two owner checks open) |
-| M12 | Media: video/audio converter (ffmpeg) and optional yt-dlp add-on | In progress (M12a-b done) |
+| M12 | Media: video/audio converter (ffmpeg) and optional yt-dlp add-on | Done (2026-10-26; owner's 1.1.0 install check open) |
 
 ## M0: Environment inspection (done)
 
@@ -406,7 +406,7 @@ noreply address before the first push (owner to confirm right before).
 - [ ] **Open:** Brave and Firefox on a real PC; Edge Add-ons and Firefox Add-ons listings (the
   owner's submissions; their IDs then go into `browsers.py` and `sdm.core.links`).
 
-## M12: Media converter and optional video-site add-on (in progress)
+## M12: Media converter and optional video-site add-on (done)
 
 Approved by the owner on 2026-10-25 (option B), to start after M11d on branch `m12/media`.
 Detailed plan approved 2026-10-25: the user installs ffmpeg and yt-dlp (SDM finds them);
@@ -436,8 +436,23 @@ yt-dlp does the video downloading; M12a converter, M12b video add-on, then relea
   Python tests; a throwaway headless Chrome and Edge loaded the changed extension and reached
   SDM's helper. Not yet tried by the owner in a real browser.
 - M12c: version 1.1.0 (SDM and the extension), README features, release notes with the
-  optional winget installs, changelog. Left: the owner pushes the `v1.1.0` tag, then installs
-  1.1.0 and tries "Download this video" in a real browser.
+  optional winget installs, changelog.
+
+**M12 marked done on 2026-10-26 at the owner's request.** Evidence:
+
+- [x] SDM 1.1.0 released from `v1.1.0` (`4c41826`): Checks and Release passed on GitHub;
+  installer, portable zip, Chromium zip and SHA-256 sums published.
+- [x] Converter and video pages: tests with fakes, plus the real ffmpeg 9.0.2 and yt-dlp
+  2026.10.21 in Claude's sandbox (local test server only, checked with ffprobe); SDM's real
+  window driven off-screen; the PyInstaller build started cleanly.
+- [x] The owner ran the M12 test plan from source: Settings > Media, the converter and video
+  pages "all worked" (2026-10-25).
+- [x] "Download this video with SDM": extension and Python tests; headless Chrome and Edge
+  loaded the extension and reached SDM's helper.
+- [ ] **Open:** the owner's install of 1.1.0 from the release (About shows 1.1.0), the browser
+  reconnected through the setup assistant, and "Download this video" clicked in a real
+  Chrome and Edge. To record when the owner runs it.
+- [ ] **Open:** pause and resume of a real yt-dlp download (only the fake yt-dlp covers it).
 
 - **Converter (core feature):** convert a local file with ffmpeg, for example video to MP3
   audio, or MKV/WEBM to MP4. ffmpeg runs as a separate program; SDM never runs downloaded files
