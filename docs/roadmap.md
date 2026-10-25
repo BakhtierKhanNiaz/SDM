@@ -16,8 +16,8 @@ and its tests have actually run and passed.
 | M8 | Browser handoff integrated with the download engine | Done (2026-10-20) |
 | M9 | Interface, settings, notifications and usability | Done (2026-10-20) |
 | M10 | Security, performance, regression testing and Windows packaging | Done (2026-10-20) |
-| M11 | Open-source release on GitHub (Apache-2.0, UI/UX, more browsers) | In progress (M11a-c done) |
-| M12 | Media: video/audio converter (ffmpeg) and optional yt-dlp add-on | Planned (after M11d) |
+| M11 | Open-source release on GitHub (Apache-2.0, UI/UX, more browsers) | Done (2026-10-25; two owner checks open) |
+| M12 | Media: video/audio converter (ffmpeg) and optional yt-dlp add-on | Next |
 
 ## M0: Environment inspection (done)
 
@@ -369,7 +369,7 @@ noreply address before the first push (owner to confirm right before).
   the uninstaller cleaning up every browser. Checked: a throwaway headless Chrome and Edge
   each loaded the extension with the fixed ID and reached SDM's helper. Brave and Firefox
   aren't installed here: their parts are tested with fakes only.
-- M11d (in progress): GitHub Actions: `checks.yml` (lint, format, Python tests on 3.12 and
+- M11d: GitHub Actions: `checks.yml` (lint, format, Python tests on 3.12 and
   3.14, extension tests, on every push and pull request) and `release.yml` (a `v*` tag must
   match SDM's version; it builds the installer and the extension zips and publishes the
   installer, a portable zip and the Chromium zip with SHA-256 checksums; Edge and Firefox use
@@ -387,6 +387,24 @@ noreply address before the first push (owner to confirm right before).
 - Installing 1.0.1 over 1.0.0 left `sdm-1.0.0.dist-info` beside `sdm-1.0.1.dist-info`, so
   About said 1.0.0 (owner's report). 1.0.2: the installer clears `{app}\_internal` first;
   tested with a throwaway Inno Setup installer over a fake old install.
+
+**M11 marked done on 2026-10-25 at the owner's request.** Evidence:
+
+- [x] Public repository github.com/Conditions-tech/SDM under Apache-2.0; every commit and tag by
+  `Conditions-tech` with its GitHub noreply address; no personal name, email or path in any
+  file or commit message (checked over the whole history before the push).
+- [x] GitHub Actions on GitHub: Checks passed on Python 3.12 and 3.14 and for the extension;
+  Release published 1.0.0, 1.0.1 and 1.0.2 (installer, portable zip, Chromium zip, SHA-256
+  sums).
+- [x] Owner: installed 1.0.0 and 1.0.1 from the releases (About box; Windows Apps listing),
+  with earlier downloads kept. Their reports led to 1.0.1 (capture on from installation) and
+  1.0.2 (About version after an update).
+- [x] Headless Chrome and Edge loaded the extension with the fixed ID and reached SDM's
+  helper; Chrome again with 1.0.1's permissions.
+- [ ] **Open:** the owner's upgrade to 1.0.2 (About shows 1.0.2), and a click on a download in
+  Chrome and in Edge opening SDM's dialog with 1.0.1 or later. To record when the owner runs it.
+- [ ] **Open:** Brave and Firefox on a real PC; Edge Add-ons and Firefox Add-ons listings (the
+  owner's submissions; their IDs then go into `browsers.py` and `sdm.core.links`).
 
 ## M12: Media converter and optional video-site add-on (planned)
 

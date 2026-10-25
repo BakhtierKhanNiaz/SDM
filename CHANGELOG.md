@@ -6,6 +6,9 @@ while SDM is in 0.x.
 
 ## [Unreleased]
 
+- M11 (open-source release) marked done; the owner's 1.0.2 upgrade and click-to-SDM checks in
+  Chrome and Edge are still to be recorded (roadmap).
+
 ## [1.0.2] - 2026-10-25
 
 ### Fixed

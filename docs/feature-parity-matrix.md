@@ -39,13 +39,17 @@ session), not that the feature was studied in full.
 | Scheduled downloads | Tested | M6 | Real-world: a python.org download waited for its window and started 1.7 s after it opened (roadmap). Start/stop times and days, overnight windows; only starts and pauses (`test_queue_planner.py`, `test_queue.py`). IDM's scheduler not observed |
 | Categories | Tested | M6 | Same categories IDM showed (OBS-001, 002, 005) plus Music, Video, Programs; labels by default, IDM-style subfolders as a setting (off) |
 | Browser-to-desktop handoff (explicit) | Tested | M7 | ADR-0014, FEAT-006: right-click "Download with SDM" on links opens Add URL filled in; starts SDM if needed. Owner's Chrome check passed (roadmap). IDM's browser integration not observed |
-| Automatic browser download capture (with consent) | Tested | M8 | ADR-0015, FEAT-007: opt-in from the toolbar panel (Chrome's permission prompt), minimum size, hand-back to Chrome. Referer and the browser's name forwarded; no cookies. Owner's check passed: a captured python.org download matched its SHA-256 (roadmap). IDM's capture not observed |
+| Automatic browser download capture (with consent) | Tested | M8 | ADR-0015, FEAT-007: on from installation since 1.0.1 (owner's choice; the toolbar switch turns it off; was opt-in in M8), minimum size, hand-back to Chrome. Referer and the browser's name forwarded; no cookies. Owner's check passed: a captured python.org download matched its SHA-256 (roadmap). IDM's capture not observed |
 | Speed limiter | Tested | M9 | ADR-0016: one limit shared by all downloads, applied at once. Owner's demo: 1 MB/s held on python.org (roadmap). IDM's limiter not observed |
 | Connection limits | Tested | M9 | Connections per download 1-8 (Settings); downloads at once 1-8 (Scheduler, M6). IDM's per-site exceptions (OBS-006 text) not observed |
 | Integrity verification (checksums) | Tested | M9 | SHA-256 in Add URL or later; mismatched files kept and flagged; owner's demo verified a python.org download (roadmap). Size-unconfirmed warning since M2 (OBS-005) |
 | Settings dialog | Tested | M9 | General, Connections, Notifications tabs; queue settings in Scheduler. IDM's Options not observed |
 | Notifications | Tested | M9 | Windows notifications (not dialogs, unlike IDM's completion dialog, OBS-001); optional close-to-tray |
-| Windows installer / packaging | Tested | M10 | ADR-0018: PyInstaller build and a per-user Inno Setup installer; the owner installed, used (verified download, Chrome capture) and uninstalled it (roadmap). Not code-signed ($0) |
+| Windows installer / packaging | Tested | M10 | ADR-0018: PyInstaller build and a per-user Inno Setup installer; the owner installed, used (verified download, Chrome capture) and uninstalled it (roadmap). Not code-signed ($0). Since 1.0.2 an update replaces the old program files (`test_an_update_replaces_the_old_program_files`) |
+| Browsers: Chrome, Edge, Brave, Firefox | Tested | M11 | ADR-0019: fixed Chromium ID, per-browser registration from the welcome assistant, Firefox package (`test_browsers.py`, `background.firefox.test.js`). Headless Chrome and Edge reached SDM's helper; Brave and Firefox tested with fakes only (not installed). IDM's browser support not observed |
+| Themes, progress bars, details panel | Tested | M11 | ADR-0019: light/dark following Windows, WCAG AA contrast checked (`test_window_m11.py`). IDM's look not compared (SDM's own design) |
+| First-run welcome assistant | Tested | M11 | ADR-0019: folder, appearance, browsers; remembered when cancelled (`test_packaging.py`). The owner's run of it not yet recorded |
+| Public releases (GitHub Actions) | Tested | M11 | `.github/workflows`: checks on every push; a version tag publishes installer, portable zip, Chromium zip and SHA-256 sums (1.0.0-1.0.2 published). No in-app update check |
 
 Target milestones are a first guess from the roadmap. They can move once features are
 investigated.
