@@ -153,3 +153,13 @@ def test_installer_cleans_up_every_browser():
         line = f'Subkey: "{browser.hosts_key}\\{HOST_NAME}"; Flags: uninsdeletekey dontcreatekey'
         assert line in iss, browser.name
     assert FIREFOX_MANIFEST_NAME in iss
+
+
+def test_an_update_replaces_the_old_program_files():
+    # Regression (1.0.1): installing over 1.0.0 kept sdm-1.0.0.dist-info, so About said 1.0.0.
+    iss = (ROOT / "packaging" / "sdm.iss").read_text(encoding="utf-8")
+    section = iss.split("[InstallDelete]", 1)[1].split("\n[", 1)[0]
+    entries = [line for line in section.splitlines() if line.strip() and not line.startswith(";")]
+    # only the bundled program files: never the app folder itself or the user's data
+    assert entries == ['Type: filesandordirs; Name: "{app}\\_internal"']
+    assert iss.index("[InstallDelete]") < iss.index("[Files]")

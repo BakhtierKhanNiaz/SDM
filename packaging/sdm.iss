@@ -40,6 +40,12 @@ RestartApplications=no
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
 
+[InstallDelete]
+; An update must not keep the previous version's program files: an old sdm-<version>.dist-info
+; left next to the new one made SDM 1.0.1 call itself 1.0.0 (found by the owner, 1.0.2).
+; _internal holds only files this installer puts there; user data lives in {localappdata}\SDM.
+Type: filesandordirs; Name: "{app}\_internal"
+
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
