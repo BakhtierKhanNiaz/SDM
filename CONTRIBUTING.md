@@ -27,7 +27,12 @@ Security problems: please follow [SECURITY.md](SECURITY.md) instead.
    ```
 
    It runs `ruff check`, `ruff format --check`, all Python tests and the extension tests
-   (`node --test` in `extension/`, Node.js 20 or newer).
+   (`node --test` in `extension/`, Node.js 20 or newer). GitHub Actions runs the same checks
+   on every push and pull request, on Python 3.12 and 3.14 (`.github/workflows/checks.yml`).
+
+Releases: maintainers set the version in `pyproject.toml` and `extension/chrome/manifest.json`,
+then push a tag like `v1.0.0`; `.github/workflows/release.yml` builds the installer and the
+extension packages and publishes them with their SHA-256 checksums.
 
 ## Ground rules
 

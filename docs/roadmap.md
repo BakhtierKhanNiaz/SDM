@@ -369,7 +369,17 @@ noreply address before the first push (owner to confirm right before).
   the uninstaller cleaning up every browser. Checked: a throwaway headless Chrome and Edge
   each loaded the extension with the fixed ID and reached SDM's helper. Brave and Firefox
   aren't installed here: their parts are tested with fakes only.
-- M11d (next): GitHub Actions, the email rewrite (owner confirms first), publishing.
+- M11d (in progress): GitHub Actions: `checks.yml` (lint, format, Python tests on 3.12 and
+  3.14, extension tests, on every push and pull request) and `release.yml` (a `v*` tag must
+  match SDM's version; it builds the installer and the extension zips and publishes the
+  installer, a portable zip and the Chromium zip with SHA-256 checksums; Edge and Firefox use
+  their stores, ADR-0019). Actions are pinned to commit SHAs (checkout v7.0.1, setup-node
+  v7.1.0, setup-uv v10.3.2). Checked locally on 2026-10-25: both workflows parse; the checks
+  pass on Python 3.12 (scratch venv) and 3.14 (704 tests); `build_release.py --installer` and
+  `build_extensions.py` built 1.0.0; the collect step ran in Windows PowerShell 5.1 (GitHub
+  uses PowerShell 7). Not checked: the workflows on GitHub itself. Left: the repository address,
+  the email rewrite (owner confirms first), the first push and release, and the owner's install
+  test from the release.
 
 ## M12: Media converter and optional video-site add-on (planned)
 

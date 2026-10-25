@@ -8,6 +8,8 @@ while SDM is in 0.x.
 
 ### Added
 
+- M11d: GitHub Actions checks on every push and pull request, and a release workflow that
+  publishes the installer and extension packages with SHA-256 checksums when a version is tagged.
 - M11c: the extension works in Chrome, Edge, Brave and Firefox, with a fixed extension ID, so
   SDM registers itself for every browser without typing anything; extension packages for
   GitHub, Edge Add-ons and Firefox Add-ons (`scripts/build_extensions.py`).
