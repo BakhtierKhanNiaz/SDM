@@ -59,12 +59,12 @@ def test_category_column_and_filter(qtbot, window, mock_server, downloads):
     categories = [model.data(model.index(row, CATEGORY)) for row in range(model.rowCount())]
     assert categories == ["General", "Compressed", "Documents"]
 
-    window.category_box.setCurrentText("Documents")
+    window.sidebar.select_view("Documents")  # M13: the sidebar replaced the category box
     assert window.proxy.rowCount() == 1
     window.download_table.selectRow(0)
     assert window.selected_id() == c  # the filtered row maps to the right download
 
-    window.category_box.setCurrentText("All categories")
+    window.sidebar.select_view("all")
     assert window.proxy.rowCount() == 3
     assert {a, b, c} == {r.id for r in model.records()}
 

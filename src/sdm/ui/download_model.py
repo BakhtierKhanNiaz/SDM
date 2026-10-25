@@ -7,11 +7,13 @@ only draws. When a row changes, the model emits dataChanged and the view repaint
 from dataclasses import dataclass, replace
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelIndex, Qt
+from PySide6.QtGui import QColor
 
 from sdm.core.checksums import CHECKING, MISMATCH, MISSING, VERIFIED
 from sdm.core.downloads import DownloadRecord, DownloadState
 from sdm.core.units import format_duration, format_size, format_speed
 from sdm.core.urls import redact_url
+from sdm.ui.glyphs import category_glyph
 
 COLUMNS = ("File name", "Category", "Size", "Progress", "Speed", "Time left", "Status")
 NAME, CATEGORY, SIZE, PROGRESS, SPEED, TIME_LEFT, STATUS = range(len(COLUMNS))
@@ -40,10 +42,38 @@ class _Row:
     connections: int = 1  # while downloading (M5)
 
 
+# M13: the Status column's colour by outcome, for the light and the dark look. Each meets
+# WCAG AA (4.5:1) on the list's background (test_status_colours_are_readable).
+STATUS_COLOURS = {
+    False: {"done": "#15803d", "failed": "#b91c1c", "waiting": "#a16207", "active": "#1d4ed8"},
+    True: {"done": "#4ade80", "failed": "#f87171", "waiting": "#fbbf24", "active": "#7cb0ff"},
+}
+
+
+def status_kind(record: DownloadRecord) -> str | None:
+    """done, failed, waiting or active: which colour the status shows in (None: normal)."""
+    if record.state == DownloadState.COMPLETED:
+        return "failed" if record.checksum_state in (MISMATCH, MISSING) else "done"
+    if record.state == DownloadState.FAILED:
+        return "failed"
+    if record.state in (DownloadState.PAUSED, DownloadState.INTERRUPTED):
+        return "waiting"
+    if record.state == DownloadState.DOWNLOADING:
+        return "active"
+    return None
+
+
 class DownloadTableModel(QAbstractTableModel):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._rows: list[_Row] = []
+        self.dark = False  # the window sets it with the look (M13)
+
+    def set_dark(self, dark: bool) -> None:
+        if dark != self.dark:
+            self.dark = dark
+            if self._rows:
+                self.dataChanged.emit(self.index(0, 0), self.index(len(self._rows) - 1, STATUS))
 
     # ----- Qt's model interface -----
 
@@ -68,6 +98,11 @@ class DownloadTableModel(QAbstractTableModel):
             return _tooltip(row.record, index.column())
         if role == PROGRESS_ROLE and index.column() == PROGRESS:
             return progress_percent(row.record)
+        if role == Qt.ItemDataRole.DecorationRole and index.column() == NAME:
+            return category_glyph(row.record.category)
+        if role == Qt.ItemDataRole.ForegroundRole and index.column() == STATUS:
+            kind = status_kind(row.record)
+            return QColor(STATUS_COLOURS[self.dark][kind]) if kind else None
         if role == Qt.ItemDataRole.TextAlignmentRole and index.column() in (
             SIZE,
             PROGRESS,

@@ -24,7 +24,15 @@ _DARK = {
 
 _STYLE = """
 QToolBar {{ spacing: 2px; padding: 4px 6px; border: none; background: {window}; }}
-QToolBar QToolButton {{ padding: 5px 10px; border-radius: 6px; color: {text}; }}
+QToolBar QToolButton {{ padding: 4px 8px; border-radius: 6px; color: {text}; min-width: 52px; }}
+QListWidget#sidebar {{ border: none; border-right: 1px solid {grid}; background: {window};
+                       padding: 8px 6px; outline: none; }}
+QListWidget#sidebar::item {{ padding: 7px 8px; margin: 1px 0; border-radius: 6px;
+                             color: {text}; }}
+QListWidget#sidebar::item:selected {{ background: {accent}; color: {accent_text}; }}
+QListWidget#sidebar::item:hover:!selected {{ background: {hover}; }}
+QListWidget#sidebar::item:disabled {{ color: {muted}; padding-top: 16px; font-size: 8pt;
+                                      font-weight: 600; }}
 QToolBar QToolButton:hover {{ background: {hover}; }}
 QToolBar QToolButton:disabled {{ color: {muted}; }}
 QTableView {{ border: none; gridline-color: {grid}; background: {base};

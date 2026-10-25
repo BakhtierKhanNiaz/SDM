@@ -58,6 +58,8 @@ class DetailsPanel(QFrame):
 
     FIELDS = ("File", "Address", "Folder", "Size", "Progress", "Speed", "Connections",
               "Status", "Checksum", "From the browser", "Added", "Finished")  # fmt: skip
+    # M13: two columns side by side, so the panel leaves the list more room.
+    LEFT = ("File", "Address", "Folder", "Status", "Checksum")
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -66,9 +68,13 @@ class DetailsPanel(QFrame):
         self.title.setObjectName("detailsTitle")
         self.title.setTextFormat(Qt.TextFormat.PlainText)
         self.values: dict[str, QLabel] = {}
-        self.form = form = QFormLayout()
-        form.setHorizontalSpacing(16)
-        form.setVerticalSpacing(4)
+        self._forms: dict[str, QFormLayout] = {}
+        columns = QHBoxLayout()
+        columns.setSpacing(28)
+        left, right = QFormLayout(), QFormLayout()
+        for form in (left, right):
+            form.setHorizontalSpacing(14)
+            form.setVerticalSpacing(3)
         for name in self.FIELDS:
             value = QLabel("")
             value.setTextFormat(Qt.TextFormat.PlainText)  # names and addresses are never HTML
@@ -76,8 +82,12 @@ class DetailsPanel(QFrame):
             value.setWordWrap(True)
             label = QLabel(name)
             label.setProperty("muted", True)
+            form = left if name in self.LEFT else right
             form.addRow(label, value)
             self.values[name] = value
+            self._forms[name] = form
+        columns.addLayout(left, 3)
+        columns.addLayout(right, 2)
         self.folder_button = QPushButton("Show in folder")
         self.folder_button.clicked.connect(self.show_in_folder)
         self.copy_button = QPushButton("Copy address")
@@ -89,7 +99,7 @@ class DetailsPanel(QFrame):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 10, 14, 10)
         layout.addWidget(self.title)
-        layout.addLayout(form)
+        layout.addLayout(columns)
         layout.addLayout(buttons)
         self.show_record(None)
 
@@ -150,7 +160,7 @@ class DetailsPanel(QFrame):
         for name, text in texts.items():
             self.values[name].setText(text)
             # Rows with nothing to say (speed of a finished download...) are hidden.
-            self.form.setRowVisible(self.values[name], bool(text) or name in ALWAYS_SHOWN)
+            self._forms[name].setRowVisible(self.values[name], bool(text) or name in ALWAYS_SHOWN)
         self.folder_button.setEnabled(finished_file_ok)
         self.copy_button.setEnabled(True)
 

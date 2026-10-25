@@ -7,12 +7,11 @@ from collections import deque
 from dataclasses import replace
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, QPoint, QSortFilterProxyModel, Qt, Signal
+from PySide6.QtCore import QByteArray, QEvent, QPoint, QSize, Qt, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QGuiApplication, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
-    QComboBox,
     QDialog,
     QHeaderView,
     QInputDialog,
@@ -27,7 +26,6 @@ from PySide6.QtWidgets import (
 
 from sdm import __version__
 from sdm.bridge.protocol import DownloadRequest
-from sdm.core.categories import CATEGORIES
 from sdm.core.checksums import MISMATCH, MISSING, VERIFIED
 from sdm.core.downloads import BrowserContext, DownloadRecord, DownloadState
 from sdm.core.errors import SDMError
@@ -36,12 +34,14 @@ from sdm.media.ffmpeg import find_ffmpeg
 from sdm.ui.add_url_dialog import AddUrlDialog
 from sdm.ui.controller import DownloadController, finished_file, summarize
 from sdm.ui.convert_dialog import ConvertDialog
-from sdm.ui.download_model import CATEGORY, COLUMNS, NAME, PROGRESS, STATUS
+from sdm.ui.download_model import COLUMNS, NAME, PROGRESS, STATUS
+from sdm.ui.glyphs import ICON_SIZE, glyph
 from sdm.ui.icons import app_icon
 from sdm.ui.scheduler_dialog import SchedulerDialog
 from sdm.ui.settings_dialog import SettingsDialog, ask_video_terms
 from sdm.ui.setup_wizard import SetupWizard
-from sdm.ui.theme import apply_theme
+from sdm.ui.sidebar import DownloadFilter, Sidebar
+from sdm.ui.theme import apply_theme, colors_for
 from sdm.ui.widgets import DetailsPanel, ProgressDelegate
 
 # Kept for existing imports: the columns of the download list, left to right.
@@ -69,7 +69,7 @@ def reveal_in_explorer(path: Path) -> None:
     subprocess.Popen(f'explorer.exe /select,"{path}"')  # noqa: S602, S603 - fixed program
 
 
-_LAYOUT_KEYS = ("ui.geometry", "ui.header", "ui.splitter")
+_LAYOUT_KEYS = ("ui.geometry", "ui.header", "ui.splitter", "ui.sidebar")
 
 
 class MainWindow(QMainWindow):
@@ -96,9 +96,8 @@ class MainWindow(QMainWindow):
 
         # The view shows the model through a filter (the category box); rows on screen are
         # translated back to the model's rows with mapToSource.
-        self.proxy = QSortFilterProxyModel(self)
+        self.proxy = DownloadFilter(self)  # M13: chosen in the sidebar
         self.proxy.setSourceModel(controller.model)
-        self.proxy.setFilterKeyColumn(CATEGORY)
         self.download_table = QTableView(self)
         self.download_table.setModel(self.proxy)
         self.download_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -114,7 +113,8 @@ class MainWindow(QMainWindow):
         header.setSectionResizeMode(STATUS, QHeaderView.ResizeMode.ResizeToContents)
         self.download_table.setColumnWidth(PROGRESS, 150)  # room for the bar and its %
         self.download_table.setItemDelegateForColumn(PROGRESS, ProgressDelegate(self))
-        self.download_table.verticalHeader().setDefaultSectionSize(30)
+        self.download_table.verticalHeader().setDefaultSectionSize(34)
+        self.download_table.setIconSize(QSize(20, 20))  # the file-type icons (M13)
         self.download_table.setShowGrid(False)
         self.details = DetailsPanel(self)
         self.details.show_in_folder.connect(self.show_in_folder_selected)
@@ -125,7 +125,16 @@ class MainWindow(QMainWindow):
         self.splitter.setStretchFactor(0, 3)
         self.splitter.setStretchFactor(1, 1)
         self.splitter.setChildrenCollapsible(True)
-        self.setCentralWidget(self.splitter)
+        self.splitter.setSizes([420, 180])  # the list gets most of the height (M13)
+        self.sidebar = Sidebar(self)
+        self.sidebar.view_changed.connect(self._show_view)
+        self.body = QSplitter(Qt.Orientation.Horizontal, self)
+        self.body.addWidget(self.sidebar)
+        self.body.addWidget(self.splitter)
+        self.body.setStretchFactor(0, 0)
+        self.body.setStretchFactor(1, 1)
+        self.body.setSizes([190, 810])
+        self.setCentralWidget(self.body)
 
         self.add_action = self._action("&Add URL…", self.open_add_dialog)
         self.add_action.setShortcut(QKeySequence.StandardKey.New)
@@ -167,9 +176,6 @@ class MainWindow(QMainWindow):
             )
         }
         self.scheduler_action = self._action("S&cheduler…", self.open_scheduler)
-        self.category_box = QComboBox()
-        self.category_box.addItems(["All categories", *CATEGORIES])
-        self.category_box.currentTextChanged.connect(self._filter_category)
 
         file_menu = self.menuBar().addMenu("&File")
         file_menu.addAction(self.add_action)
@@ -215,21 +221,38 @@ class MainWindow(QMainWindow):
         help_menu.addSeparator()
         self.about_action = help_menu.addAction("&About SDM")
         self.about_action.triggered.connect(self.show_about)
-        toolbar = self.addToolBar("Main")
+        # M13: icons with a short label underneath.
+        self.toolbar = toolbar = self.addToolBar("Main")
         toolbar.setMovable(False)
-        for action in (
-            self.add_action,
-            self.pause_action,
-            self.resume_action,
-            self.resume_all_action,
-            self.cancel_action,
-            self.remove_action,
-            self.start_now_action,
-            self.scheduler_action,
+        toolbar.setIconSize(ICON_SIZE)
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        for entry in (
+            (self.add_action, "Add URL"),
+            (self.pause_action, "Pause"),
+            (self.resume_action, "Resume"),
+            (self.resume_all_action, "Resume all"),
+            (self.cancel_action, "Cancel"),
+            (self.remove_action, "Remove"),
+            None,
+            (self.start_now_action, "Start now"),
+            (self.scheduler_action, "Scheduler"),
+            None,
+            (self.convert_action, "Convert"),
+            (self.settings_action, "Settings"),
         ):
+            if entry is None:
+                toolbar.addSeparator()
+                continue
+            action, short = entry
+            action.setIconText(short)
             toolbar.addAction(action)
-        toolbar.addSeparator()
-        toolbar.addWidget(self.category_box)
+        self._glyph_names = {
+            self.add_action: "add", self.pause_action: "pause", self.resume_action: "resume",
+            self.resume_all_action: "resume_all", self.cancel_action: "cancel",
+            self.remove_action: "remove", self.start_now_action: "start_now",
+            self.scheduler_action: "scheduler", self.convert_action: "convert",
+            self.convert_selected_action: "convert", self.settings_action: "settings",
+        }  # fmt: skip
 
         # A permanent label, not showMessage(): Qt replaces a status *message* with the (empty)
         # hint of any toolbar button or menu item the mouse passes over, which left the status
@@ -244,6 +267,11 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(icon)
         self.tray = self._make_tray(icon) if QSystemTrayIcon.isSystemTrayAvailable() else None
         self._restore_layout()
+        self.refresh_icons()
+        for changed in (controller.model.dataChanged, controller.model.rowsInserted,
+                        controller.model.rowsRemoved, controller.model.modelReset):  # fmt: skip
+            changed.connect(self._update_counts)
+        self._update_counts()
         self.download_table.selectionModel().selectionChanged.connect(self._update_actions)
         self.download_table.selectionModel().selectionChanged.connect(self._update_details)
         controller.model.dataChanged.connect(self._update_actions)
@@ -398,6 +426,7 @@ class MainWindow(QMainWindow):
         self.controller.set_preferences(preferences)
         if preferences.theme != old_theme and QApplication.instance() is not None:
             apply_theme(QApplication.instance(), preferences.theme)
+            self.refresh_icons()
         if preferences.default_folder != old_default:
             self._default_folder = self._preferred_folder()
 
@@ -601,9 +630,13 @@ class MainWindow(QMainWindow):
     # ----- layout -----
 
     def _restore_layout(self) -> None:
-        geometry, header, splitter = (self.controller.store.get_setting(k) for k in _LAYOUT_KEYS)
+        geometry, header, splitter, sidebar = (
+            self.controller.store.get_setting(k) for k in _LAYOUT_KEYS
+        )
         if splitter:
             self.splitter.restoreState(QByteArray.fromBase64(splitter.encode("ascii")))
+        if sidebar:
+            self.body.restoreState(QByteArray.fromBase64(sidebar.encode("ascii")))
         if geometry:
             self.restoreGeometry(QByteArray.fromBase64(geometry.encode("ascii")))
         if header:
@@ -618,6 +651,8 @@ class MainWindow(QMainWindow):
         self.controller.store.set_setting(_LAYOUT_KEYS[1], header.decode("ascii"))
         splitter = self.splitter.saveState().toBase64().data().decode("ascii")
         self.controller.store.set_setting(_LAYOUT_KEYS[2], splitter)
+        sidebar = self.body.saveState().toBase64().data().decode("ascii")
+        self.controller.store.set_setting(_LAYOUT_KEYS[3], sidebar)
 
     def _update_details(self, *_args: object) -> None:
         record = self.selected_record()
@@ -676,12 +711,33 @@ class MainWindow(QMainWindow):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.controller.set_queue_settings(dialog.settings())
 
-    def _filter_category(self, text: str) -> None:
-        if text == "All categories":
-            self.proxy.setFilterFixedString("")
-        else:
-            self.proxy.setFilterRegularExpression(f"^{text}$")
+    def _show_view(self, view: str) -> None:
+        """The sidebar's choice (M13): All, Downloading, Finished, Unfinished or a file type."""
+        self.proxy.set_view(view)
         self._update_actions()
+        self._update_details()
+
+    def _update_counts(self, *_args: object) -> None:
+        self.sidebar.update_counts(self.controller.model.records())
+        if self.proxy.view != "all":
+            self.proxy.refilter()  # a download that finished moves to Finished
+
+    def refresh_icons(self) -> None:
+        """Draw the toolbar's and the sidebar's icons in the current look's colours (M13)."""
+        app = QApplication.instance()
+        dark = bool(app.property("sdm_dark")) if app is not None else False
+        colours = colors_for(dark)
+        for action, name in self._glyph_names.items():
+            action.setIcon(glyph(name, colours["text"], disabled=colours["muted"]))
+        self.sidebar.set_colours(colours["text"])
+        self.controller.model.set_dark(dark)
+
+    def changeEvent(self, event: QEvent) -> None:
+        # The look changed (Settings, or Windows switching to dark): redraw the icons.
+        # Qt can send this while the window is still being built: only once the icons exist.
+        if event.type() == QEvent.Type.PaletteChange and hasattr(self, "_glyph_names"):
+            self.refresh_icons()
+        super().changeEvent(event)
 
     def resume_selected(self) -> None:
         download_id = self.selected_id()
