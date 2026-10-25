@@ -23,6 +23,7 @@ class Preferences:
     notify: bool = True  # a Windows notification when a download finishes or fails
     theme: str = "system"  # "system" (follow Windows), "light" or "dark" (M11)
     setup_done: bool = False  # the welcome assistant has run (M11)
+    ffmpeg_path: str = ""  # "" = find ffmpeg on PATH or where WinGet put it (M12)
 
     @property
     def speed_limit_bytes(self) -> int | None:
@@ -43,7 +44,7 @@ class Preferences:
             values["connections"] = default.connections
         if values["theme"] not in ("system", "light", "dark"):
             values["theme"] = default.theme
-        for name in ("default_folder", "last_folder"):
+        for name in ("default_folder", "last_folder", "ffmpeg_path"):
             if len(values[name]) > MAX_FOLDER_LENGTH or "\x00" in values[name]:
                 values[name] = ""
         return Preferences(**values)

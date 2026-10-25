@@ -267,6 +267,29 @@ the partial file.
   takes about 12 s, finishes as "Completed · verified" with the published SHA-256, and a
   Windows notification appears. Done 2026-10-20 (roadmap).
 
+## FEAT-009: Convert a file with ffmpeg (M12a)
+
+- **Purpose:** Turn a downloaded video into music (MP3, M4A) or a widely playable MP4.
+- **Based on:** The owner's request (M12, option B). Rules: ADR-0020. IDM's converter (if
+  any) was not observed.
+- **User workflow:** right-click a finished download → **Convert…** (or Tools → Convert
+  file… and Browse), choose the format, press Convert; watch the bar; Show in folder.
+
+| ID | Requirement | Tests |
+|---|---|---|
+| FR-1 | ffmpeg is found from Settings, PATH or WinGet's folders; without it, the window says how to install it | `test_finding_ffmpeg`, `test_without_ffmpeg_the_window_says_how_to_get_it`, `test_settings_show_and_keep_where_ffmpeg_is` |
+| FR-2 | A fixed command line: `file:` paths, `-nostdin -n`, no shell | `test_the_command_line_is_fixed_and_never_overwrites`, `test_converting_makes_a_new_file_and_keeps_the_original` |
+| FR-3 | The result is a new file next to the source, numbered if taken; the source is unchanged | `test_the_result_is_a_new_file_next_to_the_source`, `test_a_second_conversion_gets_a_numbered_name` |
+| FR-4 | Progress from ffmpeg's duration and `-progress` lines | `test_progress_from_ffmpegs_output` |
+| FR-5 | Failure shows ffmpeg's reason; failure and Cancel delete the partial file | `test_a_failure_shows_ffmpegs_reason_and_deletes_the_partial_file`, `test_cancel_stops_ffmpeg_and_deletes_the_partial_file`, `test_a_program_that_cant_start_is_reported` |
+| FR-6 | Convert… only for SDM's own finished files | `test_convert_is_offered_for_finished_files` |
+
+### Acceptance criteria
+
+- All tests above pass (with a fake ffmpeg); ruff is clean.
+- The owner, with the real ffmpeg (`winget install Gyan.FFmpeg`): a downloaded video becomes
+  a playable MP3 and MP4 next to it. Not yet done.
+
 ## Template
 
 ```markdown

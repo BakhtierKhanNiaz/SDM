@@ -17,7 +17,7 @@ and its tests have actually run and passed.
 | M9 | Interface, settings, notifications and usability | Done (2026-10-20) |
 | M10 | Security, performance, regression testing and Windows packaging | Done (2026-10-20) |
 | M11 | Open-source release on GitHub (Apache-2.0, UI/UX, more browsers) | Done (2026-10-25; two owner checks open) |
-| M12 | Media: video/audio converter (ffmpeg) and optional yt-dlp add-on | Next |
+| M12 | Media: video/audio converter (ffmpeg) and optional yt-dlp add-on | In progress (M12a done) |
 
 ## M0: Environment inspection (done)
 
@@ -406,9 +406,16 @@ noreply address before the first push (owner to confirm right before).
 - [ ] **Open:** Brave and Firefox on a real PC; Edge Add-ons and Firefox Add-ons listings (the
   owner's submissions; their IDs then go into `browsers.py` and `sdm.core.links`).
 
-## M12: Media converter and optional video-site add-on (planned)
+## M12: Media converter and optional video-site add-on (in progress)
 
 Approved by the owner on 2026-10-25 (option B), to start after M11d on branch `m12/media`.
+Detailed plan approved 2026-10-25: the user installs ffmpeg and yt-dlp (SDM finds them);
+yt-dlp does the video downloading; M12a converter, M12b video add-on, then release 1.1.0.
+
+- M12a (done): ADR-0020; `sdm.media.ffmpeg`, the Convert window, Settings > Media, Convert… on
+  finished downloads; 17 new tests with a fake ffmpeg. Left: the owner's check with the real
+  ffmpeg.
+- M12b (next): the optional video-page add-on with yt-dlp.
 
 - **Converter (core feature):** convert a local file with ffmpeg, for example video to MP3
   audio, or MKV/WEBM to MP4. ffmpeg runs as a separate program; SDM never runs downloaded files

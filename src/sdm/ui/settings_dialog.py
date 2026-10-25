@@ -1,5 +1,5 @@
-"""The Settings dialog (Tools > Settings, M9): folders, connections, speed limit, tray and
-notifications. The queue and schedule stay in the Scheduler dialog (M6)."""
+"""The Settings dialog (Tools > Settings, M9): folders, connections, speed limit, tray,
+notifications, and where ffmpeg is (M12). The queue and schedule stay in the Scheduler (M6)."""
 
 from dataclasses import replace
 from pathlib import Path
@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from sdm.media.ffmpeg import INSTALL_HINT, find_ffmpeg
 from sdm.ui.preferences import MAX_SPEED_LIMIT_KIB, Preferences
 from sdm.ui.theme import MODE_LABELS, MODES
 
@@ -96,10 +97,28 @@ class SettingsDialog(QDialog):
             notifications_layout.addWidget(QLabel("Windows' notification area isn't available."))
         notifications_layout.addStretch()
 
+        # Media tools (M12)
+        self.ffmpeg_edit = QLineEdit(preferences.ffmpeg_path)
+        self.ffmpeg_edit.setPlaceholderText("Found automatically")
+        browse_ffmpeg = QPushButton("Browse…")
+        browse_ffmpeg.clicked.connect(self._browse_ffmpeg)
+        ffmpeg_row = QHBoxLayout()
+        ffmpeg_row.addWidget(self.ffmpeg_edit)
+        ffmpeg_row.addWidget(browse_ffmpeg)
+        self.ffmpeg_status = QLabel()
+        self.ffmpeg_status.setWordWrap(True)
+        self.ffmpeg_edit.textChanged.connect(self._update_ffmpeg_status)
+        self._update_ffmpeg_status()
+        media = QWidget()
+        media_form = QFormLayout(media)
+        media_form.addRow("ffmpeg (for Convert):", ffmpeg_row)
+        media_form.addRow(self.ffmpeg_status)
+
         self.tabs = QTabWidget()
         self.tabs.addTab(general, "General")
         self.tabs.addTab(connections, "Connections")
         self.tabs.addTab(notifications, "Notifications")
+        self.tabs.addTab(media, "Media")
         self.error_label = QLabel()
         self.error_label.setStyleSheet("color: #b00020")
         self.error_label.hide()
@@ -124,6 +143,7 @@ class SettingsDialog(QDialog):
             notify=self.notify_check.isChecked(),
             keep_in_tray=self.tray_check.isChecked(),
             theme=self.theme_box.currentData(),
+            ffmpeg_path=self.ffmpeg_edit.text().strip(),
         )
 
     def accept(self) -> None:
@@ -133,7 +153,24 @@ class SettingsDialog(QDialog):
             self.error_label.setText(f"The folder doesn't exist: {folder}")
             self.error_label.show()
             return
+        ffmpeg = self.ffmpeg_edit.text().strip()
+        if ffmpeg and not Path(ffmpeg).is_file():
+            self.tabs.setCurrentIndex(3)
+            self.error_label.setText(f"There's no program at: {ffmpeg}")
+            self.error_label.show()
+            return
         super().accept()
+
+    def _update_ffmpeg_status(self) -> None:
+        found = find_ffmpeg(self.ffmpeg_edit.text().strip())
+        self.ffmpeg_status.setText(
+            f"Using {found}" if found else f"ffmpeg wasn't found. {INSTALL_HINT}, then restart SDM."
+        )
+
+    def _browse_ffmpeg(self) -> None:
+        chosen, _ = QFileDialog.getOpenFileName(self, "ffmpeg", "", "ffmpeg (ffmpeg.exe)")
+        if chosen:
+            self.ffmpeg_edit.setText(str(Path(chosen)))
 
     def _browse(self) -> None:
         start = self.folder_edit.text() or str(Path.home() / "Downloads")

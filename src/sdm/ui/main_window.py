@@ -33,8 +33,10 @@ from sdm.core.checksums import MISMATCH, MISSING, VERIFIED
 from sdm.core.downloads import BrowserContext, DownloadRecord, DownloadState
 from sdm.core.errors import SDMError
 from sdm.core.paths import app_data_dir
+from sdm.media.ffmpeg import find_ffmpeg
 from sdm.ui.add_url_dialog import AddUrlDialog
 from sdm.ui.controller import DownloadController, finished_file, summarize
+from sdm.ui.convert_dialog import ConvertDialog
 from sdm.ui.download_model import CATEGORY, COLUMNS, NAME, PROGRESS, STATUS
 from sdm.ui.scheduler_dialog import SchedulerDialog
 from sdm.ui.settings_dialog import SettingsDialog
@@ -85,6 +87,7 @@ class MainWindow(QMainWindow):
         self._quitting = False  # File > Exit or Quit: really close, even with the tray option
         self._told_about_tray = False
         self.setup_wizard: SetupWizard | None = None
+        self.convert_dialog: ConvertDialog | None = None
         self.notifications: list[tuple[str, str]] = []  # (title, text), newest last
         self._handoffs: deque[DownloadRequest] = deque()  # browser links waiting for a dialog
         self.handoff_dialog: AddUrlDialog | None = None
@@ -145,6 +148,10 @@ class MainWindow(QMainWindow):
         self.copy_address_action = self._action("Copy &address", self.copy_address_selected)
         self.verify_action = self._action("&Verify checksum…", self.ask_verify_selected)
         self.verify_action.setToolTip("Check the finished file against a SHA-256 you paste.")
+        self.convert_action = self._action("&Convert file…", lambda: self.open_convert_dialog())
+        self.convert_action.setToolTip("Convert a video or audio file with ffmpeg.")
+        self.convert_selected_action = self._action("Con&vert…", self.convert_selected)
+        self.convert_selected_action.setToolTip("Convert the finished file to MP3, M4A or MP4.")
         self.settings_action = self._action("&Settings…", self.open_settings)
         self.settings_action.setShortcut(QKeySequence("Ctrl+,"))
         self.pause_all_action = self._action("Pa&use all", self.controller.pause_all)
@@ -186,9 +193,16 @@ class MainWindow(QMainWindow):
         ):
             downloads_menu.addAction(action)
         downloads_menu.addSeparator()
-        for action in (self.show_in_folder_action, self.copy_address_action, self.verify_action):
+        for action in (
+            self.show_in_folder_action,
+            self.copy_address_action,
+            self.verify_action,
+            self.convert_selected_action,
+        ):
             downloads_menu.addAction(action)
         tools_menu = self.menuBar().addMenu("&Tools")
+        tools_menu.addAction(self.convert_action)
+        tools_menu.addSeparator()
         tools_menu.addAction(self.settings_action)
         help_menu = self.menuBar().addMenu("&Help")
         self.open_logs_action = help_menu.addAction("Open &log folder")
@@ -439,6 +453,21 @@ class MainWindow(QMainWindow):
         except SDMError as exc:
             QMessageBox.warning(self, "Not a SHA-256", str(exc))
 
+    def convert_selected(self) -> None:
+        record = self.selected_record()
+        path = finished_file(record) if record is not None else None
+        if path is not None:
+            self.open_convert_dialog(path)
+
+    def open_convert_dialog(self, source: Path | None = None) -> ConvertDialog:
+        """The converter (M12a), non-blocking; returns it so tests can drive it."""
+        found = find_ffmpeg(self.controller.preferences.ffmpeg_path)
+        dialog = ConvertDialog(ffmpeg=[str(found)] if found else None, source=source, parent=self)
+        dialog.show_requested.connect(reveal_in_explorer)
+        self.convert_dialog = dialog
+        dialog.open()
+        return dialog
+
     def context_menu(self) -> QMenu:
         """The list's right-click menu for the selected entry."""
         menu = QMenu(self)
@@ -451,6 +480,7 @@ class MainWindow(QMainWindow):
             self.show_in_folder_action,
             self.copy_address_action,
             self.verify_action,
+            self.convert_selected_action,
             None,
             *self.move_actions.values(),
             None,
@@ -658,6 +688,7 @@ class MainWindow(QMainWindow):
         finished = record is not None and finished_file(record) is not None
         self.show_in_folder_action.setEnabled(finished)
         self.verify_action.setEnabled(finished)
+        self.convert_selected_action.setEnabled(finished)
         self.copy_address_action.setEnabled(record is not None)
         self.resume_all_action.setEnabled(
             any(

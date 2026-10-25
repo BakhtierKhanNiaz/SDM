@@ -537,3 +537,43 @@ deleted. A changed decision gets a new record that supersedes the old one.
     submits; their store IDs and URLs then go into `browsers.py` and `sdm.core.links`).
 - **Consequences:** Developer-mode installs show Chrome's "developer mode extensions" notice.
   `PROJECT_URL` in `sdm.core.links` must be set to the real repository before release.
+
+## ADR-0020: Media: ffmpeg for converting, yt-dlp for video pages, both installed by the user
+
+- **Date:** 2026-10-25 · **Status:** Accepted (M12 plan approved by the project owner)
+- **Context:** The owner wants SDM to convert downloaded media (for example video to MP3) and,
+  as an option, to download from video pages in a chosen quality (720p, 1080p, 4K or audio
+  only). Both are large problems that mature free tools already solve.
+- **Decision:**
+  - **Tools, not libraries:** SDM runs `ffmpeg` (converting, merging video and audio) and,
+    for M12b, `yt-dlp` (video pages) as separate programs. It doesn't ship them: the user
+    installs them (free: `winget install Gyan.FFmpeg`, `winget install yt-dlp.yt-dlp`) and SDM
+    finds them on PATH, in WinGet's `Links` and `Packages` folders, or at a path set in
+    Settings. Licences checked 2026-10-25: yt-dlp 2026.10.21 is Unlicense (public domain);
+    FFmpeg is LGPL-2.1+, and the usual Windows builds (gyan.dev 9.0.2) are GPL-3.0 because they
+    include x264 and LAME. Not shipping them keeps SDM Apache-2.0 with no source-offer duty,
+    the installer at about 33 MB, and lets the tools update on their own. (Rejected: bundling
+    ffmpeg, about +100 MB and a GPL source offer per release.)
+  - **Where the code lives:** `sdm.media` holds the pure logic (finding the tools, output
+    formats, command lines, progress parsing) and imports neither Qt nor the engine; the UI
+    runs the tools with `QProcess`, so nothing blocks and Cancel can stop them.
+  - **Running them safely:** a fixed argument list, never a shell. Input files are passed as
+    `file:<absolute path>`, so a file name can't be taken for a protocol or an option. ffmpeg
+    runs with `-nostdin -n` (never overwrite) and writes to a new name next to the source
+    (`name.mp3`, or `name (1).mp3`, ADR-0008); a failed or cancelled conversion's partial file
+    is deleted. The source file is only read. SDM still never runs downloaded files: ffmpeg
+    and yt-dlp are programs the user installed.
+  - **Converter formats (M12a):** MP3 (LAME, VBR quality 2), M4A (AAC 192 kb/s), MP4 (H.264
+    CRF 23 + AAC 160 kb/s, `+faststart`). On the CPU (no GPU here) long or 4K videos are slow.
+  - **Video pages (M12b, optional, off by default):** turned on in Settings after a notice that
+    each site's terms are the user's responsibility. yt-dlp itself downloads and merges (with
+    ffmpeg), because sites mostly serve fragmented streams SDM's engine can't fetch (owner's
+    choice; rejected: yt-dlp only resolving addresses for SDM's engine). It always runs with
+    `--ignore-config` (a config file could add commands), `--no-playlist`, no cookies, no
+    login options and no `--exec`; the page address passes `validate_url` and SDM's network
+    policy first and goes after `--`. DRM-protected content, paywalls, logins and access
+    controls stay off limits.
+- **Consequences:** Once started, yt-dlp's own requests (redirects, stream hosts) don't pass
+  through `sdm.engine.policy`; only the first address is checked. This is recorded in the
+  security model. Tests use synthetic files and fake `ffmpeg`/`yt-dlp` programs, never real
+  video sites. The owner checks the real tools on their PC.

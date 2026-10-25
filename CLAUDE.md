@@ -67,6 +67,8 @@ uv run python scripts/build_extensions.py       # dist\extension\: Chromium, Edg
 - `src/sdm/ui`: PySide6; the only package that imports Qt widgets. `controller.py` glues the
   history, the engine and the table model on the main thread; `engine_adapter.py` turns
   engine events into Qt signals (ADR-0009). Only the main thread touches `DownloadStore`.
+- `src/sdm/media`: ffmpeg (and yt-dlp, M12b) command lines and progress parsing; no Qt.
+  The UI runs them with QProcess (ADR-0020). Tests use fakes in `tests/fakes`.
 - `src/sdm/cli.py`: `sdm-get`. `scripts/`: reproducible evaluations.
 - Never let a test open a real message box (it hangs the run); `no_blocking_dialogs` in
   `tests/conftest.py` enforces it. Long inline heredocs in the Bash tool can break on
