@@ -6,8 +6,9 @@ audio players. It works in **Google Chrome, Microsoft Edge, Brave** and other Ch
 browsers, and in **Mozilla Firefox**.
 
 Its permissions, all asked for at install: `downloads` ("Manage your downloads", to send
-downloads to SDM), `storage` (its two settings), `contextMenus` (the menu item) and
-`nativeMessaging` (to reach SDM on this computer). It never reads pages or cookies and has no
+downloads to SDM), `storage` (its two settings), `contextMenus` (the menu items),
+`nativeMessaging` (to reach SDM on this computer) and `activeTab` (the current tab's address,
+and only after you click SDM's toolbar icon; browsers show no warning for it). It never reads pages or cookies and has no
 access to any website. How it works and why: ADR-0014, ADR-0015 and ADR-0019 in
 [docs/decisions](../docs/decisions/architecture-decision-records.md).
 
@@ -29,6 +30,14 @@ access to any website. How it works and why: ADR-0014, ADR-0015 and ADR-0019 in
 
 Start SDM normally (from the Start menu). If SDM runs **as administrator**, Windows doesn't let
 the browser reach it, and SDM warns you.
+
+## Downloading a video from a page
+
+On a video's page, right-click anywhere on the page (or on the video) and choose **Download
+this video with SDM**, or click SDM's toolbar icon and then **Download this video with SDM**.
+SDM opens Add URL set to a video, at the quality you chose last time (720p, 1080p, 4K or
+audio). This uses SDM's video add-on (yt-dlp): if it's off, SDM asks once to turn it on. The
+extension only sends the page's address; it never reads the page.
 
 ## Sending downloads to SDM
 

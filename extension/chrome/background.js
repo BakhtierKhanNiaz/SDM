@@ -1,33 +1,61 @@
-// SDM's service worker: the right-click item on links and players, and automatic capture (on
-// from installation; the toolbar panel turns it off). It never reads pages and has no access
-// to any website's content or cookies.
+// SDM's service worker: the right-click items (a link or player; "this video", M12), and
+// automatic capture (on from installation; the toolbar panel turns it off). It never reads
+// pages and has no access to any website's content or cookies.
 
 import { captureMessage, DEFAULT_SETTINGS, reasonToSkip, SETTINGS_KEY } from "./capture.js";
 import {
   HOST_NAME,
   MENU_ID,
   NOT_A_LINK_TEXT,
+  NOT_A_PAGE_TEXT,
+  VIDEO_MENU_ID,
+  VIDEO_REQUEST,
   describeFailure,
   describeReply,
   menuItem,
   menuMessage,
+  videoMenuItem,
+  videoMessage,
 } from "./handoff.js";
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.removeAll(() => chrome.contextMenus.create(menuItem()));
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create(menuItem());
+    chrome.contextMenus.create(videoMenuItem());
+  });
 });
 
 chrome.contextMenus.onClicked.addListener((info) => {
-  if (info.menuItemId !== MENU_ID) return;
+  if (info.menuItemId !== MENU_ID && info.menuItemId !== VIDEO_MENU_ID) return;
   const message = menuMessage(info);
   if (message === null) {
-    showStatus({ ok: false, text: NOT_A_LINK_TEXT });
+    const text = info.menuItemId === VIDEO_MENU_ID ? NOT_A_PAGE_TEXT : NOT_A_LINK_TEXT;
+    showStatus({ ok: false, text });
     return;
   }
+  return sendAndShow(message);
+});
+
+// The toolbar panel's "Download this video" (M12): only from this extension's own panel.
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (sender?.id !== chrome.runtime.id || request?.type !== VIDEO_REQUEST) return false;
+  const message = videoMessage(request.url);
+  if (message === null) {
+    sendResponse({ ok: false, text: NOT_A_PAGE_TEXT });
+    return false;
+  }
+  sendAndShow(message).then(sendResponse);
+  return true; // the answer comes later
+});
+
+function sendAndShow(message) {
   // Clear the last click's status first, so an old "!" is never mistaken for this one.
   showStatus({ ok: true, text: "" });
-  return send(message).then(showStatus);
-});
+  return send(message).then((status) => {
+    showStatus(status);
+    return status;
+  });
+}
 
 // ----- automatic capture -----
 

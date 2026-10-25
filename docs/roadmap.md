@@ -428,7 +428,14 @@ yt-dlp does the video downloading; M12a converter, M12b video add-on, then relea
   failed download left an empty `.sdm-video-<id>` folder, and a 404 showed yt-dlp's internal
   wording. `test_video_real_ytdlp.py` repeats it where both tools are installed. Left: the
   owner's check on a real video page they may download.
-- M12c (next): docs, release 1.1.0, the owner's test.
+- The owner ran the M12 test plan in their own SDM from source (separate data folder):
+  Settings > Media, the converter and video pages "all worked" (2026-10-25). They then asked
+  for a friendlier way in and chose the browser: "Download this video with SDM" in the
+  extension's right-click menu and toolbar panel sends the page as `source: "video"`; SDM
+  opens Add URL set to a video at the last quality used (ADR-0020). Checked: extension and
+  Python tests; a throwaway headless Chrome and Edge loaded the changed extension and reached
+  SDM's helper. Not yet tried by the owner in a real browser.
+- M12c (next): docs, release 1.1.0.
 
 - **Converter (core feature):** convert a local file with ffmpeg, for example video to MP3
   audio, or MKV/WEBM to MP4. ffmpeg runs as a separate program; SDM never runs downloaded files

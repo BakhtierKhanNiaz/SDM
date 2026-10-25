@@ -39,7 +39,7 @@ from sdm.ui.controller import DownloadController, finished_file, summarize
 from sdm.ui.convert_dialog import ConvertDialog
 from sdm.ui.download_model import CATEGORY, COLUMNS, NAME, PROGRESS, STATUS
 from sdm.ui.scheduler_dialog import SchedulerDialog
-from sdm.ui.settings_dialog import SettingsDialog
+from sdm.ui.settings_dialog import SettingsDialog, ask_video_terms
 from sdm.ui.setup_wizard import SetupWizard
 from sdm.ui.theme import apply_theme
 from sdm.ui.widgets import DetailsPanel, ProgressDelegate
@@ -293,13 +293,22 @@ class MainWindow(QMainWindow):
     def _show_next_handoff(self) -> None:
         if self.handoff_dialog is not None or not self._handoffs:
             return
+        request = self._handoffs.popleft()
+        if request.source == "video" and not self._video_add_on_on():
+            self.handoff_closed.emit()  # nothing to confirm: free the browser's slot
+            self._show_next_handoff()
+            return
+        preferences = self.controller.preferences
         dialog = AddUrlDialog(
             default_folder=self._default_folder,
             previous_downloads=self.controller.previous_downloads,
+            video_enabled=preferences.video_enabled,
             parent=self,
         )
         dialog.setWindowTitle("Add URL from the browser")
-        dialog.show_browser_request(self._handoffs.popleft())  # checked again when accepted
+        dialog.show_browser_request(request)  # checked again when accepted
+        if request.source == "video":
+            dialog.choose_video(preferences.video_quality)
         dialog.finished.connect(lambda result, d=dialog: self._handoff_finished(d, result))
         self.handoff_dialog = dialog
         dialog.open()  # not exec(): the window keeps running while the dialog waits
@@ -314,10 +323,25 @@ class MainWindow(QMainWindow):
                 start=dialog.start_now,
                 context=dialog.browser_context,
                 expected_sha256=dialog.expected_sha256,
+                video=dialog.video,
             )
         dialog.deleteLater()
         self.handoff_closed.emit()
         self._show_next_handoff()
+
+    def _video_add_on_on(self) -> bool:
+        """True if video pages may be downloaded; asks (once) to turn the add-on on."""
+        preferences = self.controller.preferences
+        if preferences.video_enabled:
+            return True
+        if not self.confirm_video_terms():
+            return False
+        self.controller.set_preferences(replace(preferences, video_enabled=True))
+        return True
+
+    def confirm_video_terms(self) -> bool:
+        """The same notice as in Settings > Media (tests replace it)."""
+        return ask_video_terms(self)
 
     def add_download(
         self,
@@ -344,6 +368,9 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Can't add this download", str(exc))
             return
         preferences = self.controller.preferences
+        if video and video != preferences.video_quality:  # offered first next time (M12)
+            self.controller.set_preferences(replace(preferences, video_quality=video))
+            preferences = self.controller.preferences
         if preferences.remember_last_folder:
             self._default_folder = folder  # next time, offer the same folder
             self.controller.set_preferences(replace(preferences, last_folder=str(folder)))

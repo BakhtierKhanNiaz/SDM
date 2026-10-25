@@ -10,6 +10,8 @@ Version 1 (M7): {"version": 1, "type": "download", "url": ...}, exactly those fi
 Version 2 (M8) may add what the browser knew, each field optional and strictly checked:
 "referrer" (the page, an http(s) URL), "filename" (a bare name, never a path), "size" (bytes),
 "mime" and "source" ("menu" or "capture"). Still no headers, cookies, folders or options.
+M12: "source" may also be "video": the url is a web page the user wants as a video (the
+extension's "Download this video with SDM"); SDM still asks before anything downloads.
 """
 
 import json
@@ -29,7 +31,7 @@ MAX_MESSAGE_BYTES = 64 * 1024
 MAX_FILENAME_LENGTH = 255
 MAX_MIME_LENGTH = 200
 MAX_SIZE = 2**53  # the largest whole number JavaScript represents exactly
-SOURCES = frozenset({"menu", "capture"})
+SOURCES = frozenset({"menu", "capture", "video"})
 _HEADER = struct.Struct("=I")  # native byte order, unsigned 32-bit, as Chrome writes it
 _REQUIRED_KEYS = frozenset({"version", "type", "url"})
 _OPTIONAL_KEYS = {1: frozenset(), 2: frozenset({"referrer", "filename", "size", "mime", "source"})}
@@ -168,7 +170,7 @@ def _checked_mime(mime: object) -> str:
 def _checked_source(source: object) -> str:
     # isinstance first: `[] in SOURCES` raises TypeError (found by fuzzing, M10).
     if not isinstance(source, str) or source not in SOURCES:
-        raise ProtocolError("The source field must be menu or capture.")
+        raise ProtocolError("The source field must be menu, capture or video.")
     return str(source)
 
 

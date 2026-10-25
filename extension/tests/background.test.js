@@ -13,6 +13,7 @@ globalThis.chrome = {
   runtime: {
     id: OWN_ID,
     onInstalled: { addListener: (fn) => (listeners.installed = fn) },
+    onMessage: { addListener: (fn) => (listeners.message = fn) },
     sendNativeMessage: (host, message) => {
       calls.push(["native", host, message]);
       return nativeReply();
@@ -68,11 +69,47 @@ const download = (fields = {}) => ({
   ...fields,
 });
 
-test("installing replaces the menu with the one SDM item", () => {
+test("installing replaces the menu with SDM's two items", () => {
   listeners.installed();
   assert.deepEqual(calls[0], ["removeAll"]);
-  assert.equal(calls[1][0], "create");
-  assert.equal(calls[1][1].id, "sdm-download-link");
+  assert.deepEqual(calls.slice(1).map((c) => [c[0], c[1].id]), [
+    ["create", "sdm-download-link"],
+    ["create", "sdm-download-video"],
+  ]);
+});
+
+test("'Download this video' sends the page, marked as a video", async () => {
+  await listeners.clicked({ menuItemId: "sdm-download-video", pageUrl: page, srcUrl: "blob:x" });
+  assert.deepEqual(last("native")[2], { version: 2, type: "download", url: page, source: "video" });
+});
+
+test("'Download this video' on a page SDM can't use says so", async () => {
+  await listeners.clicked({ menuItemId: "sdm-download-video", pageUrl: "file:///C:/a.html" });
+  assert.equal(calls.some((c) => c[0] === "native"), false);
+  assert.match(last("title")[1], /video's page/);
+});
+
+// The toolbar panel's button: answered asynchronously through sendResponse.
+function panelAsks(request, sender = { id: OWN_ID }) {
+  return new Promise((resolve) => {
+    const later = listeners.message(request, sender, resolve);
+    if (later !== true) resolve(undefined);
+  });
+}
+
+test("the panel's button sends the tab's page as a video", async () => {
+  const reply = await panelAsks({ type: "sdm-video", url: page });
+  assert.deepEqual(reply, { ok: true, text: "Sent to SDM." });
+  assert.equal(last("native")[2].source, "video");
+});
+
+test("only SDM's own panel can ask, and only for web pages", async () => {
+  assert.equal(await panelAsks({ type: "sdm-video", url: page }, { id: "someone-else" }), undefined);
+  assert.equal(await panelAsks({ type: "other", url: page }), undefined);
+  assert.equal(calls.some((c) => c[0] === "native"), false);
+  const reply = await panelAsks({ type: "sdm-video", url: "chrome://settings" });
+  assert.equal(reply.ok, false);
+  assert.equal(calls.some((c) => c[0] === "native"), false);
 });
 
 test("clicking the item sends the link and its page to SDM's host", async () => {

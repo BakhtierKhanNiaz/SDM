@@ -7,8 +7,39 @@ import {
   lastResult,
   loadMinMegabytes,
   saveMinMegabytes,
+  sendThisVideo,
   setCaptureEnabled,
 } from "../chrome/popup.js";
+
+function fakeTabs(url, reply = { ok: true, text: "Sent to SDM." }) {
+  const sent = [];
+  return {
+    sent,
+    tabs: { query: async () => (url === undefined ? [] : [{ url }]) },
+    runtime: {
+      sendMessage: async (message) => {
+        sent.push(message);
+        return reply;
+      },
+    },
+  };
+}
+
+test("'Download this video' sends the current tab's page to the worker", async () => {
+  const api = fakeTabs("https://video.example.com/watch?v=abc");
+  assert.deepEqual(await sendThisVideo(api), { ok: true, text: "Sent to SDM." });
+  assert.deepEqual(api.sent, [{ type: "sdm-video", url: "https://video.example.com/watch?v=abc" }]);
+});
+
+test("a tab that isn't a web page isn't sent", async () => {
+  for (const url of ["chrome://extensions", "about:blank", undefined]) {
+    const api = fakeTabs(url);
+    const result = await sendThisVideo(api);
+    assert.equal(result.ok, false);
+    assert.match(result.text, /video's page/);
+    assert.deepEqual(api.sent, []);
+  }
+});
 
 function fakeChrome({ withStorage = true } = {}) {
   const store = {};

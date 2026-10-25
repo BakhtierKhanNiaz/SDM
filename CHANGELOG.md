@@ -8,6 +8,9 @@ while SDM is in 0.x.
 
 ### Added
 
+- **Download this video with SDM** in the browser extension (right-click on a page or a
+  video, or the toolbar panel's button): sends the page to SDM, which opens Add URL ready for
+  a video at the quality you chose last time. New permission `activeTab` (no install warning).
 - M12b: optional **video-page downloads** with yt-dlp (off until turned on in Settings > Media,
   after a notice): Add URL can download a page as 720p, 1080p or 4K MP4, or as MP3/M4A audio.
   They appear in the list with pause, resume and cancel. yt-dlp is installed separately

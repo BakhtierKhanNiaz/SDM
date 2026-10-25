@@ -11,10 +11,32 @@ import {
   menuItem,
   menuMessage,
   messageFor,
+  videoMenuItem,
+  videoMessage,
 } from "../chrome/handoff.js";
 
 const LINK = "https://example.com/files/a.zip?token=abc";
 const PAGE = "https://example.com/files/";
+
+test("'Download this video' appears on web pages and players", () => {
+  const item = videoMenuItem();
+  assert.equal(item.title, "Download this video with SDM");
+  assert.deepEqual(item.contexts, ["page", "video"]);
+  assert.deepEqual(item.documentUrlPatterns, ["http://*/*", "https://*/*"]);
+});
+
+test("a video page is only its address, marked as a video", () => {
+  const watch = "https://video.example.com/watch?v=abc";
+  assert.deepEqual(videoMessage(watch), { version: 2, type: "download", url: watch, source: "video" });
+  for (const bad of ["chrome://settings", "file:///C:/a.html", "https://me:pw@x.com/", "", null]) {
+    assert.equal(videoMessage(bad), null, `should refuse ${bad}`);
+  }
+  // the player's blob: address is ignored: the page is what SDM needs
+  const info = { menuItemId: "sdm-download-video", pageUrl: watch, srcUrl: "blob:https://x/1" };
+  assert.equal(menuMessage(info).url, watch);
+  // only "capture" and "video" pass as sources; anything else is an ordinary menu click
+  assert.equal(messageFor(LINK, { source: "evil" }).source, "menu");
+});
 
 test("the menu appears on http and https links and players only", () => {
   const item = menuItem();
@@ -109,11 +131,12 @@ test("Chrome's errors say whether the bridge is installed", () => {
   assert.match(describeFailure(new Error("Native host has exited.")).text, /Couldn't reach/);
 });
 
-test("the extension asks for four permissions at install and no access to websites", () => {
+test("the extension asks for its permissions at install and no access to websites", () => {
   const manifest = JSON.parse(readFileSync(new URL("../chrome/manifest.json", import.meta.url)));
   assert.equal(manifest.manifest_version, 3);
+  // activeTab (M12): the current tab's address, only after a click on SDM's icon
   assert.deepEqual([...manifest.permissions].sort(),
-    ["contextMenus", "downloads", "nativeMessaging", "storage"]);
+    ["activeTab", "contextMenus", "downloads", "nativeMessaging", "storage"]);
   for (const risky of ["host_permissions", "optional_host_permissions", "optional_permissions",
     "content_scripts",
     "externally_connectable", "web_accessible_resources"]) {

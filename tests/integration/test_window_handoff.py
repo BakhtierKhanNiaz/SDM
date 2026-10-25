@@ -116,7 +116,7 @@ def test_the_dialog_says_what_the_browser_knew(window):
     label = window.handoff_dialog.browser_label
     assert not label.isHidden()
     text = label.text()
-    assert text.startswith("Captured from Chrome: report.pdf")
+    assert text.startswith("Captured from the browser: report.pdf")
     assert "12.1 MB" in text and "application/pdf" in text
     assert "from a page on example.com" in text
     assert "secret" not in text  # only the page's host is shown, never its address
@@ -156,4 +156,6 @@ def test_a_file_name_is_shown_as_text_never_as_html(window):
 def test_a_plain_link_from_the_menu_says_where_it_came_from(window):
     window.receive_handoff(DownloadRequest("https://example.com/a.zip",
                                            referrer="https://example.com/"))  # fmt: skip
-    assert window.handoff_dialog.browser_label.text() == "From Chrome: from a page on example.com"
+    assert (
+        window.handoff_dialog.browser_label.text() == "From the browser: from a page on example.com"
+    )

@@ -3,6 +3,8 @@
 
 export const HOST_NAME = "com.sdm.bridge";
 export const MENU_ID = "sdm-download-link";
+export const VIDEO_MENU_ID = "sdm-download-video";
+export const VIDEO_REQUEST = "sdm-video"; // the toolbar panel asks the worker to send a page
 export const MAX_URL_LENGTH = 8192;
 const MAX_NAME_LENGTH = 255;
 const MAX_SIZE = 2 ** 53;
@@ -14,6 +16,18 @@ export function menuItem() {
     contexts: ["link", "video", "audio"],
     // Applies to the link's or the player's address: blob: and data: players never match.
     targetUrlPatterns: ["http://*/*", "https://*/*"],
+  };
+}
+
+// M12: the whole page as a video (SDM's video add-on, yt-dlp), from anywhere on an http(s)
+// page or on a player. Streaming sites' players play blob: addresses SDM can't download, so
+// the page's own address is what SDM needs.
+export function videoMenuItem() {
+  return {
+    id: VIDEO_MENU_ID,
+    title: "Download this video with SDM",
+    contexts: ["page", "video"],
+    documentUrlPatterns: ["http://*/*", "https://*/*"],
   };
 }
 
@@ -53,13 +67,19 @@ export function messageFor(url, { referrer, filename, size, mime, source = "menu
   if (name !== null) message.filename = name;
   if (Number.isInteger(size) && size > 0 && size <= MAX_SIZE) message.size = size;
   if (typeof mime === "string" && /^[\x21-\x7e]{1,200}$/.test(mime)) message.mime = mime;
-  message.source = source === "capture" ? "capture" : "menu";
+  message.source = source === "capture" || source === "video" ? source : "menu";
   return message;
 }
 
-// From a right-click: a player's own address when the click was on video or audio, else the
-// link's. The page (or frame) it was on becomes the referrer.
+// A page to download as a video (M12): only its address, marked "video".
+export function videoMessage(pageUrl) {
+  return messageFor(pageUrl, { source: "video" });
+}
+
+// From a right-click: for "Download this video", the page; else a player's own address when
+// the click was on video or audio, or the link's. The page (or frame) becomes the referrer.
 export function menuMessage(info) {
+  if (info.menuItemId === VIDEO_MENU_ID) return videoMessage(info.pageUrl);
   const onMedia = info.mediaType === "video" || info.mediaType === "audio";
   const url = onMedia && info.srcUrl ? info.srcUrl : info.linkUrl;
   return messageFor(url, { referrer: info.frameUrl || info.pageUrl, source: "menu" });
@@ -74,6 +94,7 @@ const ERROR_TEXT = {
 };
 
 export const NOT_A_LINK_TEXT = "SDM only downloads http:// and https:// links.";
+export const NOT_A_PAGE_TEXT = "Open the video's page (an http:// or https:// page) first.";
 
 // What to show after SDM replied: {ok, text}.
 export function describeReply(reply) {

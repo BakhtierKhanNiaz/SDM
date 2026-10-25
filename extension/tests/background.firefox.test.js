@@ -12,6 +12,7 @@ globalThis.chrome = {
   runtime: {
     id: "sdm@sdm-download-manager",
     onInstalled: { addListener: () => {} },
+    onMessage: { addListener: () => {} },
     sendNativeMessage: (host, message) => {
       calls.push(["native", message]);
       return nativeReply();

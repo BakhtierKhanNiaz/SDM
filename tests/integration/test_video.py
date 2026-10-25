@@ -229,6 +229,69 @@ def test_the_notice_isnt_shown_again_once_accepted(qtbot):
     assert dialog.preferences().video_enabled is True
 
 
+def test_the_bridge_accepts_a_video_page():
+    from sdm.bridge.protocol import DownloadRequest, ProtocolError, parse_request
+
+    message = {"version": 2, "type": "download", "url": PAGE, "source": "video"}
+    request = parse_request(message)
+    assert request == DownloadRequest(PAGE, source="video")
+    assert parse_request(request.to_message()) == request  # host -> SDM keeps it
+    with pytest.raises(ProtocolError):
+        parse_request({**message, "source": "videos"})
+
+
+@pytest.fixture
+def window(qtbot, make_controller, tmp_path):
+    from sdm.ui.main_window import MainWindow
+
+    window = MainWindow(make_controller(start=False), default_folder=tmp_path)
+    window.confirm_quit = lambda active: True
+    qtbot.addWidget(window)
+    return window
+
+
+def video_request(url="https://video.example.com/watch?v=abc"):
+    from sdm.bridge.protocol import DownloadRequest
+
+    return DownloadRequest(url, source="video")
+
+
+def test_a_video_from_the_browser_opens_add_url_ready_for_it(window):
+    controller = window.controller
+    controller.set_preferences(
+        replace(controller.preferences, video_enabled=True, video_quality="mp3")
+    )
+    window.receive_handoff(video_request())
+    dialog = window.handoff_dialog
+    assert dialog.video == "mp3"  # the quality used last time
+    assert dialog.browser_label.text() == "Video page from the browser: on video.example.com"
+    dialog.kind_box.setCurrentIndex(dialog.kind_box.findData("2160p"))
+    dialog.accept()
+    (record,) = controller.store.list_all()
+    assert (record.url, record.video) == ("https://video.example.com/watch?v=abc", "2160p")
+    assert controller.preferences.video_quality == "2160p"  # offered first next time
+
+
+def test_with_the_add_on_off_sdm_asks_once(window, qtbot):
+    asked = []
+    window.confirm_video_terms = lambda: asked.append(True) or False
+    with qtbot.waitSignal(window.handoff_closed):  # declined: the browser's slot is freed
+        window.receive_handoff(video_request())
+    assert window.handoff_dialog is None
+    assert window.controller.preferences.video_enabled is False
+    window.confirm_video_terms = lambda: asked.append(True) or True
+    window.receive_handoff(video_request())
+    assert window.handoff_dialog is not None and window.handoff_dialog.video == "1080p"
+    assert window.controller.preferences.video_enabled is True
+    assert len(asked) == 2
+
+
+def test_an_ordinary_link_still_opens_as_a_file(window):
+    window.controller.set_preferences(replace(window.controller.preferences, video_enabled=True))
+    window.receive_handoff("https://example.com/a.zip")
+    assert window.handoff_dialog.video is None
+
+
 def test_add_url_offers_video_pages_only_when_turned_on(qtbot, tmp_path):
     off = AddUrlDialog(default_folder=tmp_path, previous_downloads=lambda url: [])
     qtbot.addWidget(off)

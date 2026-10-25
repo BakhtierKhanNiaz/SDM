@@ -1,7 +1,19 @@
-// The toolbar panel: the switch that turns automatic capture off and on again (on from
-// installation, 1.0.1), and the minimum size. Both are kept in chrome.storage.local.
+// The toolbar panel: "Download this video with SDM" (M12), the switch that turns automatic
+// capture off and on again (on from installation, 1.0.1), and the minimum size. The two
+// settings are kept in chrome.storage.local.
 
 import { DEFAULT_SETTINGS, parseMinMegabytes, SETTINGS_KEY } from "./capture.js";
+import { NOT_A_PAGE_TEXT, VIDEO_REQUEST, webUrl } from "./handoff.js";
+
+// "Download this video with SDM" (M12): the current tab's address (readable thanks to
+// activeTab, only because the user clicked SDM's icon) goes to the worker, which sends it.
+export async function sendThisVideo(api) {
+  const [tab] = await api.tabs.query({ active: true, currentWindow: true });
+  const url = webUrl(tab?.url);
+  if (url === null) return { ok: false, text: NOT_A_PAGE_TEXT };
+  const reply = await api.runtime.sendMessage({ type: VIDEO_REQUEST, url });
+  return reply ?? { ok: false, text: "Couldn't reach SDM." };
+}
 
 export async function loadSettings(api) {
   if (!api.storage?.local) return { ...DEFAULT_SETTINGS };
@@ -46,6 +58,14 @@ async function setUp() {
   const box = document.getElementById("capture");
   const min = document.getElementById("min");
   const status = document.getElementById("status");
+  const video = document.getElementById("video");
+  video.addEventListener("click", async () => {
+    video.disabled = true;
+    status.textContent = "Sending to SDM…";
+    const result = await sendThisVideo(chrome);
+    status.textContent = result.ok ? "Sent to SDM: choose the quality there." : result.text;
+    video.disabled = false;
+  });
   const refresh = async () => {
     box.checked = await captureEnabled(chrome);
     min.disabled = !box.checked;

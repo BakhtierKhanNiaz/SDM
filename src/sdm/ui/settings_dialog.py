@@ -40,6 +40,16 @@ def _show_tool(label: QLabel, found: Path | None, missing: str) -> None:
     label.setToolTip(str(found) if found else "")
 
 
+def ask_video_terms(parent: QWidget | None) -> bool:
+    """The notice before video-page downloads are turned on (ADR-0020); True for Yes."""
+    answer = QMessageBox.question(
+        parent,
+        "Video-page downloads",
+        f"{TERMS_NOTICE}\n\nTurn on video-page downloads?",
+    )
+    return answer == QMessageBox.StandardButton.Yes
+
+
 class SettingsDialog(QDialog):
     def __init__(
         self, preferences: Preferences, *, tray_available: bool, parent: QWidget | None = None
@@ -207,12 +217,7 @@ class SettingsDialog(QDialog):
 
     def confirm_video_terms(self) -> bool:
         """The notice shown when the add-on is turned on (tests replace it)."""
-        answer = QMessageBox.question(
-            self,
-            "Video-page downloads",
-            f"{TERMS_NOTICE}\n\nTurn on video-page downloads?",
-        )
-        return answer == QMessageBox.StandardButton.Yes
+        return ask_video_terms(self)
 
     def _update_ytdlp_status(self) -> None:
         found = find_ytdlp(self.ytdlp_edit.text().strip())

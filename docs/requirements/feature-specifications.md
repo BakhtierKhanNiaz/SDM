@@ -291,7 +291,8 @@ the partial file.
 - Real ffmpeg 9.0.2 (gyan.dev, installed with winget in Claude's sandbox, 2026-10-25):
   synthetic VP9/Opus WebM → MP3, M4A and MP4 (H.264 640×360 + AAC, 6.00 s each), FLAC → MP3,
   a second copy numbered, a silent video explained; checked with ffprobe. Done.
-- The owner, in their own SDM: a downloaded video becomes a playable MP3 and MP4. Not yet done.
+- The owner, in their own SDM run from source (2026-10-25): the converter steps of the M12
+  test plan "all worked". Done.
 
 ## FEAT-010: Video pages with yt-dlp, optional (M12b)
 
@@ -312,6 +313,7 @@ the partial file.
 | FR-5 | Pause keeps yt-dlp's partial files and resume continues them; Cancel (running or paused) deletes them; closing SDM pauses | `test_pause_keeps_the_partial_files_and_resume_continues`, `test_cancel_stops_yt_dlp_and_deletes_its_files`, `test_cancelling_a_paused_video_deletes_its_files`, `test_closing_sdm_pauses_a_running_video` |
 | FR-6 | Failures in plain words (unsupported page, quality, DRM, login, missing ffmpeg, HTTP errors); a failure that left nothing leaves no work folder | `test_failures_in_plain_words`, `test_an_unsupported_page_fails_with_a_plain_reason`, `test_a_missing_page_is_explained_and_leaves_nothing` |
 | FR-7 | The history keeps the quality (schema 7) | `test_upgrading_the_history_to_version_7_keeps_entries` |
+| FR-8 | From the browser: "Download this video with SDM" (right-click on a page or player, and the toolbar panel) sends only the page, as `source: "video"`; Add URL opens set to a video at the last quality; with the add-on off, SDM asks once | `handoff.test.js`, `background.test.js`, `popup.test.js`, `test_the_bridge_accepts_a_video_page`, `test_a_video_from_the_browser_opens_add_url_ready_for_it`, `test_with_the_add_on_off_sdm_asks_once` |
 
 ### Acceptance criteria
 
@@ -321,8 +323,9 @@ the partial file.
   installed): an HTML page with a `<video>` came out as 1080p MP4 (H.264 + AAC) and as MP3, a
   direct `.mp4` link as 720p MP4, each the only file left in the folder; a missing page said
   "The page wasn't found (HTTP 404)." and left nothing. Done.
-- The owner, on a real video page they may download: a playable 1080p MP4 and an MP3. Not
-  yet done.
+- The owner, in their own SDM run from source (2026-10-25, separate test data folder): the
+  video-page steps of the M12 test plan "all worked". Done. The browser's "Download this
+  video" (FR-8) is not yet tried by the owner.
 
 ## Template
 

@@ -9,7 +9,8 @@
     "contextMenus",
     "nativeMessaging",
     "downloads",
-    "storage"
+    "storage",
+    "activeTab"
   ],
   "background": {
     "service_worker": "background.js",

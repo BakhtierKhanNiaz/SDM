@@ -177,9 +177,19 @@ class AddUrlDialog(QDialog):
         page = urlsplit(request.referrer).hostname if request.referrer else None
         if page:
             details.append(f"from a page on {page}")
-        intro = "Captured from Chrome" if request.source == "capture" else "From Chrome"
+        intro = {"capture": "Captured from the browser", "video": "Video page from the browser"}
+        intro = intro.get(request.source, "From the browser")
+        if request.source == "video":
+            host = urlsplit(request.url).hostname
+            details = [f"on {host}"] if host else []
         self.browser_label.setText(f"{intro}: {' · '.join(details)}" if details else intro)
         self.browser_label.show()
+
+    def choose_video(self, quality: str) -> None:
+        """Start in "Video page" mode with this quality (the one used last time)."""
+        index = self.kind_box.findData(quality)
+        self.kind_box.setCurrentIndex(index if index > 0 else self.kind_box.findData("1080p"))
+        self.kind_box.setFocus()
 
     # ----- behavior -----
 

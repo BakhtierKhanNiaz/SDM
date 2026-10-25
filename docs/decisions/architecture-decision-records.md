@@ -573,6 +573,14 @@ deleted. A changed decision gets a new record that supersedes the old one.
     login options and no `--exec`; the page address passes `validate_url` and SDM's network
     policy first and goes after `--`. DRM-protected content, paywalls, logins and access
     controls stay off limits.
+  - **From the browser (owner's request, 2026-10-25):** "Download this video with SDM" in the
+    extension's right-click menu (on a page or a player) and its toolbar panel sends only the
+    page's address with `"source": "video"`, a third allowed value of the existing version-2
+    field (ADR-0015), so no new field and no new kind of data cross the bridge. The panel
+    reads the tab's address through `activeTab`, granted only by the click on SDM's icon
+    (no install warning; rejected: `tabs`, which would show every tab's address). SDM then
+    opens Add URL set to a video at the last quality used; if the add-on is off it shows the
+    notice first, and nothing downloads until the user confirms.
 - **Consequences:** Once started, yt-dlp's own requests (redirects, stream hosts) don't pass
   through `sdm.engine.policy`; only the first address is checked. This is recorded in the
   security model. Tests use synthetic files and fake `ffmpeg`/`yt-dlp` programs, never real
