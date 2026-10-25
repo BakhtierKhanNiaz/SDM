@@ -7,26 +7,39 @@ browsers, and in **Mozilla Firefox**.
 
 Its permissions, all asked for at install: `downloads` ("Manage your downloads", to send
 downloads to SDM), `storage` (its two settings), `contextMenus` (the menu items),
-`nativeMessaging` (to reach SDM on this computer) and `activeTab` (the current tab's address,
-and only after you click SDM's toolbar icon; browsers show no warning for it). It never reads pages or cookies and has no
-access to any website. How it works and why: ADR-0014, ADR-0015 and ADR-0019 in
+`nativeMessaging` (to reach SDM on this computer), `activeTab` (the current tab's address,
+and only after you click SDM's toolbar icon; browsers show no warning for it) and `scripting`
+(for the video button). It has no access to any website, never reads pages, and never reads
+cookies. The one exception is optional: if you turn on the video button, the browser asks
+for page access, and the button then looks only at where videos are on the page. How it
+works and why: ADR-0014, ADR-0015, ADR-0019 and ADR-0021 in
 [docs/decisions](../docs/decisions/architecture-decision-records.md).
 
 ## Set up
 
-1. **Connect SDM to your browsers.** SDM's welcome assistant does this on first start (later:
-   **Help > Setup assistant**). It finds your browsers and registers SDM for the ones you tick.
-   Nothing to type: the extension's IDs are fixed.
-2. **Install the extension** in each browser:
-   - **Chrome, Brave, other Chromium browsers:** download `sdm-chromium-<version>.zip` from the
-     [latest release](../../../releases/latest) and unzip it to a folder you'll keep. Open
-     `chrome://extensions` (Brave: `brave://extensions`), turn on **Developer mode**, click
-     **Load unpacked** and choose that folder.
-   - **Microsoft Edge:** from Microsoft Edge Add-ons once SDM is listed there, or like Chrome at
-     `edge://extensions` (**Developer mode**, **Load unpacked**).
-   - **Firefox:** from Firefox Add-ons once SDM is listed there (Firefox only installs add-ons
-     signed by Mozilla).
-3. **Restart the browser** completely if it was already open.
+The extension comes with SDM (in `SDM\extension` next to SDM.exe).
+
+1. **SDM's welcome assistant** (on first start; later **Help > Add the browser extension**)
+   registers SDM for the browsers you tick.
+2. **Press "Add to Chrome"** (or Edge, Brave) there. The browser's extensions page opens and
+   SDM copies the extension's folder for you. Then, in the browser:
+   1. turn on **Developer mode** (top right),
+   2. click **Load unpacked**,
+   3. press **Ctrl+V** in the folder box and choose **Select Folder**.
+3. **Firefox:** from Firefox Add-ons once SDM is listed there (Firefox only installs add-ons
+   signed by Mozilla; Firefox 128 or newer).
+4. **Restart the browser** completely if it was already open.
+
+Browsers don't let programs add extensions by themselves, which is why these steps are
+needed once. When you update SDM, the extension updates too after the browser restarts.
+
+## The SDM button on videos
+
+Click SDM's toolbar icon and tick **Show the SDM button on videos**. The browser asks whether
+SDM may "read and change data on all websites": it needs that to see where videos are. From
+then on, a small **SDM Download** button appears at the top-right of a video when it plays or
+when the mouse is over it. Click it and SDM asks the quality. The **x** hides it on that
+page. Untick the switch to turn the button off; the browser then takes the access back.
 
 Start SDM normally (from the Start menu). If SDM runs **as administrator**, Windows doesn't let
 the browser reach it, and SDM warns you.

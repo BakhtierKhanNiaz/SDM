@@ -52,6 +52,8 @@ uv run python scripts/build_release.py [--installer]   # dist\SDM (+ installer, 
 cd extension; node --test   # Chrome extension tests (Node 24, no packages)
 uv run python -m sdm.bridge.install --browsers   # register for every browser: ask first
 uv run python scripts/build_extensions.py       # dist\extension\: Chromium, Edge, Firefox zips
+uv run python scripts/make_icons.py             # all icon files from src/sdm/ui/assets/sdm.svg
+node scripts/chrome_bridge_check/video_button_check.mjs   # the video button in headless Chrome
 ```
 
 ## Layout and boundaries

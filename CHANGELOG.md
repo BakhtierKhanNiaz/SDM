@@ -6,6 +6,28 @@ while SDM is in 0.x.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-26
+
+### Added
+
+- **The SDM button over videos:** a small SDM button at the top-right of a playing or hovered
+  video; click it and SDM asks the quality. Turn it on in the extension's panel ("Show the
+  SDM button on videos"); the browser asks for page access first.
+- **The extension comes with SDM:** the installer puts it in `SDM\extension`, and the welcome
+  assistant's "Add to Chrome / Edge / Brave" opens the browser's extensions page, copies the
+  folder and shows three steps. Help > Add the browser extension. Updating SDM also updates
+  the extension after the browser restarts.
+
+### Changed
+
+- **SDM's own logo** (a download arrow on a blue hexagon) for SDM.exe, the installer, the
+  window, the tray and the extension, instead of the Python icon.
+- **A refreshed window:** toolbar icons with labels, a sidebar (All, Downloading, Finished,
+  Unfinished and each file type, with counts) instead of the category box, a file-type icon
+  per download, coloured status, a two-column details panel, and a cleaner Add URL with
+  quality buttons (720p, 1080p, 4K, MP3, M4A) and the rarely used options folded away.
+- The Firefox package needs Firefox 128 or newer (for the video button's permission).
+
 - M12 (media) marked done; the owner's install check of 1.1.0 and "Download this video" in a
   real browser are still to be recorded (roadmap).
 

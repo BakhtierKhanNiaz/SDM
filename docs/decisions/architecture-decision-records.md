@@ -585,3 +585,39 @@ deleted. A changed decision gets a new record that supersedes the old one.
   through `sdm.engine.policy`; only the first address is checked. This is recorded in the
   security model. Tests use synthetic files and fake `ffmpeg`/`yt-dlp` programs, never real
   video sites. The owner checks the real tools on their PC.
+
+## ADR-0021: SDM's own logo and look, a button over videos, and the extension shipped with SDM
+
+- **Date:** 2026-10-26 · **Status:** Accepted (M13; each choice made by the project owner)
+- **Context:** The owner asked for an SDM button over playing videos, SDM's own icon instead of
+  the Python one, a refreshed window, and the browser extension added when SDM is installed.
+- **Decision:**
+  - **Logo:** a download arrow on a blue hexagon, picked from nine drawn options. One SVG
+    (`src/sdm/ui/assets/sdm.svg`); `scripts/make_icons.py` makes the window/tray PNGs, the
+    exe/installer `.ico` (PNG entries, 16-256 px) and the extension's icons, all committed.
+  - **Window:** our own line icons (`sdm.ui.glyphs`, drawn for SDM, coloured per look) on a
+    toolbar with labels under them; a sidebar (All, Downloading, Finished, Unfinished, file
+    types, with counts) replaces the category box; a file-type icon per row; the status
+    coloured by outcome (WCAG AA on both looks, tested); a two-column details panel; Add URL as
+    a card with quality buttons and the rarely used options folded away.
+  - **Video button (owner's choice: any site, after a switch):** off at install. The panel's
+    switch asks for page access (`optional_host_permissions` for http/https, never at
+    install); while it is allowed, `video-button.js` is registered with
+    `scripting.registerContentScripts` (and unregistered when it's taken back). It reads only
+    where videos are on screen, shows a button at a playing or hovered video's top-right
+    (videos of at least 200x120), and on a real click (`isTrusted`) sends the page's address
+    as `source: "video"`, as in ADR-0020. A closed shadow root keeps page scripts from
+    reaching or pressing it. Firefox needs version 128 for `optional_host_permissions`
+    (MDN's compatibility data, checked 2026-10-26). The button is SDM's own design; IDM's
+    similar panel was not studied (clean room).
+  - **Extension with SDM (owner's choice: $0, guided):** browsers don't let a program add an
+    extension by itself; the legitimate automatic route is a store listing, which costs $5
+    for the Chrome Web Store (rejected: the $0 rule). The installer puts the unpacked
+    extension in `SDM\extension`; the welcome assistant's "Add to Chrome/Edge/Brave" copies
+    that folder's path, opens the browser's extensions page (the browser found through
+    Windows' App Paths) and shows three steps. Browsers reload unpacked extensions from disk,
+    so updating SDM also updates the extension after a browser restart.
+- **Consequences:** With the video button on, the extension can read every http(s) page the
+  user opens (it only looks at video positions; the browser shows this permission). Chrome
+  shows its "developer mode extensions" notice for unpacked extensions. The security model
+  records both.

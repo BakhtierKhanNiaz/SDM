@@ -18,6 +18,7 @@ and its tests have actually run and passed.
 | M10 | Security, performance, regression testing and Windows packaging | Done (2026-10-20) |
 | M11 | Open-source release on GitHub (Apache-2.0, UI/UX, more browsers) | Done (2026-10-25; two owner checks open) |
 | M12 | Media: video/audio converter (ffmpeg) and optional yt-dlp add-on | Done (2026-10-26; owner's 1.1.0 install check open) |
+| M13 | SDM's own logo and look, a button over videos, the extension shipped with SDM | In progress (built; release 1.2.0 and the owner's check left) |
 
 ## M0: Environment inspection (done)
 
@@ -468,3 +469,26 @@ yt-dlp does the video downloading; M12a converter, M12b video add-on, then relea
   Windows support, and record an ADR. URLs from the add-on still count as untrusted input.
 - **Tests:** synthetic media files and a fake yt-dlp executable; never real video sites.
 - **Known limit:** no GPU here, so 4K conversion runs on the CPU and will be slow.
+
+## M13: SDM's own look, a button over videos, the extension with SDM (in progress)
+
+Asked for by the owner on 2026-10-26 (screenshot of a video page): a small SDM button over a
+playing video, SDM's own icon instead of the Python one, an updated window, and the extension
+added when SDM is installed. Owner's choices: the button on any site after a switch in the
+extension; $0 guided install (no $5 Chrome Web Store); all four window updates; the hexagon
+logo (from nine drawn options). Design: ADR-0021. Branch `m13/look-and-video-button`.
+
+- Logo everywhere: `sdm.svg` and `scripts/make_icons.py` (window/tray PNGs, `sdm.ico` for
+  SDM.exe, the helper and the installer, the extension's icons). Checked: the built SDM.exe
+  carries it (icon extracted from the file).
+- Window: toolbar icons with labels, the sidebar with counts, file-type icons, coloured status
+  (WCAG AA tested), two-column details, Add URL with quality buttons and folded options.
+  Checked: tests and off-screen screenshots in light and dark.
+- Video button: `video-button.js`, registered only while page access is allowed (panel
+  switch). Checked: extension tests and `video_button_check.mjs` in headless Chrome and Edge
+  (placement, closed shadow root, a scripted click ignored, a real click sends the page).
+- The extension ships in `SDM\extension`; the assistant's "Add to Chrome/Edge/Brave" opens the
+  browser's extensions page, copies the folder and shows the three steps; Help > Add the
+  browser extension. Checked: tests and a build (`dist\SDM\extension`).
+- Left: version 1.2.0 and its release; the owner's check: install 1.2.0, add the extension
+  with the assistant, turn on the button, click it on a video page.

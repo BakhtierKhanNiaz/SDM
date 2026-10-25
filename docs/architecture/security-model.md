@@ -34,6 +34,7 @@ the milestone listed.
 | 16 | **Segmented integrity:** parts come only from `206` replies with the exact requested `Content-Range` and the same version tags, at the final URL through the same redirect checks and policy. Doubt means one connection; a saved parts map that doesn't cover the file exactly is ignored (ADR-0012). | Implemented (M5) — `test_segmented.py`, `test_segments.py` |
 | 13 | **Engine thread:** the window never runs network code, and only the main thread writes the database (ADR-0009). Every download submitted to the manager still goes through rule 2's policy. | Implemented (M3a) — `test_default_policy_blocks_this_computer` |
 | 17 | **Media tools (M12, ADR-0020):** ffmpeg (and yt-dlp, M12b) are programs the user installed, started with a fixed argument list and no shell. Files go in as `file:<absolute path>` so a name can't act as an option or protocol; `-nostdin -n` never overwrites; output is always a new file, and partial output is deleted on failure or Cancel. The source is only read. SDM ships neither tool. yt-dlp (M12b, off by default) runs with `--ignore-config`, `--no-playlist`, no cookies and no `--exec`, the address last after `--`, into `<folder>\.sdm-video-<id>`; only that exact folder is ever deleted; the host must pass the network policy first. | Implemented (M12a, M12b) — `test_media_ffmpeg.py`, `test_convert.py`, `test_media_ytdlp.py`, `test_video.py` |
+| 18 | **Video button (M13, ADR-0021):** page access is optional and asked only by the panel's switch; `video-button.js` is registered only while it is allowed. It reads only where videos are on screen, lives in a closed shadow root, acts only on trusted clicks, and sends only the page's address (`source: "video"`) to the worker, which checks the sender is SDM's own extension and the address is http(s). SDM still asks before downloading. | Implemented (M13) — `video-button.test.js`, `background.test.js`, `popup.test.js`, `video_button_check.mjs` |
 
 Disguised spellings of loopback (`127.1`, `2130706433`, `0x7f000001`, `127.000.000.001`)
 never reach the target: aiohttp rejects non-canonical IPv4 forms, and Windows DNS can't
@@ -55,6 +56,13 @@ resolve the hex form (`test_disguised_spellings_of_this_computer_never_reach_it`
   user accepts a notice, `--ignore-config`, no cookies or logins, a fixed argument list with
   the address after `--`, files only in SDM's own work folder (ADR-0020). SDM's speed limit
   doesn't apply to yt-dlp.
+- With the video button on (M13, opt-in), the extension has access to every http(s) page
+  the user opens; its script only looks at video positions, but the permission itself is
+  broad, and the browser says so when asking. Turning the switch off (or removing the
+  permission in the browser) unregisters the script.
+- The extension is installed unpacked (developer mode) unless the owner publishes it in a
+  store: Chrome shows a "developer mode extensions" notice, and the folder in `SDM\extension`
+  is only as safe as SDM's install folder (per-user, the user's own rights).
 - A server that sends no `Content-Length` and closes early is indistinguishable from a
   complete download (inherent to HTTP). Integrity checks (M9) can help when a checksum is known.
 

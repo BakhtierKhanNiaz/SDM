@@ -31,7 +31,8 @@ download manager.
 - **Convert:** turn a video into MP3 or M4A audio, or a widely playable MP4 (uses the free
   ffmpeg: `winget install Gyan.FFmpeg`).
 - **Video pages (optional, off by default):** download a video page as 720p, 1080p or 4K MP4,
-  or as audio; right-click a page and choose **Download this video with SDM** (uses the free
+  or as audio; click the SDM button over a video, or right-click a page and choose
+  **Download this video with SDM** (uses the free
   yt-dlp: `winget install yt-dlp.yt-dlp`). You're responsible for each site's terms; SDM never
   signs in, uses cookies or downloads DRM-protected videos.
 - **Safe by default:** never runs downloaded files, never overwrites a file, refuses addresses
@@ -52,7 +53,10 @@ Requirements: Windows 10 or 11, 64-bit.
 
 ### Connect your browser
 
-Install SDM's extension and register it from SDM: see [extension/README.md](extension/README.md).
+The extension comes with SDM. In SDM's welcome assistant (or **Help > Add the browser
+extension**), press **Add to Chrome** (or Edge, Brave) and follow the three short steps
+shown there. Details, and the optional SDM button on videos:
+[extension/README.md](extension/README.md).
 
 Start SDM normally (from the Start menu). If it runs **as administrator**, Windows doesn't let
 the browser reach it, and SDM shows a warning.
