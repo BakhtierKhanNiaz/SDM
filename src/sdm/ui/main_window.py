@@ -21,7 +21,6 @@ from PySide6.QtWidgets import (
     QMenu,
     QMessageBox,
     QSplitter,
-    QStyle,
     QSystemTrayIcon,
     QTableView,
 )
@@ -38,6 +37,7 @@ from sdm.ui.add_url_dialog import AddUrlDialog
 from sdm.ui.controller import DownloadController, finished_file, summarize
 from sdm.ui.convert_dialog import ConvertDialog
 from sdm.ui.download_model import CATEGORY, COLUMNS, NAME, PROGRESS, STATUS
+from sdm.ui.icons import app_icon
 from sdm.ui.scheduler_dialog import SchedulerDialog
 from sdm.ui.settings_dialog import SettingsDialog, ask_video_terms
 from sdm.ui.setup_wizard import SetupWizard
@@ -240,7 +240,7 @@ class MainWindow(QMainWindow):
         controller.download_finished.connect(self._on_finished)
         controller.download_failed.connect(self._on_failed)
         controller.checksum_checked.connect(self._on_checksum)
-        icon = self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowDown)
+        icon = app_icon()
         self.setWindowIcon(icon)
         self.tray = self._make_tray(icon) if QSystemTrayIcon.isSystemTrayAvailable() else None
         self._restore_layout()

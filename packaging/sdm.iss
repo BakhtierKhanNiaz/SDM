@@ -20,7 +20,10 @@ AppId={{4019A688-E755-4AC6-A58B-D453C61ACC6F}
 AppName=SDM
 AppVersion={#AppVersion}
 AppVerName=SDM {#AppVersion}
-AppPublisher=SDM (personal use)
+AppPublisher=Conditions-tech
+AppPublisherURL=https://github.com/Conditions-tech/SDM
+; SDM's logo for the installer itself (M13); the uninstall entry uses SDM.exe's.
+SetupIconFile=sdm.ico
 DefaultDirName={autopf}\SDM
 DefaultGroupName=SDM
 DisableProgramGroupPage=yes

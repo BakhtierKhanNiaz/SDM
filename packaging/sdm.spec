@@ -12,11 +12,14 @@ from PyInstaller.utils.hooks import copy_metadata
 HERE = SPECPATH  # noqa: F821 - provided by PyInstaller
 SRC = os.path.join(HERE, "..", "src")
 metadata = copy_metadata("sdm")  # so sdm.__version__ works in the frozen app
+ICON = os.path.join(HERE, "sdm.ico")  # SDM's logo (M13), made by scripts/make_icons.py
+# The window's logo PNGs, where sdm.ui.icons looks for them.
+assets = [(os.path.join(SRC, "sdm", "ui", "assets", "*.png"), os.path.join("sdm", "ui", "assets"))]
 
 app = Analysis(  # noqa: F821
     [os.path.join(HERE, "entry_sdm.py")],
     pathex=[SRC],
-    datas=metadata,
+    datas=metadata + assets,
     excludes=["tkinter", "unittest", "pydoc", "test"],
 )
 host = Analysis(  # noqa: F821
@@ -33,6 +36,7 @@ app_exe = EXE(  # noqa: F821
     exclude_binaries=True,
     name="SDM",
     console=False,
+    icon=ICON,
     upx=False,
 )
 host_exe = EXE(  # noqa: F821
@@ -42,6 +46,7 @@ host_exe = EXE(  # noqa: F821
     exclude_binaries=True,
     name="sdm-bridge-host",
     console=True,
+    icon=ICON,
     upx=False,
 )
 COLLECT(  # noqa: F821

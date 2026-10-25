@@ -24,6 +24,7 @@ from sdm.core.logs import install_crash_handlers, setup_logging
 from sdm.storage.database import DownloadStore, StorageError, default_database_path
 from sdm.ui.controller import DownloadController
 from sdm.ui.handoff import HandoffReceiver
+from sdm.ui.icons import app_icon
 from sdm.ui.main_window import MainWindow, log_folder, running_elevated, startup_notices
 from sdm.ui.theme import apply_theme, follow_windows
 
@@ -55,6 +56,7 @@ def main(argv: list[str] | None = None) -> int:
     app = QApplication(sys.argv if argv is None else argv)
     app.setApplicationName("SDM")
     app.setApplicationVersion(__version__)
+    app.setWindowIcon(app_icon())  # every window and dialog shows SDM's logo (M13)
     log_file = setup_logging(log_folder())
     reporter = CrashReporter()
     install_crash_handlers(reporter.raised.emit)  # any thread; the dialog opens on this one

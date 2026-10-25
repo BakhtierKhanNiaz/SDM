@@ -1,0 +1,17 @@
+<!-- SDM's logo (M13, chosen by the owner): a download arrow on a blue hexagon.
+     Every icon file is made from this one with scripts/make_icons.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#0EA5E9"/>
+    </linearGradient>
+  </defs>
+  <path d="M128 10 L230 69 V187 L128 246 L26 187 V69 Z" fill="url(#g)" stroke="url(#g)"
+        stroke-width="12" stroke-linejoin="round"/>
+  <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M128 64 v108" stroke-width="30"/>
+    <path d="M80 128 L128 176 L176 128" stroke-width="30"/>
+  </g>
+  <path d="M84 204 H172" stroke="#fff" stroke-width="18" stroke-linecap="round" opacity="0.85"/>
+</svg>

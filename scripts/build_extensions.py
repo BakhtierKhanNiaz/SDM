@@ -22,7 +22,8 @@ OUT = ROOT / "dist" / "extension"
 sys.path.insert(0, str(ROOT / "src"))
 from sdm.bridge.browsers import FIREFOX_EXTENSION_ID  # noqa: E402
 
-FILES = ["background.js", "capture.js", "handoff.js", "popup.html", "popup.js"]
+FILES = ["background.js", "capture.js", "handoff.js", "popup.html", "popup.js",
+         *(f"icons/sdm-{size}.png" for size in (16, 32, 48, 128))]  # fmt: skip
 _IMPORT = re.compile(r"^import\s[\s\S]*?\sfrom\s+\"[^\"]+\";\s*$", re.MULTILINE)
 
 
