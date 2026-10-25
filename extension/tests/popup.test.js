@@ -6,10 +6,65 @@ import {
   captureEnabled,
   lastResult,
   loadMinMegabytes,
+  addButtonToThisTab,
+  disableVideoButton,
+  enableVideoButton,
   saveMinMegabytes,
   sendThisVideo,
   setCaptureEnabled,
+  videoButtonEnabled,
 } from "../chrome/popup.js";
+
+function fakePermissions({ allow = true, url = "https://video.example.com/watch?v=1" } = {}) {
+  const granted = new Set();
+  const asked = [];
+  return {
+    asked,
+    permissions: {
+      contains: async ({ origins }) => origins.every((o) => granted.has(o)),
+      request: async ({ origins }) => {
+        asked.push(["request", origins]);
+        if (allow) origins.forEach((o) => granted.add(o));
+        return allow;
+      },
+      remove: async ({ origins }) => {
+        asked.push(["remove", origins]);
+        origins.forEach((o) => granted.delete(o));
+        return true;
+      },
+    },
+    tabs: { query: async () => [{ id: 7, url }] },
+    scripting: {
+      executeScript: async (details) => asked.push(["inject", details]),
+    },
+  };
+}
+
+test("the video button is off until the user allows page access", async () => {
+  const api = fakePermissions();
+  assert.equal(await videoButtonEnabled(api), false);
+  assert.equal(await enableVideoButton(api), true);
+  assert.deepEqual(api.asked[0], ["request", ["http://*/*", "https://*/*"]]);
+  assert.equal(await videoButtonEnabled(api), true);
+  await disableVideoButton(api);
+  assert.equal(await videoButtonEnabled(api), false);
+});
+
+test("if the user says no, the video button stays off", async () => {
+  const api = fakePermissions({ allow: false });
+  assert.equal(await enableVideoButton(api), false);
+  assert.equal(await videoButtonEnabled(api), false);
+});
+
+test("turning it on adds the button to the open tab, not to browser pages", async () => {
+  const api = fakePermissions();
+  assert.equal(await addButtonToThisTab(api), true);
+  assert.deepEqual(api.asked.at(-1), ["inject", {
+    target: { tabId: 7, allFrames: true }, files: ["video-button.js"] }]);  // fmt: skip
+  const settingsTab = fakePermissions({ url: "chrome://settings" });
+  assert.equal(await addButtonToThisTab(settingsTab), false);
+  assert.equal(settingsTab.asked.length, 0);
+});
 
 function fakeTabs(url, reply = { ok: true, text: "Sent to SDM." }) {
   const sent = [];

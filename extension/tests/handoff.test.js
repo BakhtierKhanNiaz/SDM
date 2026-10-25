@@ -134,10 +134,13 @@ test("Chrome's errors say whether the bridge is installed", () => {
 test("the extension asks for its permissions at install and no access to websites", () => {
   const manifest = JSON.parse(readFileSync(new URL("../chrome/manifest.json", import.meta.url)));
   assert.equal(manifest.manifest_version, 3);
-  // activeTab (M12): the current tab's address, only after a click on SDM's icon
+  // activeTab (M12): the current tab's address, only after a click on SDM's icon;
+  // scripting (M13): to register the video button, which needs page access first
   assert.deepEqual([...manifest.permissions].sort(),
-    ["activeTab", "contextMenus", "downloads", "nativeMessaging", "storage"]);
-  for (const risky of ["host_permissions", "optional_host_permissions", "optional_permissions",
+    ["activeTab", "contextMenus", "downloads", "nativeMessaging", "scripting", "storage"]);
+  // page access is never asked for at install: only when the video button is turned on
+  assert.deepEqual(manifest.optional_host_permissions, ["http://*/*", "https://*/*"]);
+  for (const risky of ["host_permissions", "optional_permissions",
     "content_scripts",
     "externally_connectable", "web_accessible_resources"]) {
     assert.equal(manifest[risky], undefined, `${risky} must not be declared`);

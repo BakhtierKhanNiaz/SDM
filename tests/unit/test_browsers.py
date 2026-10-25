@@ -158,9 +158,17 @@ def test_the_extension_packages(tmp_path):
     for manifest in (chromium_manifest, firefox_manifest):
         # capture is on from installation (1.0.1), so downloads is asked for at install;
         # activeTab (M12): the tab's address for "Download this video", after a click only
-        expected = ["activeTab", "contextMenus", "downloads", "nativeMessaging", "storage"]
+        # scripting (M13): registers the video button, which also needs page access, asked
+        # for only when the user turns the button on (optional_host_permissions)
+        expected = ["activeTab", "contextMenus", "downloads", "nativeMessaging", "scripting",
+                    "storage"]  # fmt: skip
         assert sorted(manifest["permissions"]) == expected
         assert "optional_permissions" not in manifest
+        assert "host_permissions" not in manifest
+        assert manifest["optional_host_permissions"] == ["http://*/*", "https://*/*"]
+    # Firefox supports optional_host_permissions from 128 (MDN's compatibility data)
+    assert firefox_manifest["browser_specific_settings"]["gecko"]["strict_min_version"] == "128.0"
+    assert "video-button.js" in zipfile.ZipFile(firefox).namelist()
 
 
 def test_the_fixed_extension_id_matches_the_manifest_key():

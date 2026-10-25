@@ -5,6 +5,16 @@ export const HOST_NAME = "com.sdm.bridge";
 export const MENU_ID = "sdm-download-link";
 export const VIDEO_MENU_ID = "sdm-download-video";
 export const VIDEO_REQUEST = "sdm-video"; // the toolbar panel asks the worker to send a page
+
+// M13: the button over videos runs on web pages only after the user allowed page access.
+export const PAGE_ACCESS = { origins: ["http://*/*", "https://*/*"] };
+export const VIDEO_BUTTON_SCRIPT = {
+  id: "sdm-video-button",
+  matches: ["http://*/*", "https://*/*"],
+  js: ["video-button.js"],
+  runAt: "document_idle",
+  allFrames: true, // embedded players (an embed page inside an article) get it too
+};
 export const MAX_URL_LENGTH = 8192;
 const MAX_NAME_LENGTH = 255;
 const MAX_SIZE = 2 ** 53;

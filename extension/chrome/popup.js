@@ -1,9 +1,35 @@
-// The toolbar panel: "Download this video with SDM" (M12), the switch that turns automatic
+// The toolbar panel: "Download this video with SDM" (M12), the video button's switch (M13),
+// the switch that turns automatic
 // capture off and on again (on from installation, 1.0.1), and the minimum size. The two
 // settings are kept in chrome.storage.local.
 
 import { DEFAULT_SETTINGS, parseMinMegabytes, SETTINGS_KEY } from "./capture.js";
-import { NOT_A_PAGE_TEXT, VIDEO_REQUEST, webUrl } from "./handoff.js";
+import { NOT_A_PAGE_TEXT, PAGE_ACCESS, VIDEO_REQUEST, webUrl } from "./handoff.js";
+
+// The button over videos (M13): on while the user allows page access.
+export function videoButtonEnabled(api) {
+  return api.permissions.contains(PAGE_ACCESS);
+}
+
+// Must run inside the click handler: browsers only show permission prompts for a user action.
+export function enableVideoButton(api) {
+  return api.permissions.request(PAGE_ACCESS);
+}
+
+export function disableVideoButton(api) {
+  return api.permissions.remove(PAGE_ACCESS);
+}
+
+// Right after turning it on, the open tab gets the button too, without a reload.
+export async function addButtonToThisTab(api) {
+  const [tab] = await api.tabs.query({ active: true, currentWindow: true });
+  if (tab?.id === undefined || webUrl(tab.url) === null) return false;
+  await api.scripting.executeScript({
+    target: { tabId: tab.id, allFrames: true },
+    files: ["video-button.js"],
+  });
+  return true;
+}
 
 // "Download this video with SDM" (M12): the current tab's address (readable thanks to
 // activeTab, only because the user clicked SDM's icon) goes to the worker, which sends it.
@@ -59,6 +85,25 @@ async function setUp() {
   const min = document.getElementById("min");
   const status = document.getElementById("status");
   const video = document.getElementById("video");
+  const button = document.getElementById("button");
+  button.checked = await videoButtonEnabled(chrome);
+  button.addEventListener("change", async () => {
+    if (button.checked) {
+      const granted = await enableVideoButton(chrome);
+      button.checked = granted;
+      if (!granted) {
+        status.textContent = "The browser didn't allow it.";
+        return;
+      }
+      const added = await addButtonToThisTab(chrome).catch(() => false);
+      status.textContent = added
+        ? "The SDM button now appears on videos."
+        : "The SDM button appears on videos from now on.";
+    } else {
+      await disableVideoButton(chrome);
+      status.textContent = "The SDM button is off.";
+    }
+  });
   video.addEventListener("click", async () => {
     video.disabled = true;
     status.textContent = "Sending to SDM…";

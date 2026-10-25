@@ -8,6 +8,8 @@ import {
   MENU_ID,
   NOT_A_LINK_TEXT,
   NOT_A_PAGE_TEXT,
+  PAGE_ACCESS,
+  VIDEO_BUTTON_SCRIPT,
   VIDEO_MENU_ID,
   VIDEO_REQUEST,
   describeFailure,
@@ -47,6 +49,28 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   sendAndShow(message).then(sendResponse);
   return true; // the answer comes later
 });
+
+// ----- the button over videos (M13) -----
+
+// The button's script is registered exactly while the user allows page access, which they
+// grant (and can take back) with the panel's switch or in the browser's extension settings.
+export async function syncVideoButton() {
+  if (!chrome.scripting?.registerContentScripts) return;
+  const allowed = await chrome.permissions.contains(PAGE_ACCESS);
+  const registered = await chrome.scripting.getRegisteredContentScripts({
+    ids: [VIDEO_BUTTON_SCRIPT.id],
+  });
+  if (allowed && registered.length === 0) {
+    await chrome.scripting.registerContentScripts([VIDEO_BUTTON_SCRIPT]);
+  } else if (!allowed && registered.length > 0) {
+    await chrome.scripting.unregisterContentScripts({ ids: [VIDEO_BUTTON_SCRIPT.id] });
+  }
+}
+const syncQuietly = () =>
+  syncVideoButton().catch((error) => console.warn(`SDM: video button: ${error?.message}`));
+syncQuietly();
+chrome.permissions?.onAdded?.addListener(syncQuietly);
+chrome.permissions?.onRemoved?.addListener(syncQuietly);
 
 function sendAndShow(message) {
   // Clear the last click's status first, so an old "!" is never mistaken for this one.

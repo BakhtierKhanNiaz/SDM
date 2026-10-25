@@ -22,7 +22,7 @@ OUT = ROOT / "dist" / "extension"
 sys.path.insert(0, str(ROOT / "src"))
 from sdm.bridge.browsers import FIREFOX_EXTENSION_ID  # noqa: E402
 
-FILES = ["background.js", "capture.js", "handoff.js", "popup.html", "popup.js",
+FILES = ["background.js", "capture.js", "handoff.js", "popup.html", "popup.js", "video-button.js",
          *(f"icons/sdm-{size}.png" for size in (16, 32, 48, 128))]  # fmt: skip
 _IMPORT = re.compile(r"^import\s[\s\S]*?\sfrom\s+\"[^\"]+\";\s*$", re.MULTILINE)
 
@@ -45,7 +45,8 @@ def firefox_manifest(manifest: dict) -> dict:
     result["browser_specific_settings"] = {
         "gecko": {
             "id": FIREFOX_EXTENSION_ID,
-            "strict_min_version": "121.0",  # background scripts in MV3 (MDN)
+            # 128: optional_host_permissions (MDN's compatibility data), for the video button
+            "strict_min_version": "128.0",
             "data_collection_permissions": {"required": ["none"]},  # SDM collects nothing
         }
     }

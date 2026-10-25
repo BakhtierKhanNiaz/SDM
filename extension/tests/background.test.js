@@ -43,10 +43,29 @@ globalThis.chrome = {
     },
   },
   storage: { local: { get: async () => stored } },
+  // M13: page access (optional) and the video button's registration
+  permissions: {
+    contains: async () => pageAccess,
+    onAdded: { addListener: () => {} },
+    onRemoved: { addListener: () => {} },
+  },
+  scripting: {
+    getRegisteredContentScripts: async () => [...registered].map((id) => ({ id })),
+    registerContentScripts: async (scripts) => {
+      scripts.forEach((s) => registered.add(s.id));
+      calls.push(["register", scripts[0]]);
+    },
+    unregisterContentScripts: async ({ ids }) => {
+      ids.forEach((id) => registered.delete(id));
+      calls.push(["unregister", ids]);
+    },
+  },
 };
+let pageAccess = false;
+const registered = new Set();
 console.warn = () => {}; // keep the test output quiet
 
-await import("../chrome/background.js");
+const { syncVideoButton } = await import("../chrome/background.js");
 
 beforeEach(() => {
   calls.length = 0;
@@ -67,6 +86,30 @@ const download = (fields = {}) => ({
   incognito: false,
   state: "in_progress",
   ...fields,
+});
+
+test("the video button runs on pages exactly while page access is allowed", async () => {
+  pageAccess = false;
+  await syncVideoButton();
+  assert.equal(registered.size, 0);
+  pageAccess = true; // the user turned it on in the panel
+  await syncVideoButton();
+  const [, script] = last("register");
+  assert.deepEqual(script.js, ["video-button.js"]);
+  assert.deepEqual(script.matches, ["http://*/*", "https://*/*"]);
+  await syncVideoButton(); // already registered: not twice
+  assert.equal(calls.filter((c) => c[0] === "register").length, 1);
+  pageAccess = false; // taken back (panel or browser settings)
+  await syncVideoButton();
+  assert.deepEqual(last("unregister"), ["unregister", ["sdm-video-button"]]);
+  assert.equal(registered.size, 0);
+});
+
+test("a click on the video button (a content script) sends the page as a video", async () => {
+  const watch = "https://video.example.com/watch?v=1";
+  const reply = await panelAsks({ type: "sdm-video", url: watch }, { id: OWN_ID, tab: { id: 3 } });
+  assert.equal(reply.ok, true);
+  assert.deepEqual(last("native")[2], { version: 2, type: "download", url: watch, source: "video" });
 });
 
 test("installing replaces the menu with SDM's two items", () => {
