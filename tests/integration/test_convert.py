@@ -151,7 +151,8 @@ def test_settings_show_and_keep_where_ffmpeg_is(qtbot, tmp_path):
     assert dialog.result() != dialog.DialogCode.Accepted  # a wrong path isn't saved
     assert "no program" in dialog.error_label.text()
     dialog.ffmpeg_edit.setText(str(fake))
-    assert dialog.ffmpeg_status.text() == f"Using {fake}"
+    assert dialog.ffmpeg_status.text().replace("​", "") == f"Using {fake}"
+    assert dialog.ffmpeg_status.toolTip() == str(fake)  # the path exactly, for copying
     dialog.accept()
     assert dialog.result() == dialog.DialogCode.Accepted
     assert dialog.preferences().ffmpeg_path == str(fake)

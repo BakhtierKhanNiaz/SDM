@@ -131,6 +131,8 @@ def explain_failure(log: list[str]) -> str:
             return "This file has no sound, so it can't become an audio file."
         if "'0:v:0'" in text:
             return "This file has no video, so it can't become an MP4 video. Choose MP3 or M4A."
+    if "Invalid data found when processing input" in text:
+        return "This doesn't look like a video or audio file that ffmpeg can read."
     if match := _UNKNOWN_ENCODER.search(text):
         return (
             f"This ffmpeg doesn't include the {match.group(1)} encoder. Install the full "

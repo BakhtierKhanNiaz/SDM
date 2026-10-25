@@ -4,6 +4,7 @@ notifications, and where ffmpeg is (M12). The queue and schedule stay in the Sch
 from dataclasses import replace
 from pathlib import Path
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -27,6 +28,16 @@ from sdm.media.ytdlp import INSTALL_HINT as YTDLP_HINT
 from sdm.media.ytdlp import TERMS_NOTICE, find_ytdlp
 from sdm.ui.preferences import MAX_SPEED_LIMIT_KIB, Preferences
 from sdm.ui.theme import MODE_LABELS, MODES
+
+_WRAP = "​"  # a zero-width space: lets a long path wrap after each backslash
+
+
+def _show_tool(label: QLabel, found: Path | None, missing: str) -> None:
+    """ "Using <path>" for a tool that was found; WinGet's paths are long and have no spaces,
+    so they may wrap at any folder (the tooltip has the path as it is)."""
+    label.setTextFormat(Qt.TextFormat.PlainText)
+    label.setText(f"Using {str(found).replace(chr(92), chr(92) + _WRAP)}" if found else missing)
+    label.setToolTip(str(found) if found else "")
 
 
 class SettingsDialog(QDialog):
@@ -205,8 +216,8 @@ class SettingsDialog(QDialog):
 
     def _update_ytdlp_status(self) -> None:
         found = find_ytdlp(self.ytdlp_edit.text().strip())
-        self.ytdlp_status.setText(
-            f"Using {found}" if found else f"yt-dlp wasn't found. {YTDLP_HINT}, then restart SDM."
+        _show_tool(
+            self.ytdlp_status, found, f"yt-dlp wasn't found. {YTDLP_HINT}, then restart SDM."
         )
 
     def _browse_ytdlp(self) -> None:
@@ -216,8 +227,8 @@ class SettingsDialog(QDialog):
 
     def _update_ffmpeg_status(self) -> None:
         found = find_ffmpeg(self.ffmpeg_edit.text().strip())
-        self.ffmpeg_status.setText(
-            f"Using {found}" if found else f"ffmpeg wasn't found. {INSTALL_HINT}, then restart SDM."
+        _show_tool(
+            self.ffmpeg_status, found, f"ffmpeg wasn't found. {INSTALL_HINT}, then restart SDM."
         )
 
     def _browse_ffmpeg(self) -> None:

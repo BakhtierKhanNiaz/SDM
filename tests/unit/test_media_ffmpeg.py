@@ -65,9 +65,9 @@ def test_progress_from_ffmpegs_output():
 def test_the_last_log_line_explains_an_unknown_failure():
     progress = ConversionProgress()
     progress.log_line("Input #0, matroska,webm, from 'x':")
-    progress.log_line("x.webm: Invalid data found when processing input")
+    progress.log_line("x.webm: Conversion failed!")
     progress.log_line("")
-    assert progress.failure_reason == "x.webm: Invalid data found when processing input"
+    assert progress.failure_reason == "x.webm: Conversion failed!"
     assert ConversionProgress().failure_reason == ""
 
 
@@ -85,6 +85,12 @@ def test_known_failures_are_explained_in_plain_words():
     assert no_sound == "This file has no sound, so it can't become an audio file."
     no_video = explain_failure([line.format(map="0:v:0") for line in NO_STREAM])
     assert no_video.startswith("This file has no video")
+    # ffmpeg 9.0.2 on a text file named like media (seen 2026-10-25)
+    not_media = explain_failure([
+        "file:C:\\x\\notes.txt: Invalid data found when processing input",
+        "Error opening input files: Invalid data found when processing input",
+    ])  # fmt: skip
+    assert not_media == "This doesn't look like a video or audio file that ffmpeg can read."
     encoder = explain_failure(["Unknown encoder 'libx264'"])
     assert "libx264" in encoder and "winget install Gyan.FFmpeg" in encoder
 
