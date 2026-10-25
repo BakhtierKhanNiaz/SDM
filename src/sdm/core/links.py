@@ -1,8 +1,8 @@
 """Where people get SDM and its browser extension (M11). One place, so a release only has to
 update these."""
 
-# The public repository; set when it exists (M11d).
-PROJECT_URL = "https://github.com/OWNER/SDM"
+# The public repository (M11d).
+PROJECT_URL = "https://github.com/Conditions-tech/SDM"
 RELEASES_URL = f"{PROJECT_URL}/releases/latest"
 # Listings on the free extension stores, once published (None until then).
 EDGE_STORE_URL: str | None = None

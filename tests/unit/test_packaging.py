@@ -114,6 +114,13 @@ def test_extension_links_point_at_the_release_until_the_stores_list_it():
     assert links.extension_page("edge") == (links.EDGE_STORE_URL or links.RELEASES_URL)
 
 
+def test_links_name_the_real_repository():
+    from sdm.core import links
+
+    assert links.PROJECT_URL == "https://github.com/Conditions-tech/SDM"
+    assert links.RELEASES_URL == f"{links.PROJECT_URL}/releases/latest"
+
+
 def test_third_party_notices_cover_every_library_in_the_build():
     sys.path.insert(0, str(ROOT / "scripts"))
     try:

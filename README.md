@@ -56,7 +56,7 @@ You need Windows 10/11, [uv](https://docs.astral.sh/uv/) and Git. uv installs th
 Python by itself.
 
 ```powershell
-git clone <this repository's URL>
+git clone https://github.com/Conditions-tech/SDM.git
 cd SDM
 uv sync                                     # creates .venv with the exact locked versions
 uv run python app.py                        # starts SDM
