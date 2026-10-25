@@ -435,7 +435,9 @@ yt-dlp does the video downloading; M12a converter, M12b video add-on, then relea
   opens Add URL set to a video at the last quality used (ADR-0020). Checked: extension and
   Python tests; a throwaway headless Chrome and Edge loaded the changed extension and reached
   SDM's helper. Not yet tried by the owner in a real browser.
-- M12c (next): docs, release 1.1.0.
+- M12c: version 1.1.0 (SDM and the extension), README features, release notes with the
+  optional winget installs, changelog. Left: the owner pushes the `v1.1.0` tag, then installs
+  1.1.0 and tries "Download this video" in a real browser.
 
 - **Converter (core feature):** convert a local file with ffmpeg, for example video to MP3
   audio, or MKV/WEBM to MP4. ffmpeg runs as a separate program; SDM never runs downloaded files

@@ -28,6 +28,12 @@ download manager.
 - **Browser integration:** once the extension is installed, clicking a download opens SDM
   instead of the browser's Save As (a switch in the extension turns this off), and you can
   right-click any link or player and choose **Download with SDM**.
+- **Convert:** turn a video into MP3 or M4A audio, or a widely playable MP4 (uses the free
+  ffmpeg: `winget install Gyan.FFmpeg`).
+- **Video pages (optional, off by default):** download a video page as 720p, 1080p or 4K MP4,
+  or as audio; right-click a page and choose **Download this video with SDM** (uses the free
+  yt-dlp: `winget install yt-dlp.yt-dlp`). You're responsible for each site's terms; SDM never
+  signs in, uses cookies or downloads DRM-protected videos.
 - **Safe by default:** never runs downloaded files, never overwrites a file, refuses addresses
   on your own computer and local network unless you allow them, and checks SHA-256 when you
   give one.

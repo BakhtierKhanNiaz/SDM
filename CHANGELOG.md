@@ -6,6 +6,8 @@ while SDM is in 0.x.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-26
+
 ### Added
 
 - **Download this video with SDM** in the browser extension (right-click on a page or a
@@ -19,7 +21,6 @@ while SDM is in 0.x.
   Convert… on a finished download): a new file next to the original, with progress and
   Cancel. ffmpeg is installed separately (`winget install Gyan.FFmpeg`) and found
   automatically, or set in Settings > Media. ADR-0020.
-
 - M11 (open-source release) marked done; the owner's 1.0.2 upgrade and click-to-SDM checks in
   Chrome and Edge are still to be recorded (roadmap).
 

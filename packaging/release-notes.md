@@ -10,6 +10,10 @@
    - Edge: from Microsoft Edge Add-ons, or the same way as Chrome.
    - Firefox: from Firefox Add-ons.
 
+Optional, for converting and video pages (both free; then restart SDM):
+`winget install Gyan.FFmpeg` and `winget install yt-dlp.yt-dlp`. Video pages are off until
+you turn them on in Tools > Settings > Media.
+
 No installer wanted? **SDM-<version>-portable.zip** is the same program as a folder: unzip it
 and run `SDM.exe`.
 
