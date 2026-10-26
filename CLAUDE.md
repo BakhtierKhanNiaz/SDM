@@ -54,6 +54,8 @@ uv run python -m sdm.bridge.install --browsers   # register for every browser: a
 uv run python scripts/build_extensions.py       # dist\extension\: Chromium, Edge, Firefox zips
 uv run python scripts/make_icons.py             # all icon files from src/sdm/ui/assets/sdm.svg
 node scripts/chrome_bridge_check/video_button_check.mjs   # the video button in headless Chrome
+uv run python scripts/promo/make_promo.py       # promo videos (dist\promo, ~5 min each; ffmpeg)
+uv run python scripts/promo/make_promo_audio.py VOICE.onnx 0   # voice + music (PIPER_PYTHON: see file)
 ```
 
 ## Layout and boundaries
