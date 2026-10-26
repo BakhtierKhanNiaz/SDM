@@ -16,9 +16,9 @@ and its tests have actually run and passed.
 | M8 | Browser handoff integrated with the download engine | Done (2026-10-20) |
 | M9 | Interface, settings, notifications and usability | Done (2026-10-20) |
 | M10 | Security, performance, regression testing and Windows packaging | Done (2026-10-20) |
-| M11 | Open-source release on GitHub (Apache-2.0, UI/UX, more browsers) | Done (2026-10-25; two owner checks open) |
-| M12 | Media: video/audio converter (ffmpeg) and optional yt-dlp add-on | Done (2026-10-26; owner's 1.1.0 install check open) |
-| M13 | SDM's own logo and look, a button over videos, the extension shipped with SDM | In progress (built; release 1.2.0 and the owner's check left) |
+| M11 | Open-source release on GitHub (Apache-2.0, UI/UX, more browsers) | Done (2026-10-25; owner's checks reported done with 1.2.0) |
+| M12 | Media: video/audio converter (ffmpeg) and optional yt-dlp add-on | Done (2026-10-26; owner's install check reported done with 1.2.0) |
+| M13 | SDM's own logo and look, a button over videos, the extension shipped with SDM | Done (2026-10-26) |
 
 ## M0: Environment inspection (done)
 
@@ -435,7 +435,7 @@ yt-dlp does the video downloading; M12a converter, M12b video add-on, then relea
   extension's right-click menu and toolbar panel sends the page as `source: "video"`; SDM
   opens Add URL set to a video at the last quality used (ADR-0020). Checked: extension and
   Python tests; a throwaway headless Chrome and Edge loaded the changed extension and reached
-  SDM's helper. Not yet tried by the owner in a real browser.
+  SDM's helper. The owner reported it working in their browser with 1.2.0 (2026-10-26).
 - M12c: version 1.1.0 (SDM and the extension), README features, release notes with the
   optional winget installs, changelog.
 
@@ -470,7 +470,7 @@ yt-dlp does the video downloading; M12a converter, M12b video add-on, then relea
 - **Tests:** synthetic media files and a fake yt-dlp executable; never real video sites.
 - **Known limit:** no GPU here, so 4K conversion runs on the CPU and will be slow.
 
-## M13: SDM's own look, a button over videos, the extension with SDM (in progress)
+## M13: SDM's own look, a button over videos, the extension with SDM (done)
 
 Asked for by the owner on 2026-10-26 (screenshot of a video page): a small SDM button over a
 playing video, SDM's own icon instead of the Python one, an updated window, and the extension
@@ -490,5 +490,14 @@ logo (from nine drawn options). Design: ADR-0021. Branch `m13/look-and-video-but
 - The extension ships in `SDM\extension`; the assistant's "Add to Chrome/Edge/Brave" opens the
   browser's extensions page, copies the folder and shows the three steps; Help > Add the
   browser extension. Checked: tests and a build (`dist\SDM\extension`).
-- Left: version 1.2.0 and its release; the owner's check: install 1.2.0, add the extension
-  with the assistant, turn on the button, click it on a video page.
+- Released as 1.2.0 (tag `v1.2.0`, `9522b61`) on 2026-10-26; post texts and images for
+  Facebook, Instagram and LinkedIn prepared for the owner (`dist\social`, not in Git).
+- The owner's first look at 1.2.0 found the desktop icon still showing the Python logo: it
+  was 1.1.0's shortcut (1.2.0 wasn't installed yet; Windows' icon cache can also lag). A
+  DownGit zip went to Chrome's Save As: correct, a `blob:` download made inside the page
+  has no address SDM could fetch (ADR-0015).
+
+**M13 marked done on 2026-10-26.** The owner reported the 1.2.0 checks done (no screenshots):
+install 1.2.0 (About 1.2.0, the new icon), add the extension with the assistant, turn on the
+video button and click it on a video page, a normal link opening SDM. This also covers the
+install checks left open in M11 and M12.

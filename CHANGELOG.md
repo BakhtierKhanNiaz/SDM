@@ -6,6 +6,10 @@ while SDM is in 0.x.
 
 ## [Unreleased]
 
+- M13 marked done: the owner reported the 1.2.0 checks done (install, the new icon, adding
+  the extension with the assistant, the button over videos, a normal link opening SDM). This
+  also closes the install checks left open in M11 and M12 (roadmap).
+
 ## [1.2.0] - 2026-10-26
 
 ### Added
