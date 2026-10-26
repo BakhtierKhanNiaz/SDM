@@ -514,7 +514,8 @@ def caption(p, w, h, scene: Scene, t: float) -> None:
          scene.subtitle, opacity=phase(t, 0.25, 0.6))  # fmt: skip
 
 
-def render(studio: Studio, w: int, h: int, path: Path, ffmpeg: Path) -> None:
+def render(studio, w: int, h: int, path: Path, ffmpeg: Path, scenes=None) -> None:
+    scenes = SCENES if scenes is None else scenes
     command = [str(ffmpeg), "-hide_banner", "-loglevel", "error", "-y",
                "-f", "rawvideo", "-pix_fmt", "bgra", "-s", f"{w}x{h}", "-r", str(FPS), "-i", "-",
                "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
@@ -522,7 +523,7 @@ def render(studio: Studio, w: int, h: int, path: Path, ffmpeg: Path) -> None:
     encoder = subprocess.Popen(command, stdin=subprocess.PIPE)  # noqa: S603 - fixed arguments
     frame = QImage(w, h, QImage.Format.Format_ARGB32)
     elapsed = 0.0
-    for scene in SCENES:
+    for scene in scenes:
         frames = int(scene.seconds * FPS)
         for index in range(frames):
             t = index / FPS

@@ -35,6 +35,23 @@ NARRATION = [
     (24.8, 3.0, "Light or dark, it fits right in."),
     (28.4, 5.5, "SDM is free and open source. Download it today, from GitHub."),
 ]
+# make_tutorial.py's scenes start at 0, 5, 14, 23, 33, 42, 51 and 59 s (67 s in all).
+TUTORIAL = [
+    (0.5, 4.3, "Here's how to install and use SDM, the free download manager for Windows."),
+    (5.5, 8.0, "First, open SDM's releases page on GitHub, and download SDM Setup."),
+    (14.5, 8.0, "Run it. If Windows SmartScreen warns you, click More info, then Run anyway."),
+    (23.5, 9.0, "The welcome assistant connects your browsers. Press Add to Chrome, "
+                "and follow the three steps."),
+    (33.5, 8.0, "To download a file, click Add URL, paste the address, and press Download."),
+    (42.5, 8.0, "In your browser, downloads open in SDM. On a video, click the SDM button."),
+    (51.5, 7.0, "Pause, resume, or convert to MP3 and MP4, whenever you like."),
+    (59.5, 7.0, "SDM is free and open source. The link is in the description."),
+]  # fmt: skip
+# what each script narrates: its lines, its length, and the videos it goes into
+SCRIPTS = {
+    "promo": (NARRATION, 35.0, ["sdm-{v}-wide", "sdm-{v}-tall"]),
+    "tutorial": (TUTORIAL, 67.0, ["sdm-{v}-tutorial-wide"]),
+}
 YOUTUBE_CREDIT = (
     "Voice: Piper text-to-speech (github.com/OHF-voice/piper1-gpl), voice en_US-libritts_r-medium "
     "trained on LibriTTS-R by Koizumi et al. (openslr.org/141), CC BY 4.0. "
@@ -58,12 +75,14 @@ def speak(
 
 def main() -> int:
     voice, speaker = Path(sys.argv[1]), int(sys.argv[2])
+    kind = sys.argv[3] if len(sys.argv) > 3 else "promo"
+    narration, seconds_total, stems = SCRIPTS[kind]
     piper_python = os.environ.get("PIPER_PYTHON", sys.executable)
     ffmpeg = str(find_ffmpeg())
-    work = OUT / "audio"
+    work = OUT / "audio" / kind
     work.mkdir(parents=True, exist_ok=True)
     lines = []
-    for number, (start, room, words) in enumerate(NARRATION):
+    for number, (start, room, words) in enumerate(narration):
         out = work / f"line-{number}.wav"
         scale = 1.15  # a calm narration pace (Piper's default is brisk)
         seconds = speak(piper_python, voice, speaker, words, out, scale)
@@ -75,10 +94,11 @@ def main() -> int:
             print("  too long for its scene: shorten the words", file=sys.stderr)
             return 1
         lines.append((start, out))
-    music = work / "music.wav"
+    music = work / "music.wav"  # its own length per script
     if not music.exists():
-        command = [sys.executable, str(Path(__file__).with_name("make_music.py")), str(music),
-                   str(SECONDS)]  # fmt: skip
+        # Piper's Python has numpy, which make_music.py needs (SDM's own environment doesn't)
+        command = [piper_python, str(Path(__file__).with_name("make_music.py")), str(music),
+                   str(seconds_total)]  # fmt: skip
         subprocess.run(command, check=True)  # noqa: S603 - fixed program
     # The voice lines, each delayed to its start; then the music, ducked while the voice talks.
     inputs, chains = ["-i", str(music)], []
@@ -91,7 +111,7 @@ def main() -> int:
     # Padded to the whole video: the ducking ends when its key (the voice) ends, which cut the
     # sound, and with it the video's last scene, to 31.6 s (seen 2026-10-26).
     chains.append(f"{joined}amix=inputs={len(lines)}:normalize=0,volume=1.6,"
-                  f"apad=whole_dur={SECONDS},asplit=2[voice][key]")  # fmt: skip
+                  f"apad=whole_dur={seconds_total},asplit=2[voice][key]")  # fmt: skip
     chains.append("[0:a]volume=0.4[bed]")  # music about 20 dB down: the voice stays clear
     chains.append(
         "[bed][key]sidechaincompress=threshold=0.03:ratio=6:attack=20:release=400[ducked]"
@@ -99,10 +119,10 @@ def main() -> int:
     chains.append("[ducked][voice]amix=inputs=2:normalize=0,alimiter=limit=0.95[mix]")
     mixed = work / "mix.wav"
     command = [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", *inputs,
-               "-filter_complex", ";".join(chains), "-map", "[mix]", "-t", str(SECONDS),
+               "-filter_complex", ";".join(chains), "-map", "[mix]", "-t", str(seconds_total),
                str(mixed)]  # fmt: skip
     subprocess.run(command, check=True)  # noqa: S603 - fixed program
-    videos = [OUT / f"sdm-{__version__}-{name}.mp4" for name in ("wide", "tall")]
+    videos = [OUT / (stem.format(v=__version__) + ".mp4") for stem in stems]
     if not any(video.exists() for video in videos):
         # e.g. run with Piper's own Python, which doesn't know SDM's version: use uv run
         print(f"No video for SDM {__version__} in {OUT}: run make_promo.py first, and this "
@@ -111,8 +131,7 @@ def main() -> int:
     for video in videos:
         if not video.exists():
             continue
-        name = video.stem.rsplit("-", 1)[-1]
-        target = OUT / f"sdm-{__version__}-{name}-sound.mp4"
+        target = video.with_name(video.stem + "-sound.mp4")
         command = [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", str(video),
                    "-i", str(mixed), "-map", "0:v", "-map", "1:a", "-c:v", "copy",
                    "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart",
