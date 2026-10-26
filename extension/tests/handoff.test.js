@@ -122,7 +122,7 @@ test("replies turn into short, generic messages", () => {
 test("Chrome's errors say whether the bridge is installed", () => {
   assert.match(
     describeFailure(new Error("Specified native messaging host not found.")).text,
-    /isn't installed/,
+    /isn't connected to this browser.*Setup assistant/,
   );
   assert.match(
     describeFailure(new Error("Access to the specified native messaging host is forbidden.")).text,

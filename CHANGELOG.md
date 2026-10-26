@@ -6,6 +6,17 @@ while SDM is in 0.x.
 
 ## [Unreleased]
 
+### Fixed
+
+- **"Specified native messaging host not found" after reinstalling SDM** (reported by the
+  owner and some users, 2026-10-27). Uninstalling SDM removes its browser registration, and
+  reinstalling never put it back: the welcome assistant runs only once and its "done" flag
+  survives the uninstall. SDM now remembers which browsers you connected and, at every start,
+  re-registers any whose registration is missing or points at a program that isn't there. An
+  SDM upgraded from 1.2.0 adopts what is registered, or asks once (the assistant's browsers
+  page) if nothing is. The extension's message now says to open SDM or run Help > Setup
+  assistant, instead of only "quit Chrome completely".
+
 - M13 marked done: the owner reported the 1.2.0 checks done (install, the new icon, adding
   the extension with the assistant, the button over videos, a normal link opening SDM). This
   also closes the install checks left open in M11 and M12 (roadmap).

@@ -462,11 +462,17 @@ class MainWindow(QMainWindow):
         self.setup_wizard = None
         if result != QDialog.DialogCode.Accepted:
             # Asked once: Help > Setup assistant brings it back.
-            self.controller.set_preferences(replace(self.controller.preferences, setup_done=True))
+            preferences = replace(self.controller.preferences, setup_done=True)
+            if preferences.browsers == "?":
+                preferences = replace(preferences, browsers="")
+            self.controller.set_preferences(preferences)
             return []
-        self.apply_preferences(wizard.preferences())
-        self._default_folder = self._preferred_folder()
         chosen = wizard.chosen_browsers()
+        # Remembered so a reinstall can be repaired (reconnect_browsers), even if this fails.
+        self.apply_preferences(
+            replace(wizard.preferences(), browsers=",".join(browser.key for browser in chosen))
+        )
+        self._default_folder = self._preferred_folder()
         if not chosen:
             return []
         try:
@@ -477,10 +483,44 @@ class MainWindow(QMainWindow):
         self.status_label.setText(f"Connected to: {', '.join(names)}")
         return names
 
+    def reconnect_browsers(self) -> list[str]:
+        """At every start after the first: put back the browser registration that uninstalling
+        SDM removed (reinstalling doesn't restore it, and the extension then reports "host not
+        found"), or that points at a program that moved (1.2.1). Returns the names repaired."""
+        from sdm.bridge.browsers import BY_KEY
+        from sdm.bridge.install import (
+            InstallError,
+            broken_registrations,
+            register_browsers,
+            registered_browsers,
+        )
+
+        recorded = self.controller.preferences.browsers
+        if recorded == "?":  # an SDM before 1.2.1 didn't record the choice
+            chosen = registered_browsers()
+            if not chosen:  # nothing left to go by: ask once (finish_setup records the answer)
+                self.open_setup_wizard(browsers=True)
+                return []
+            browsers = ",".join(browser.key for browser in chosen)
+            self.controller.set_preferences(replace(self.controller.preferences, browsers=browsers))
+        else:
+            chosen = [BY_KEY[key] for key in recorded.split(",") if key in BY_KEY]
+        broken = broken_registrations(chosen)
+        if not broken:
+            return []
+        try:
+            names = register_browsers(broken)
+        except (InstallError, OSError) as exc:
+            self.status_label.setText(f"Couldn't reconnect your browsers: {exc}")
+            return []
+        self.status_label.setText(f"Reconnected to: {', '.join(names)}")
+        return names
+
     def remove_browsers(self) -> None:
         from sdm.bridge.install import uninstall, unregister_browsers
 
         removed = unregister_browsers() | uninstall()
+        self.controller.set_preferences(replace(self.controller.preferences, browsers=""))
         QMessageBox.information(
             self,
             "Browser integration",

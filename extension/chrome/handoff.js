@@ -121,7 +121,8 @@ export function describeFailure(error) {
   if (message.includes("host not found")) {
     return {
       ok: false,
-      text: "SDM's browser bridge isn't installed for this extension. If you just installed it, quit Chrome completely and open it again.",
+      // Usually SDM was uninstalled or reinstalled, which removes its registration (1.2.1).
+      text: "SDM isn't connected to this browser. Open SDM (it reconnects at start), or use Help > Setup assistant in SDM, then try again.",
     };
   }
   if (message.includes("Access to the specified native messaging host is forbidden")) {

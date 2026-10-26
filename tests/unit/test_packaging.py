@@ -4,6 +4,7 @@ import json
 import sys
 import uuid
 import winreg
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -87,6 +88,7 @@ def test_the_setup_assistant_saves_choices_and_connects_browsers(
     wizard.theme_box.setCurrentIndex(wizard.theme_box.findData("dark"))
     names = window.finish_setup(wizard, QDialog.DialogCode.Accepted)
     assert names == ["Google Chrome"] and registered == ["Google Chrome"]
+    assert window.controller.preferences.browsers == "chrome"
     preferences = window.controller.preferences
     assert (preferences.default_folder, preferences.theme, preferences.setup_done) == (
         str(folder), "dark", True)  # fmt: skip
@@ -105,6 +107,78 @@ def test_cancelling_the_assistant_isnt_asked_again(qtbot, make_controller, tmp_p
     wizard = window.open_setup_wizard()
     assert window.finish_setup(wizard, QDialog.DialogCode.Rejected) == []
     assert window.controller.preferences.setup_done is True
+
+
+def fake_bridge(monkeypatch, *, registered, broken):
+    """install.py's registry functions, replaced: tests never touch the real registry."""
+    from sdm.bridge import install as install_module
+
+    calls = []
+    monkeypatch.setattr(install_module, "registered_browsers", lambda: list(registered))
+    monkeypatch.setattr(install_module, "broken_registrations",
+                        lambda chosen: [b for b in chosen if b.key in broken])  # fmt: skip
+
+    def fake_register(chosen):
+        calls.append([browser.key for browser in chosen])
+        return [browser.name for browser in chosen]
+
+    monkeypatch.setattr(install_module, "register_browsers", fake_register)
+    monkeypatch.setattr(install_module, "unregister_browsers", lambda: True)
+    monkeypatch.setattr(install_module, "uninstall", lambda: False)
+    return calls
+
+
+def test_a_reinstalled_sdm_reconnects_the_browsers_chosen_before(
+    qtbot, make_controller, tmp_path, monkeypatch
+):
+    calls = fake_bridge(monkeypatch, registered=[], broken={"chrome"})
+    window = make_window(qtbot, make_controller, tmp_path)
+    preferences = replace(window.controller.preferences, setup_done=True, browsers="chrome,edge")
+    window.controller.set_preferences(preferences)
+    assert window.reconnect_browsers() == ["Google Chrome"]
+    assert calls == [["chrome"]]  # only what's broken; Edge still worked
+    assert window.status_label.text() == "Reconnected to: Google Chrome"
+
+
+def test_nothing_is_reconnected_after_removing_the_integration(
+    qtbot, make_controller, tmp_path, monkeypatch
+):
+    from PySide6.QtWidgets import QMessageBox
+
+    calls = fake_bridge(monkeypatch, registered=[], broken={"chrome", "edge"})
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *args: None))
+    window = make_window(qtbot, make_controller, tmp_path)
+    window.controller.set_preferences(replace(window.controller.preferences, browsers="chrome"))
+    window.remove_browsers()
+    assert window.controller.preferences.browsers == ""
+    assert window.reconnect_browsers() == [] and calls == []
+    assert window.setup_wizard is None
+
+
+def test_an_older_sdms_registration_is_adopted(qtbot, make_controller, tmp_path, monkeypatch):
+    from sdm.bridge.browsers import BY_KEY
+
+    calls = fake_bridge(monkeypatch, registered=[BY_KEY["chrome"]], broken=set())
+    window = make_window(qtbot, make_controller, tmp_path)
+    assert window.controller.preferences.browsers == "?"
+    assert window.reconnect_browsers() == [] and calls == []
+    assert window.controller.preferences.browsers == "chrome"
+
+
+def test_an_older_sdm_with_nothing_registered_asks_once(
+    qtbot, make_controller, tmp_path, monkeypatch
+):
+    from PySide6.QtWidgets import QDialog
+
+    fake_bridge(monkeypatch, registered=[], broken=set())
+    window = make_window(qtbot, make_controller, tmp_path)
+    window.reconnect_browsers()
+    wizard = window.setup_wizard
+    assert wizard is not None and wizard.currentId() == wizard.pageIds()[-1]
+    window.finish_setup(wizard, QDialog.DialogCode.Rejected)
+    assert window.controller.preferences.browsers == ""  # not asked again
+    window.reconnect_browsers()
+    assert window.setup_wizard is None
 
 
 def test_extension_links_point_at_the_release_until_the_stores_list_it():

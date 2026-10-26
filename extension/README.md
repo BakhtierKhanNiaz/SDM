@@ -77,7 +77,7 @@ The toolbar icon shows a red **!**; click the icon to read the last problem.
 
 | Message | Meaning |
 |---|---|
-| SDM's browser bridge isn't installed for this extension | Run **Help > Setup assistant** in SDM, tick this browser, then restart the browser |
+| SDM isn't connected to this browser | Usually SDM was uninstalled or reinstalled, which removes the connection. Open SDM: since 1.2.1 it reconnects the browsers you chose when it starts. If not, run **Help > Setup assistant**, tick this browser and finish; if it still fails, quit the browser completely and open it again |
 | ...installed for a different extension ID | An extension loaded from an old copy: remove it and load the current zip |
 | SDM didn't start | SDM couldn't start within 15 seconds: start it from the Start menu and try again |
 | SDM couldn't take the link | Is SDM running as administrator? Start it normally. Details: `%LOCALAPPDATA%\SDM\logs\bridge-host.log` |

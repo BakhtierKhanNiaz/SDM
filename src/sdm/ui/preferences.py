@@ -6,6 +6,7 @@ bad row can never stop SDM from starting.
 
 from dataclasses import dataclass, fields
 
+from sdm.bridge.browsers import BY_KEY
 from sdm.media.ytdlp import QUALITIES
 from sdm.storage.database import DownloadStore
 
@@ -24,6 +25,9 @@ class Preferences:
     notify: bool = True  # a Windows notification when a download finishes or fails
     theme: str = "system"  # "system" (follow Windows), "light" or "dark" (M11)
     setup_done: bool = False  # the welcome assistant has run (M11)
+    # The browsers the user connected, as comma-separated keys from sdm.bridge.browsers, so
+    # SDM can put their registration back after a reinstall (1.2.1). "?" = not recorded yet.
+    browsers: str = "?"
     ffmpeg_path: str = ""  # "" = find ffmpeg on PATH or where WinGet put it (M12)
     video_enabled: bool = False  # video-page downloads with yt-dlp, after the notice (M12b)
     ytdlp_path: str = ""  # "" = find yt-dlp like ffmpeg
@@ -48,6 +52,10 @@ class Preferences:
             values["connections"] = default.connections
         if values["theme"] not in ("system", "light", "dark"):
             values["theme"] = default.theme
+        if values["browsers"] != "?" and not set(filter(None, values["browsers"].split(","))) <= (
+            BY_KEY.keys()
+        ):
+            values["browsers"] = default.browsers
         if values["video_quality"] not in QUALITIES:
             values["video_quality"] = default.video_quality
         for name in ("default_folder", "last_folder", "ffmpeg_path", "ytdlp_path"):

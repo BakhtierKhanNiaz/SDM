@@ -501,3 +501,12 @@ logo (from nine drawn options). Design: ADR-0021. Branch `m13/look-and-video-but
 install 1.2.0 (About 1.2.0, the new icon), add the extension with the assistant, turn on the
 video button and click it on a video page, a normal link opening SDM. This also covers the
 install checks left open in M11 and M12.
+
+**Fix after M13 (2026-10-27): the browser connection after a reinstall.** The owner's Chrome
+(and some users') logged "Specified native messaging host not found" after reinstalling SDM.
+Cause, found in the code: the uninstaller deletes the registry keys and host manifests
+(`packaging/sdm.iss`, by design so no browser points at a deleted program), but the welcome
+assistant, the only thing that registers, runs once and its flag lives in the kept settings.
+SDM now remembers the connected browsers and repairs their registration at every start;
+regression tests in `tests/unit/test_browsers.py` and `tests/unit/test_packaging.py`. The
+owner's own check (reinstall, open SDM, click a link in Chrome) is still to do.

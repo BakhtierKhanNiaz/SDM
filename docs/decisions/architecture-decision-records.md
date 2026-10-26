@@ -485,6 +485,10 @@ deleted. A changed decision gets a new record that supersedes the old one.
     and SDM's Chrome registration (registry key and host files) but keeps the history,
     settings, logs and downloads. A fixed AppId lets new versions upgrade in place; a running
     SDM is closed first.
+    *Correction (2026-10-27):* because the settings survive and the registration doesn't, a
+    reinstall left browsers with no registration ("host not found"). SDM now records the
+    browsers the user connected (preference `browsers`) and re-registers broken ones at each
+    start (`MainWindow.reconnect_browsers`, `install.broken_registrations`).
   - **Chrome registration in the installed app:** Help > Set up Chrome integration registers
     `sdm-bridge-host.exe` directly (no `.bat`, no Python); Help > Remove Chrome integration.
     Run from the owner's SDM, it writes the owner's real registry (unlike Claude's sandboxed

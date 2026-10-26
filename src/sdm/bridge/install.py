@@ -140,8 +140,7 @@ def register_browsers(
 
     browsers = list(BROWSERS) if browsers is None else browsers
     folder = folder or host_folder()
-    if frozen_host is None and getattr(sys, "frozen", False):
-        frozen_host = Path(sys.executable).with_name(HOST_EXE_NAME)
+    frozen_host = _frozen_host(frozen_host)
     launcher = frozen_host or folder / LAUNCHER_NAME
     folder.mkdir(parents=True, exist_ok=True)
     if frozen_host is None:
@@ -164,6 +163,70 @@ def register_browsers(
             winreg.SetValueEx(key, "", 0, winreg.REG_SZ, str(path))
         registered.append(browser.name)
     return registered
+
+
+def _frozen_host(frozen_host: Path | None) -> Path | None:
+    if frozen_host is None and getattr(sys, "frozen", False):
+        return Path(sys.executable).with_name(HOST_EXE_NAME)
+    return frozen_host
+
+
+def _manifest_name(browser: Browser) -> str:
+    return FIREFOX_MANIFEST_NAME if browser.kind == "firefox" else MANIFEST_NAME
+
+
+def registered_browsers(
+    *, root: int = winreg.HKEY_CURRENT_USER, key_prefix: str = ""
+) -> list[Browser]:
+    """The browsers with SDM's registry key, whether or not it still works (1.2.1)."""
+    from sdm.bridge.browsers import BROWSERS
+
+    found = []
+    for browser in BROWSERS:
+        try:
+            winreg.OpenKey(root, f"{key_prefix}{browser.hosts_key}\\{HOST_NAME}").Close()
+        except OSError:
+            continue
+        found.append(browser)
+    return found
+
+
+def broken_registrations(
+    browsers: list[Browser],
+    *,
+    folder: Path | None = None,
+    root: int = winreg.HKEY_CURRENT_USER,
+    key_prefix: str = "",
+    frozen_host: Path | None = None,
+) -> list[Browser]:
+    """The browsers among `browsers` whose registration wouldn't start this SDM's host (1.2.1).
+
+    Uninstalling SDM removes the registry keys and the manifests, and reinstalling doesn't
+    put them back: the browser then says "Specified native messaging host not found". Broken
+    also means a manifest that names another file, is unreadable, or starts a program that
+    isn't there (SDM moved, or was run from a source checkout before).
+    """
+    folder = folder or host_folder()
+    launcher = _frozen_host(frozen_host) or folder / LAUNCHER_NAME
+    broken = []
+    for browser in browsers:
+        manifest_path = folder / _manifest_name(browser)
+        try:
+            with winreg.OpenKey(root, f"{key_prefix}{browser.hosts_key}\\{HOST_NAME}") as key:
+                value, _kind = winreg.QueryValueEx(key, "")
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            broken.append(browser)
+            continue
+        if (
+            value != str(manifest_path)
+            or not isinstance(manifest, dict)
+            or manifest.get("name") != HOST_NAME
+            or manifest.get("path") != str(launcher)
+            or not launcher.is_file()
+        ):
+            broken.append(browser)
+    return broken
 
 
 def unregister_browsers(
