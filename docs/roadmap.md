@@ -518,3 +518,7 @@ throwaway profile showed they open `chrome://newtab/` / `edge://newtab/` instead
 web address opens fine), while the guide said "In the window that opened". The guide now
 starts with typing the address; regression tests in `tests/integration/test_extension_setup.py`.
 The owner's own check (follow the four steps in Chrome) is still to do.
+
+**Released as 1.2.1 on 2026-10-27** with both fixes above (tag `v1.2.1`; the release workflow
+builds and publishes the files). The owner's check as a user (uninstall, install 1.2.1 from
+GitHub, add the extension, a link reaching SDM, reinstall again) is still to do.

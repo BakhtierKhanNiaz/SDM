@@ -6,6 +6,8 @@ while SDM is in 0.x.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-27
+
 ### Fixed
 
 - **"Add to Chrome" seemed to do nothing** (reported by the owner, 2026-10-27). The button
@@ -21,6 +23,8 @@ while SDM is in 0.x.
   SDM upgraded from 1.2.0 adopts what is registered, or asks once (the assistant's browsers
   page) if nothing is. The extension's message now says to open SDM or run Help > Setup
   assistant, instead of only "quit Chrome completely".
+
+### Changed
 
 - M13 marked done: the owner reported the 1.2.0 checks done (install, the new icon, adding
   the extension with the assistant, the button over videos, a normal link opening SDM). This
