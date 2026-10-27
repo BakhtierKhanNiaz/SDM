@@ -21,11 +21,13 @@ The extension comes with SDM (in `SDM\extension` next to SDM.exe).
 
 1. **SDM's welcome assistant** (on first start; later **Help > Add the browser extension**)
    registers SDM for the browsers you tick.
-2. **Press "Add to Chrome"** (or Edge, Brave) there. The browser's extensions page opens and
-   SDM copies the extension's folder for you. Then, in the browser:
-   1. turn on **Developer mode** (top right),
-   2. click **Load unpacked**,
-   3. press **Ctrl+V** in the folder box and choose **Select Folder**.
+2. **Press "Add to Chrome"** (or Edge, Brave) there. The browser opens a new tab and SDM
+   copies the extension's folder for you. Nothing is added yet: then, in the browser,
+   1. type `chrome://extensions` (Edge: `edge://extensions`, Brave: `brave://extensions`) in
+      the address bar and press Enter (browsers don't let other programs open this page),
+   2. turn on **Developer mode** (top right),
+   3. click **Load unpacked**,
+   4. press **Ctrl+V** in the folder box and choose **Select Folder**.
 3. **Firefox:** from Firefox Add-ons once SDM is listed there (Firefox only installs add-ons
    signed by Mozilla; Firefox 128 or newer).
 4. **Restart the browser** completely if it was already open.
@@ -77,7 +79,7 @@ The toolbar icon shows a red **!**; click the icon to read the last problem.
 
 | Message | Meaning |
 |---|---|
-| SDM's browser bridge isn't installed for this extension | Run **Help > Setup assistant** in SDM, tick this browser, then restart the browser |
+| SDM isn't connected to this browser | Usually SDM was uninstalled or reinstalled, which removes the connection. Open SDM: since 1.2.1 it reconnects the browsers you chose when it starts. If not, run **Help > Setup assistant**, tick this browser and finish; if it still fails, quit the browser completely and open it again |
 | ...installed for a different extension ID | An extension loaded from an old copy: remove it and load the current zip |
 | SDM didn't start | SDM couldn't start within 15 seconds: start it from the Start menu and try again |
 | SDM couldn't take the link | Is SDM running as administrator? Start it normally. Details: `%LOCALAPPDATA%\SDM\logs\bridge-host.log` |

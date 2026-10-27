@@ -187,7 +187,7 @@ test("a missing host is reported without the link", async () => {
   nativeReply = () => Promise.reject(new Error("Specified native messaging host not found."));
   await listeners.clicked({ menuItemId: "sdm-download-link", linkUrl: link });
   const title = last("title")[1];
-  assert.match(title, /isn't installed/);
+  assert.match(title, /isn't connected to this browser.*Setup assistant/);
   assert.equal(title.includes(link), false);
 });
 
@@ -254,7 +254,7 @@ test("when SDM's host is missing, Chrome downloads it after all", async () => {
   nativeReply = () => Promise.reject(new Error("Specified native messaging host not found."));
   await determine(download({ url: "https://example.com/b.zip" }));
   assert.deepEqual(last("chrome-download"), ["chrome-download", { url: "https://example.com/b.zip" }]);
-  assert.match(last("title")[1], /isn't installed/);
+  assert.match(last("title")[1], /isn't connected to this browser.*Setup assistant/);
 });
 
 test("if Chrome can't restart it either, the tooltip says so", async () => {

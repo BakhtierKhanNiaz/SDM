@@ -54,8 +54,8 @@ Requirements: Windows 10 or 11, 64-bit.
 ### Connect your browser
 
 The extension comes with SDM. In SDM's welcome assistant (or **Help > Add the browser
-extension**), press **Add to Chrome** (or Edge, Brave) and follow the three short steps
-shown there. Details, and the optional SDM button on videos:
+extension**), press **Add to Chrome** (or Edge, Brave) and follow the four short steps
+shown there; the first is typing `chrome://extensions` in the browser's address bar. Details, and the optional SDM button on videos:
 [extension/README.md](extension/README.md).
 
 Start SDM normally (from the Start menu). If it runs **as administrator**, Windows doesn't let

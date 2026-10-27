@@ -71,6 +71,18 @@ def test_the_assistant_guides_load_unpacked(qtbot, monkeypatch, tmp_path):
     guide = wizard.guide.text()
     for step in ("Developer mode", "Load unpacked", "Ctrl+V", "Select Folder"):
         assert step in guide
+    # The owner's report (2026-10-27): Edge and Chrome open a blank new tab, never their
+    # extensions page, so the guide must say to type the address, not claim it opened.
+    assert "type <b>edge://extensions</b> in the address bar" in guide
+    assert "window that opened" not in guide
+
+
+def test_the_guide_works_when_the_browser_cant_be_started(qtbot, monkeypatch, tmp_path):
+    monkeypatch.setattr(browsers, "program_path", lambda b: None)
+    wizard = SetupWizard(Preferences(), installed={"chrome"}, default_folder=tmp_path)
+    qtbot.addWidget(wizard)
+    assert wizard.add_extension(BY_KEY["chrome"]) is False
+    assert "In Google Chrome, type <b>chrome://extensions</b>" in wizard.guide.text()
 
 
 def test_help_opens_the_assistant_at_the_browsers(qtbot, make_controller, tmp_path, monkeypatch):

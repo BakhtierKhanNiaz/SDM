@@ -501,3 +501,24 @@ logo (from nine drawn options). Design: ADR-0021. Branch `m13/look-and-video-but
 install 1.2.0 (About 1.2.0, the new icon), add the extension with the assistant, turn on the
 video button and click it on a video page, a normal link opening SDM. This also covers the
 install checks left open in M11 and M12.
+
+**Fix after M13 (2026-10-27): the browser connection after a reinstall.** The owner's Chrome
+(and some users') logged "Specified native messaging host not found" after reinstalling SDM.
+Cause, found in the code: the uninstaller deletes the registry keys and host manifests
+(`packaging/sdm.iss`, by design so no browser points at a deleted program), but the welcome
+assistant, the only thing that registers, runs once and its flag lives in the kept settings.
+SDM now remembers the connected browsers and repairs their registration at every start;
+regression tests in `tests/unit/test_browsers.py` and `tests/unit/test_packaging.py`. The
+owner's own check (reinstall, open SDM, click a link in Chrome) is still to do.
+
+**Fix after M13 (2026-10-27): "Add to Chrome" opened a blank tab.** The owner pressed Add to
+Chrome in the welcome assistant and no extension appeared. The button starts the browser with
+`chrome://extensions` and copies the extension folder; starting Chrome and Edge that way with a
+throwaway profile showed they open `chrome://newtab/` / `edge://newtab/` instead (an ordinary
+web address opens fine), while the guide said "In the window that opened". The guide now
+starts with typing the address; regression tests in `tests/integration/test_extension_setup.py`.
+The owner's own check (follow the four steps in Chrome) is still to do.
+
+**Released as 1.2.1 on 2026-10-27** with both fixes above (tag `v1.2.1`; the release workflow
+builds and publishes the files). The owner's check as a user (uninstall, install 1.2.1 from
+GitHub, add the extension, a link reaching SDM, reinstall again) is still to do.

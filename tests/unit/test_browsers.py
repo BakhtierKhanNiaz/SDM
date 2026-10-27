@@ -23,7 +23,9 @@ from sdm.bridge.install import (
     FIREFOX_MANIFEST_NAME,
     HOST_NAME,
     MANIFEST_NAME,
+    broken_registrations,
     register_browsers,
+    registered_browsers,
     unregister_browsers,
 )
 
@@ -102,6 +104,48 @@ def test_the_installed_app_registers_its_exe(tmp_path, prefix, monkeypatch):
     register_browsers(folder=tmp_path / "bridge", key_prefix=prefix)
     manifest = json.loads((tmp_path / "bridge" / MANIFEST_NAME).read_text(encoding="utf-8"))
     assert manifest["path"] == str(tmp_path / "SDM" / "sdm-bridge-host.exe")
+
+
+def test_a_reinstall_is_found_broken_and_repaired(tmp_path, prefix):
+    """The owner's 1.2.0 report: uninstalling SDM removed the registration, reinstalling
+    didn't restore it, and Chrome said "Specified native messaging host not found"."""
+    host = tmp_path / "SDM" / "sdm-bridge-host.exe"
+    host.parent.mkdir()
+    host.write_bytes(b"")
+    chosen = [BY_KEY["chrome"], BY_KEY["firefox"]]
+    folder = tmp_path / "bridge"
+    register_browsers(chosen, folder=folder, key_prefix=prefix, frozen_host=host)
+    check = dict(folder=folder, key_prefix=prefix, frozen_host=host)
+    assert broken_registrations(chosen, **check) == []
+    assert registered_browsers(key_prefix=prefix) == chosen
+    unregister_browsers(folder=folder, key_prefix=prefix)  # what the uninstaller does
+    assert registered_browsers(key_prefix=prefix) == []
+    assert broken_registrations(chosen, **check) == chosen
+    register_browsers(broken_registrations(chosen, **check), folder=folder, key_prefix=prefix,
+                      frozen_host=host)  # fmt: skip
+    assert broken_registrations(chosen, **check) == []
+
+
+@pytest.mark.parametrize("damage", ["manifest", "program", "moved", "garbage"])
+def test_a_registration_that_cant_start_this_sdm_is_broken(tmp_path, prefix, damage):
+    host = tmp_path / "SDM" / "sdm-bridge-host.exe"
+    host.parent.mkdir()
+    host.write_bytes(b"")
+    chrome = [BY_KEY["chrome"]]
+    folder = tmp_path / "bridge"
+    register_browsers(chrome, folder=folder, key_prefix=prefix, frozen_host=host)
+    if damage == "manifest":
+        (folder / MANIFEST_NAME).unlink()
+    elif damage == "program":
+        host.unlink()
+    elif damage == "garbage":
+        (folder / MANIFEST_NAME).write_text("{not json", encoding="utf-8")
+    elif damage == "moved":  # SDM now runs from somewhere else
+        host = tmp_path / "Elsewhere" / "sdm-bridge-host.exe"
+        host.parent.mkdir()
+        host.write_bytes(b"")
+    assert broken_registrations(chrome, folder=folder, key_prefix=prefix,
+                                frozen_host=host) == chrome  # fmt: skip
 
 
 @pytest.mark.parametrize(

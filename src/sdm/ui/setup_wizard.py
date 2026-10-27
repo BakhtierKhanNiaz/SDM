@@ -98,7 +98,7 @@ class SetupWizard(QWizard):
         browsers_page.setTitle("Connect your browsers")
         browsers_page.setSubTitle(
             "SDM registers itself for the ticked browsers. Then add SDM's extension to each "
-            "one: press its Add button and follow the three steps."
+            "one: press its Add button and follow the steps that appear below."
         )
         browsers_layout = QVBoxLayout(browsers_page)
         self.browser_checks: dict[str, QCheckBox] = {}
@@ -155,12 +155,16 @@ class SetupWizard(QWizard):
         QGuiApplication.clipboard().setText(str(folder))
         opened = open_extensions_page(browser, launch=self.launch)
         page = EXTENSIONS_PAGE[browser.key]
-        where = "In the window that opened" if opened else f"Open <b>{page}</b> in {browser.name}"
+        # The browser opens a new tab, not its extensions page: browsers ignore their own
+        # pages when another program asks for them (seen in Chrome and Edge, 2026-10-27).
+        where = "In the tab that opened" if opened else f"In {html.escape(browser.name)}"
         self.guide.setText(
-            f"<br><b>Add SDM to {html.escape(browser.name)}:</b> {where},<br>"
-            "1. turn on <b>Developer mode</b> (top right),<br>"
-            "2. click <b>Load unpacked</b>,<br>"
-            "3. press <b>Ctrl+V</b> in the folder box (SDM copied the folder for you) and "
+            f"<br><b>Add SDM to {html.escape(browser.name)}:</b><br>"
+            f"1. {where}, type <b>{page}</b> in the address bar and press <b>Enter</b> "
+            "(browsers don't let other programs open this page),<br>"
+            "2. turn on <b>Developer mode</b> (top right),<br>"
+            "3. click <b>Load unpacked</b>,<br>"
+            "4. press <b>Ctrl+V</b> in the folder box (SDM copied the folder for you) and "
             "choose <b>Select Folder</b>.<br>"
             f"<small>Folder: {html.escape(str(folder))}</small>"
         )

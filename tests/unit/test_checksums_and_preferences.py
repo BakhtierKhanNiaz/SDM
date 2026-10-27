@@ -78,3 +78,12 @@ def test_preferences_default_and_round_trip(store):
 def test_damaged_settings_fall_back_to_defaults(store, key, value):
     store.set_setting(key, value)
     assert load_preferences(store) == Preferences()
+
+
+@pytest.mark.parametrize(
+    ("stored", "loaded"),
+    [("chrome,firefox", "chrome,firefox"), ("", ""), ("?", "?"), ("chrome,evil", "?")],
+)
+def test_the_connected_browsers_are_remembered(store, stored, loaded):
+    save_preferences(store, Preferences(browsers=stored))
+    assert load_preferences(store).browsers == loaded

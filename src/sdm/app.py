@@ -97,6 +97,8 @@ def main(argv: list[str] | None = None) -> int:
     window.show()
     if not controller.preferences.setup_done:  # first start: the welcome assistant (M11)
         window.open_setup_wizard()
+    else:  # put back what a reinstall removed (1.2.1)
+        window.reconnect_browsers()
     receiver.received.connect(window.receive_handoff)
     window.handoff_closed.connect(receiver.done)
     if bridge is not None:

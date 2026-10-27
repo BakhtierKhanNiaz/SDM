@@ -4,8 +4,10 @@
    only and needs no administrator rights. Windows SmartScreen may warn that the publisher is
    unknown (SDM isn't code-signed): choose **More info**, then **Run anyway**.
 2. SDM's welcome assistant connects your browsers. For each one, press **Add to Chrome** (or
-   Edge, Brave) and follow the three steps it shows: the extension comes with SDM, so there's
-   nothing else to download. Later: **Help > Add the browser extension**.
+   Edge, Brave) and follow the four steps it shows (the first: type `chrome://extensions` in
+   the browser's address bar). The extension comes with SDM, so there's nothing else to
+   download. Later: **Help > Add the browser extension**.
+   Reinstalling or updating SDM keeps the browsers connected: SDM reconnects them at start.
 3. Optional: in the extension's panel, tick **Show the SDM button on videos**.
 4. Firefox: from Firefox Add-ons (Firefox 128 or newer).
 
