@@ -101,7 +101,11 @@ def extension_folder() -> Path:
 
 
 def open_extensions_page(browser: Browser, launch=subprocess.Popen) -> bool:
-    """Start the browser on its extensions page; False if SDM can't (Firefox, not found)."""
+    """Start the browser; False if SDM can't (Firefox, not found).
+
+    It opens a new tab, not `page`: Chrome and Edge ignore their own chrome:// / edge://
+    pages when another program passes them (checked 2026-10-27), so the user types it.
+    """
     page = EXTENSIONS_PAGE.get(browser.key)
     program = program_path(browser) if page else None
     if program is None:

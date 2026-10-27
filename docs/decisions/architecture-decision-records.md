@@ -621,6 +621,11 @@ deleted. A changed decision gets a new record that supersedes the old one.
     that folder's path, opens the browser's extensions page (the browser found through
     Windows' App Paths) and shows three steps. Browsers reload unpacked extensions from disk,
     so updating SDM also updates the extension after a browser restart.
+    *Correction (2026-10-27):* the extensions page never opens that way. Chrome and Edge
+    ignore `chrome://` / `edge://` pages passed by another program and show a new tab
+    (checked by starting each with a throwaway profile and reading its open tabs), so the
+    owner saw "no extension added". The guide now has four steps, the first being to type
+    the address in the browser's address bar.
 - **Consequences:** With the video button on, the extension can read every http(s) page the
   user opens (it only looks at video positions; the browser shows this permission). Chrome
   shows its "developer mode extensions" notice for unpacked extensions. The security model

@@ -8,6 +8,11 @@ while SDM is in 0.x.
 
 ### Fixed
 
+- **"Add to Chrome" seemed to do nothing** (reported by the owner, 2026-10-27). The button
+  opens the browser and copies the extension's folder, but the browser showed a blank new tab:
+  Chrome and Edge refuse to open their own extensions page for another program. The steps now
+  start with typing `chrome://extensions` (or `edge://`, `brave://`) in the address bar, and no
+  longer say the page opened.
 - **"Specified native messaging host not found" after reinstalling SDM** (reported by the
   owner and some users, 2026-10-27). Uninstalling SDM removes its browser registration, and
   reinstalling never put it back: the welcome assistant runs only once and its "done" flag

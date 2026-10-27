@@ -21,11 +21,13 @@ The extension comes with SDM (in `SDM\extension` next to SDM.exe).
 
 1. **SDM's welcome assistant** (on first start; later **Help > Add the browser extension**)
    registers SDM for the browsers you tick.
-2. **Press "Add to Chrome"** (or Edge, Brave) there. The browser's extensions page opens and
-   SDM copies the extension's folder for you. Then, in the browser:
-   1. turn on **Developer mode** (top right),
-   2. click **Load unpacked**,
-   3. press **Ctrl+V** in the folder box and choose **Select Folder**.
+2. **Press "Add to Chrome"** (or Edge, Brave) there. The browser opens a new tab and SDM
+   copies the extension's folder for you. Nothing is added yet: then, in the browser,
+   1. type `chrome://extensions` (Edge: `edge://extensions`, Brave: `brave://extensions`) in
+      the address bar and press Enter (browsers don't let other programs open this page),
+   2. turn on **Developer mode** (top right),
+   3. click **Load unpacked**,
+   4. press **Ctrl+V** in the folder box and choose **Select Folder**.
 3. **Firefox:** from Firefox Add-ons once SDM is listed there (Firefox only installs add-ons
    signed by Mozilla; Firefox 128 or newer).
 4. **Restart the browser** completely if it was already open.
